@@ -1,24 +1,18 @@
 import { defineConfig } from 'vitest/config'
-import { cloudflareTest } from '@cloudflare/vitest-pool-workers'
 
 /**
- * Tests run inside workerd, not Node.
+ * Tests run in Node, the same runtime the API runs in on Vercel.
  *
- * The verification checks use HTMLRewriter, and there is no honest way to test them outside the
- * runtime they run in: a jsdom stand-in would be testing the stand-in. The pool is configured
- * directly rather than from wrangler.jsonc so unit tests do not drag in the assets binding or a
- * D1 database they never touch.
+ * Under Cloudflare these ran inside workerd because the verification checks used HTMLRewriter.
+ * They now use a normal HTML parser, so there is nothing runtime-specific left to work around
+ * and the tests run wherever Node does, including CI.
  */
 export default defineConfig({
-  plugins: [
-    cloudflareTest({
-      miniflare: {
-        compatibilityDate: '2025-08-01',
-        compatibilityFlags: ['nodejs_compat'],
-      },
-    }),
-  ],
   test: {
     include: ['test/**/*.test.ts'],
+    environment: 'node',
+    // sharp and PGlite are slow to start the first time.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
   },
 })

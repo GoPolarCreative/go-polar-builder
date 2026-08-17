@@ -31,11 +31,7 @@ export default function Build() {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null)
   const [sections, setSections] = useState<string[]>([])
-  const [health, setHealth] = useState<{
-    anthropicKeyPresent: boolean
-    offlineGeneration: boolean
-    browserRendering: boolean
-  } | null>(null)
+  const [health, setHealth] = useState<Awaited<ReturnType<typeof api.health>> | null>(null)
 
   const streamRef = useRef<HTMLPreElement>(null)
 
@@ -111,7 +107,7 @@ export default function Build() {
         <div className="mb-6">
           <Banner tone="warn" title="No Anthropic key configured">
             <p>
-              Generation will fail until <code>ANTHROPIC_API_KEY</code> is set in <code>.dev.vars</code>, or{' '}
+              Generation will fail until <code>ANTHROPIC_API_KEY</code> is set in <code>.env.local</code>, or{' '}
               <code>DEV_OFFLINE_GENERATION=1</code> is set to run the deterministic offline fixture instead.
             </p>
           </Banner>

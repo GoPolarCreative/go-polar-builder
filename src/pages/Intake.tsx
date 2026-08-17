@@ -87,7 +87,7 @@ export default function Intake() {
 
   const logo = useMemo(() => assets.find((a) => a.kind === 'logo') ?? null, [assets])
   const photos = useMemo(
-    () => assets.filter((a) => a.kind === 'photo').sort((a, b) => a.sort_order - b.sort_order),
+    () => assets.filter((a) => a.kind === 'photo').sort((a, b) => a.sortOrder - b.sortOrder),
     [assets],
   )
 

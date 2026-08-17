@@ -1,5 +1,5 @@
-// Types shared by the Worker and the client. No runtime imports from here in the client
-// except plain types, so nothing server side can leak into the browser bundle.
+// Types shared by the server and the client. Plain types only, so nothing server side can leak
+// into the browser bundle.
 
 import type { Trade } from './trades'
 import type { IntakePayload } from './intake'
@@ -17,61 +17,76 @@ export type JobStatus =
 
 export interface Job {
   id: string
-  user_id: string
+  userId: string
   status: JobStatus
   trade: Trade | null
-  business_name: string | null
-  edits_used: number
-  edits_allowed: number
-  current_version: number
-  held: 0 | 1
-  held_reason: string | null
-  created_at: string
-  updated_at: string
+  businessName: string | null
+  editsUsed: number
+  editsAllowed: number
+  currentVersion: number
+  held: boolean
+  heldReason: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type AssetKind = 'logo' | 'photo'
 
 /**
  * Image signals computed in the browser at upload time (canvas), stored with the asset.
- * They exist because the Worker has no image decoder, and the gap audit needs to know things
- * like "is this logo actually a mockup render sitting on a photo".
+ * They exist because the gap audit needs pixel-level judgements, like "is this logo actually a
+ * mockup render sitting on a photo", and the answer is cheapest where the pixels already are.
  */
 export interface AssetStats {
   width: number
   height: number
   aspect: number
-  /** Share of pixels that sit in large flat colour areas. Real logos are high, photos are low. */
+  /** Share of pixels sitting in large flat colour areas. Real logos are high, photos are low. */
   flatRatio: number
   /** Distinct quantised colours. Logos are low, photographs are high. */
   distinctColours: number
-  /** Any pixel with alpha < 250. Transparent PNG or SVG is a good sign for a logo. */
   hasTransparency: boolean
-  /** 0-1. Higher means it looks like a photograph. Drives the mockup-render flag. */
+  /** 0 to 1. Higher means it looks like a photograph. Drives the mockup-render flag. */
   photographicScore: number
   /** Dominant colours, most frequent first, as #rrggbb. Feeds palette sampling. */
   dominant: string[]
 }
 
+export type VariantRole = 'web' | 'thumb'
+export type VariantFormat = 'webp' | 'jpeg' | 'png' | 'svg'
+
+/**
+ * A processed derivative that actually ships to visitors. The original is kept separately and
+ * never served: see server/lib/images.ts and DECISIONS.md D25 for the bandwidth reasoning.
+ */
+export interface AssetVariant {
+  role: VariantRole
+  format: VariantFormat
+  key: string
+  bytes: number
+  width: number
+  height: number
+}
+
 export interface AssetRecord {
   id: string
-  job_id: string
-  r2_key: string
+  jobId: string
   kind: AssetKind
   filename: string | null
-  content_type: string | null
-  bytes: number | null
+  contentType: string | null
+  /** Untouched upload, kept for rebuilds. Never referenced by a generated site. */
+  originalKey: string
+  originalBytes: number | null
   width: number | null
   height: number | null
-  sort_order: number
+  sortOrder: number
   stats: AssetStats | null
-  created_at: string
+  variants: AssetVariant[]
+  createdAt: string
 }
 
 // ---------------------------------------------------------------------------------------------
 // Gap audit (brief s4, server side, runs after submission and before generation)
-// Never blocking. Surfaced as a friendly inline prompt, and carried into generation so the
-// build can compensate (CSS logotype, skipped gallery, flagged defaults).
 // ---------------------------------------------------------------------------------------------
 
 export type AuditCode =
@@ -97,12 +112,11 @@ export interface AuditFlag {
   message: string
   /** What the generator will do about it. Also becomes an HTML comment in the build. */
   buildEffect: string
-  /** Optional field to jump the customer back to. */
   field?: string
 }
 
 // ---------------------------------------------------------------------------------------------
-// Verification (brief s6)
+// Verification (brief s6, plus check 17)
 // ---------------------------------------------------------------------------------------------
 
 export type CheckId =
@@ -122,16 +136,16 @@ export type CheckId =
   | 'no_horizontal_overflow'
   | 'images_load'
   | 'interactions_work'
+  | 'page_weight'
 
-export type CheckStatus = 'pass' | 'fail' | 'skipped'
+export type CheckStatus = 'pass' | 'fail' | 'skipped' | 'warn'
 
 export interface CheckResult {
   id: CheckId
   label: string
   status: CheckStatus
-  /** Human readable failure detail, fed back into the repair prompt verbatim. */
+  /** Human readable detail, fed back into the repair prompt verbatim on failure. */
   detail?: string
-  /** Up to a handful of offending snippets, to make the repair prompt concrete. */
   evidence?: string[]
 }
 
@@ -140,9 +154,11 @@ export interface VerificationReport {
   ranAt: string
   static: CheckResult[]
   render: CheckResult[]
-  /** True when render checks could not run (no Browser Rendering binding, e.g. local dev). */
+  /** True when render checks could not run (no browser driver available). */
   renderSkipped: boolean
   repairPasses: number
+  /** HTML plus every referenced asset, in bytes. What a first-time visitor downloads. */
+  pageWeightBytes: number
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -169,7 +185,7 @@ export type GenerationEvent =
   | { type: 'section_done'; section: string; index: number; total: number }
   | { type: 'verification'; report: VerificationReport }
   | { type: 'repair'; attempt: number; failing: string[] }
-  | { type: 'done'; version: number; bytes: number; passed: boolean }
+  | { type: 'done'; version: number; bytes: number; passed: boolean; pageWeightBytes?: number }
   | { type: 'error'; message: string; detail?: string }
 
 export type GenerationStage =

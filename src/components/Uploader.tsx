@@ -64,7 +64,7 @@ export function LogoUploader({
       >
         {logo ? (
           <img
-            src={assetUrl(logo.id)}
+            src={assetUrl(logo.id, 'web')}
             alt="Your logo"
             className="h-16 w-auto max-w-40 object-contain"
           />
@@ -226,7 +226,7 @@ export function PhotoUploader({
                 className="group relative aspect-4/3 cursor-move overflow-hidden rounded-lg border border-ice-200 bg-ice-100"
               >
                 <img
-                  src={assetUrl(p.id)}
+                  src={assetUrl(p.id, 'thumb')}
                   alt={p.filename ?? 'Job photo'}
                   className="h-full w-full object-cover"
                 />

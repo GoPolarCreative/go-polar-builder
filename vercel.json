@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run vercel:build",
+  "outputDirectory": "dist",
+  "framework": null,
+
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs22.x",
+      "memory": 2048,
+      "maxDuration": 300
+    }
+  },
+
+  "crons": [
+    {
+      "path": "/api/cron/sweep",
+      "schedule": "0 * * * *"
+    }
+  ],
+
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}

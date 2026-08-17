@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffPlans, summariseDiff } from '../worker/lib/edit'
+import { diffPlans, summariseDiff } from '../server/lib/edit'
 import { makeFixture } from './fixtures/site'
 
 const { plan } = makeFixture()

@@ -1,19 +1,35 @@
-import type { Env } from '../../worker/env'
 import type { IntakePayload } from '../../shared/intake'
-import type { AssetRecord } from '../../shared/types'
+import type { AssetRecord, AssetVariant } from '../../shared/types'
 import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import { buildFacts } from '../../worker/lib/facts'
-import { offlineHtml, offlinePlan } from '../../worker/lib/offline'
+import { setConfigForTests, loadConfig, type AppConfig } from '../../server/config'
+import { buildFacts } from '../../server/lib/facts'
+import { offlineHtml, offlinePlan } from '../../server/lib/offline'
 
 /**
- * One known-good site, built the same way the offline pipeline builds one, used as the baseline
- * for every check test. Breaking it in a specific way and asserting the matching check trips is
- * the whole point: a check that never fails is not a check.
+ * One known-good site, built the way the offline pipeline builds one, used as the baseline for
+ * every check test. Breaking it in a specific way and asserting the matching check trips is the
+ * whole point: a check that never fails is not a check.
  */
 
-export const TEST_ENV = {
-  WEB3FORMS_ACCESS_KEY: '11111111-2222-3333-4444-555555555555',
-} as unknown as Env
+/** Tests never read the real environment. */
+export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  const base = loadConfig()
+  const cfg: AppConfig = {
+    ...base,
+    demoMode: true,
+    storageDriver: 'local',
+    databaseDriver: 'pglite',
+    web3formsAccessKey: '11111111-2222-3333-4444-555555555555',
+    publicAppUrl: 'https://build.itscold.com.au',
+    appSecret: 'test-secret-not-a-real-one',
+    ...overrides,
+  }
+  setConfigForTests(cfg)
+  return cfg
+}
+
+// Applied on import so every test file gets the same deterministic configuration.
+testConfig()
 
 export function makeIntake(overrides: Partial<IntakePayload> = {}): IntakePayload {
   const base: IntakePayload = {
@@ -78,43 +94,54 @@ export function makeIntake(overrides: Partial<IntakePayload> = {}): IntakePayloa
   return { ...base, ...overrides }
 }
 
+/** Byte sizes here are realistic outputs of the sharp pipeline, not round numbers. */
+function photoVariants(assetId: string): AssetVariant[] {
+  return [
+    { role: 'web', format: 'webp', key: `jobs/job_test/photo/${assetId}-web.webp`, bytes: 214_800, width: 1920, height: 1440 },
+    { role: 'web', format: 'jpeg', key: `jobs/job_test/photo/${assetId}-web.jpg`, bytes: 318_400, width: 1920, height: 1440 },
+    { role: 'thumb', format: 'webp', key: `jobs/job_test/photo/${assetId}-thumb.webp`, bytes: 52_100, width: 800, height: 600 },
+    { role: 'thumb', format: 'jpeg', key: `jobs/job_test/photo/${assetId}-thumb.jpg`, bytes: 74_900, width: 800, height: 600 },
+  ]
+}
+
 export function makeAssets(): AssetRecord[] {
-  const photo = (id: string, order: number): AssetRecord => ({
-    id,
-    job_id: 'job_test',
-    r2_key: `jobs/job_test/photo/${id}.png`,
+  const photo = (assetId: string, order: number): AssetRecord => ({
+    id: assetId,
+    jobId: 'job_test',
     kind: 'photo',
-    filename: `${id}.png`,
-    content_type: 'image/png',
-    bytes: 500_000,
-    width: 1200,
-    height: 800,
-    sort_order: order,
+    filename: `${assetId}.jpg`,
+    contentType: 'image/jpeg',
+    originalKey: `jobs/job_test/original/${assetId}`,
+    originalBytes: 8_400_000, // a phone photo, before processing
+    width: 4032,
+    height: 3024,
+    sortOrder: order,
     stats: {
-      width: 1200,
-      height: 800,
-      aspect: 1.5,
+      width: 4032,
+      height: 3024,
+      aspect: 1.333,
       flatRatio: 0.12,
       distinctColours: 190,
       hasTransparency: false,
       photographicScore: 0.72,
       dominant: ['#336699'],
     },
-    created_at: '2026-08-17T00:00:00.000Z',
+    variants: photoVariants(assetId),
+    createdAt: '2026-08-17T00:00:00.000Z',
   })
 
   return [
     {
       id: 'ast_logo',
-      job_id: 'job_test',
-      r2_key: 'jobs/job_test/logo/ast_logo.png',
+      jobId: 'job_test',
       kind: 'logo',
       filename: 'logo.png',
-      content_type: 'image/png',
-      bytes: 10_000,
+      contentType: 'image/png',
+      originalKey: 'jobs/job_test/original/ast_logo',
+      originalBytes: 82_000,
       width: 512,
       height: 512,
-      sort_order: 0,
+      sortOrder: 0,
       stats: {
         width: 512,
         height: 512,
@@ -125,7 +152,11 @@ export function makeAssets(): AssetRecord[] {
         photographicScore: 0.06,
         dominant: ['#0d3b66', '#f4a261'],
       },
-      created_at: '2026-08-17T00:00:00.000Z',
+      variants: [
+        { role: 'web', format: 'webp', key: 'jobs/job_test/logo/ast_logo-web.webp', bytes: 9_100, width: 512, height: 512 },
+        { role: 'web', format: 'png', key: 'jobs/job_test/logo/ast_logo-web.png', bytes: 14_600, width: 512, height: 512 },
+      ],
+      createdAt: '2026-08-17T00:00:00.000Z',
     },
     photo('ast_p1', 0),
     photo('ast_p2', 1),
@@ -144,12 +175,12 @@ export interface Fixture {
 export function makeFixture(overrides: Partial<IntakePayload> = {}): Fixture {
   const intake = makeIntake(overrides)
   const assets = makeAssets()
-  const facts = buildFacts(TEST_ENV, intake, assets)
+  const facts = buildFacts(intake, assets)
   const plan = offlinePlan(
     intake,
     facts,
     [],
-    facts.photoPaths.map((p) => ({ assetId: p.assetId, path: p.path, note: 'client photo' })),
+    facts.photos.map((p) => ({ assetId: p.assetId, path: p.webWebp, note: 'client photo' })),
   )
   return { intake, assets, facts, plan, html: offlineHtml(plan, facts) }
 }

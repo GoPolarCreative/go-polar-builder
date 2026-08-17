@@ -9,7 +9,7 @@ import { join } from 'node:path'
  * Run after `npm run build`:  node scripts/check-bundle.mjs
  */
 
-const DIST = 'dist/client'
+const DIST = 'dist'
 
 const FORBIDDEN = [
   { name: 'Anthropic API key', pattern: /sk-ant-[A-Za-z0-9_-]{8,}/ },

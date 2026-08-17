@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-08-17T22:03:19.779Z",
+  "generator": "offline fixture, not the Anthropic API",
+  "business": "Cold Front Plumbing",
+  "pageWeightBytes": 1507686,
+  "pageWeightHuman": "1.4MB",
+  "originalImageBytes": 10615527,
+  "originalImageHuman": "10.1MB",
+  "passed": true,
+  "checks": [
+    {
+      "id": "hex_outside_root",
+      "label": "No colour values outside :root",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "no_em_dash",
+      "label": "No em dashes",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "no_emoji",
+      "label": "No emoji",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "single_h1",
+      "label": "Exactly one h1",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "heading_hierarchy",
+      "label": "No skipped heading levels",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "footer_credit",
+      "label": "Go Polar footer credit",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "jsonld_valid",
+      "label": "JSON-LD parses",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "form_action",
+      "label": "Forms post to Web3Forms",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "img_alt",
+      "label": "Every image has alt text",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "lang_attr",
+      "label": "lang=\"en-AU\"",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "free_quote_absent",
+      "label": "No \"free quote\" when free quotes is No",
+      "status": "skipped",
+      "detail": "Business does offer free quotes."
+    },
+    {
+      "id": "assets_exist",
+      "label": "Referenced assets exist",
+      "status": "pass",
+      "detail": null
+    },
+    {
+      "id": "page_weight",
+      "label": "Page weight within budget",
+      "status": "pass",
+      "detail": "1.4MB total, HTML 50KB"
+    },
+    {
+      "id": "renders_clean",
+      "label": "Loads with no console errors at 1440px and 390px",
+      "status": "skipped",
+      "detail": "Render checks were not requested for this pass."
+    },
+    {
+      "id": "no_horizontal_overflow",
+      "label": "No horizontal overflow at 390px",
+      "status": "skipped",
+      "detail": "Render checks were not requested for this pass."
+    },
+    {
+      "id": "images_load",
+      "label": "Every image loads after scrolling to the bottom",
+      "status": "skipped",
+      "detail": "Render checks were not requested for this pass."
+    },
+    {
+      "id": "interactions_work",
+      "label": "Accordions open and counters run",
+      "status": "skipped",
+      "detail": "Render checks were not requested for this pass."
+    }
+  ]
+}

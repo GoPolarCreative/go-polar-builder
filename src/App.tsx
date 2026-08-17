@@ -5,6 +5,7 @@ import Build from './pages/Build'
 import Preview from './pages/Preview'
 import GoLive from './pages/GoLive'
 import Discharge from './pages/Discharge'
+import DemoCheckout from './pages/DemoCheckout'
 
 export default function App() {
   return (
@@ -17,6 +18,9 @@ export default function App() {
       <Route path="/preview/:jobId" element={<Preview />} />
       <Route path="/golive/:jobId" element={<GoLive />} />
       <Route path="/discharge/:jobId" element={<Discharge />} />
+      {/* Local preview only. The route exists in all builds; the API behind it refuses
+          to run unless DEMO_MODE is on. */}
+      <Route path="/demo/checkout" element={<DemoCheckout />} />
       <Route path="*" element={<Navigate to="/start" replace />} />
     </Routes>
   )

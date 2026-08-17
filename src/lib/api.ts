@@ -64,13 +64,17 @@ export const api = {
   health: () =>
     request<{
       ok: boolean
+      demoMode: boolean
       anthropicKeyPresent: boolean
       offlineGeneration: boolean
-      browserRendering: boolean
+      renderDriver: 'playwright' | 'hosted' | 'none'
+      databaseDriver: 'postgres' | 'pglite'
+      storageDriver: 'vercel-blob' | 'local'
       shopifyConfigured: boolean
       emailConfigured: boolean
       ghlConfigured: boolean
       sessionsConfigured: boolean
+      live: { payments: boolean; email: boolean; crm: boolean; domains: boolean }
     }>('/api/health'),
 
   // --- Phase 6: auth --------------------------------------------------------------------------
@@ -271,6 +275,17 @@ export const api = {
       },
     ),
 
+  /** Demo mode only: complete a pretend purchase. Runs the real order handling. */
+  completeDemoCheckout: (body: { jobId: string; email: string; lines: string }) =>
+    request<{ ok: true; handled: Array<{ handle: string; kind: string; action: string }> }>(
+      `/api/demo/checkout/complete`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    ),
+
   extraEdits: (jobId: string) =>
     request<{ available: boolean; quantity: number; price: string | null; included: number; detail: string | null }>(
       `/api/jobs/${jobId}/edits/extra`,
@@ -280,8 +295,18 @@ export const api = {
     request<{ report: unknown }>(`/api/jobs/${jobId}/builds/${version}/verify`, { method: 'POST' }),
 }
 
-export function assetUrl(assetId: string): string {
-  return `/api/assets/${assetId}/raw`
+/**
+ * A stored image.  picks which derivative: the web-sized one by default, a thumbnail
+ * for grids, or the untouched original. The original is never shown to a customer and never
+ * referenced by a generated site.
+ */
+/**
+ * A stored image. `variant` picks which derivative: the web-sized one by default, a thumbnail for
+ * grids, or the untouched original. The original is never shown to a customer and is never
+ * referenced by a generated site, because its bytes are the ones that would cost money forever.
+ */
+export function assetUrl(assetId: string, variant: 'web' | 'thumb' | 'original' = 'web'): string {
+  return `/api/assets/${assetId}/raw?variant=${variant}`
 }
 
 export function previewUrl(jobId: string, version: number): string {

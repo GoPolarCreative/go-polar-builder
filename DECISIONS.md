@@ -294,6 +294,146 @@ All queries bind an ISO string computed in JavaScript. There is a warning at the
 
 ---
 
+## D22. Vercel, Postgres and Vercel Blob, with an embedded Postgres for local work
+
+**Question.** The stack moved from Cloudflare to Vercel. Postgres from the marketplace was
+specified, Neon by default. But local preview has to run on a fresh clone with no accounts, and
+Neon is an account.
+
+**Chosen.** One Drizzle schema and one set of migrations, run against two drivers:
+
+- **postgres** through postgres.js, pointed at Neon (or any Postgres) in production
+- **pglite**, which is Postgres compiled to wasm running inside the Node process, for local work
+
+PGlite is real Postgres, so the SQL, the types, the enums and the migrations are identical rather
+than approximated. `npm run dev` on a fresh clone creates and migrates the local database on boot
+with nothing installed and nothing signed up for.
+
+**What was migrated, not rewritten.** The intake wizard and its validation, the house rules
+prompt, both generation calls, the sectioned fallback, the verification checks, the gap audit, the
+data model and the Shopify webhook handling are all the same code. What changed underneath:
+D1 to Drizzle over Postgres, R2 to Blob, `HTMLRewriter` to a Node HTML parser, `cloudflare:sockets`
+to `node:net`, Worker secrets to environment variables, and the `env` binding threaded through
+every function to a `config()` read. The mechanical parts of that are in `scripts/migrate-env.mjs`
+and `scripts/migrate-images.mjs`, kept so the migration commit is legible.
+
+**The one Cloudflare thing that was NOT a product dependency.** Domain lookups used Cloudflare's
+DNS-over-HTTPS resolver. That now defaults to Google Public DNS and is configurable, so no
+Cloudflare service is contacted at all. The `Cloudflare` string that remains in
+`server/lib/domains.ts` is a signature used to tell a customer who currently hosts their domain,
+which is data about them, not a dependency of ours.
+
+---
+
+## D23. Render checks sit behind a driver interface, with Playwright first
+
+**Question.** Cloudflare Browser Rendering has no Vercel equivalent, and checks 13 to 16 need a
+headless browser.
+
+**Chosen.** A `RenderDriver` interface with one browser-side probe shared by every implementation,
+so all of them measure the same things:
+
+- **playwright** (default). On Vercel, `@sparticuz/chromium`, a Lambda-sized build, in a Node
+  function with 2GB memory and a 300 second limit. Locally, whichever Chrome or Edge is already
+  installed, so nothing is downloaded.
+- **hosted**. A remote Chromium over CDP, for when the bundled browser's size or cold start is not
+  worth it. Set `RENDER_DRIVER=hosted` and `BROWSERLESS_URL`.
+- **none**. Explicitly skip.
+
+Checks 1 to 12 and 17 need no browser and run regardless, which is the property that matters: the
+majority of real faults are caught with no browser at all.
+
+**Status.** Playwright against a locally installed browser has been run and all four checks pass
+against the sample site, which is the first time checks 13 to 16 have ever executed on this
+project. The bundled `@sparticuz/chromium` path on Vercel is written but unrun, because nothing
+has been deployed. If its cold start turns out to be unworkable, switching to `hosted` is one
+environment variable and no code.
+
+---
+
+## D24. Client sites are served from Blob through one function, by hostname
+
+**Question.** The $30/month product is hosting the generated site, and it now has to run on
+Vercel.
+
+**Chosen.** At go live, the stored `index.html` is rewritten so every asset path becomes an
+absolute URL to the stored file, and the result is saved as that site's live document. A request
+arriving on a customer hostname is answered by the API function with that document. Domains are
+attached to the project with the Vercel Domains API, which is what issues the certificate.
+
+**Why this split.** One function invocation serves the HTML, which is tens of kilobytes. The
+images, which are the actual bandwidth, come straight from Blob with a one year immutable cache
+header and never touch compute. Serving images through a function would pay for the bytes twice,
+once in bandwidth and once in invocation time.
+
+**Not done, deliberately.** Nothing is deployed and no domain has been attached, so this path is
+written and unit tested but has not served a real request.
+
+---
+
+## D25. Images are processed at upload, and the bandwidth maths behind it
+
+**Question.** Vercel bills bandwidth. R2 did not. These are static single-file sites with plain
+image tags, so there is no framework image pipeline downstream: whatever byte size is stored is
+the byte size every visitor downloads, on every site, forever.
+
+**The maths.** 50 client sites, up to 20 photos each, originals up to 10MB. Serving originals
+would be up to 200MB of images on a single page. A thousand visits to one such site is 200GB.
+Vercel Pro includes 1TB, then $0.15/GB. Five site-months of that pattern eats the entire included
+allowance, and every month after that is a bill that grows with the customer's success. Against
+$30/month per site, that is the difference between hosting being profitable and hosting being a
+liability.
+
+**Chosen.** Nothing that was uploaded is ever served.
+
+- The original is stored, untouched, for rebuilds only.
+- A web derivative is generated, capped at 1920px on the longest edge.
+- A thumbnail is generated at 800px, and the gallery grid uses that, not the full width file.
+- Each is encoded as WebP with a JPEG fallback, and the generated site uses `<picture>` so every
+  browser takes the smaller file it supports.
+- EXIF orientation is honoured, or half the phone photos land sideways.
+
+**Measured on the committed sample:** 10.1MB of originals become a 1.4MB page. The fixture
+images are gaussian noise, which is close to the worst case for a compressor; real photographs do
+considerably better.
+
+**Check 17** enforces it. The page weight, HTML plus every asset the page actually fetches, is
+computed on every build, recorded on the build row, warned above 2.5MB and failed above 5MB
+against a 2MB target. It is a static check: no browser needed, so it always runs.
+
+**If Chris wants to raise the quality ceiling.** The knobs are all in `server/lib/images.ts`:
+`WEB_MAX_EDGE`, `THUMB_MAX_EDGE` and the quality constants. Going from 1920px to 2560px, or WebP
+quality 78 to 88, roughly doubles image bytes and therefore roughly doubles the bandwidth cost per
+visit. That is a real trade to make deliberately, not a setting to nudge.
+
+---
+
+## D26. Local preview is a first-class deliverable
+
+**Question.** Nothing may deploy, bill, email a real person or touch a domain before it has been
+looked at on a laptop.
+
+**Chosen.** Three layers, so an accident cannot become a live action:
+
+1. **Demo mode.** Every outbound integration is behind an interface with a local fake. Shopify,
+   Resend, GoHighLevel, WHOIS and the registrar all have one, and each fake logs what it would
+   have done: `FAKE RESEND: would send build link to x@y.com`. Demo mode is the default when
+   nothing is configured.
+2. **Live switches.** Payments, email, CRM and domains each have an `ENABLE_LIVE_*` flag, off in
+   the example config. A blocked action throws an error naming the flag rather than silently doing
+   nothing, because a silent no-op in a payment path is indistinguishable from success.
+3. **The webhook is inert.** It refuses in demo mode and refuses without a signing secret, so
+   pointing a real webhook at a preview install does nothing.
+
+The demo checkout is worth calling out: it does not simulate the outcome, it runs the same
+`processPaidOrder` the real webhook runs. The flows after payment are therefore exercised by the
+production code path rather than a parallel imitation of it.
+
+**The sample site** is committed to the repo as real files at `sample/index.html`, with its
+verification report beside it, so it can be judged by double clicking with no server, no key and
+no setup. It is built by the offline fixture, not the model, and both the folder and the report
+say so.
+
 ---
 
 ## D21. Test strategy

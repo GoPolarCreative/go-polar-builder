@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { Env } from '../worker/env'
-import { createZip, crc32 } from '../worker/lib/zip'
-import { PLACEHOLDER_KEY, generateFavicon, isValidWeb3FormsKey, swapWeb3FormsKey } from '../worker/lib/discharge'
-import { normaliseDomain, requiresAuEligibility } from '../worker/lib/domains'
-import { ShopifyConfigError, centsFromPrice, createCheckout, handleForLineItem, kindForHandle, orderEmail, orderJobIdAttribute } from '../worker/lib/shopify'
-import { hashToken, mintToken, readClaims, signClaims, verifyShopifyHmac } from '../worker/lib/signing'
-import { makeFixture } from './fixtures/site'
+import { createZip, crc32 } from '../server/lib/zip'
+import { PLACEHOLDER_KEY, generateFavicon, isValidWeb3FormsKey, swapWeb3FormsKey } from '../server/lib/discharge'
+import { normaliseDomain, requiresAuEligibility } from '../server/lib/domains'
+import {
+  ShopifyConfigError,
+  centsFromPrice,
+  createCheckout,
+  handleForLineItem,
+  kindForHandle,
+  orderEmail,
+  orderJobIdAttribute,
+} from '../server/lib/shopify'
+import { hashToken, mintToken, readClaims, signClaims, verifyShopifyHmac } from '../server/lib/signing'
+import { rewriteAssetPaths } from '../server/lib/publish'
+import { makeFixture, testConfig } from './fixtures/site'
 
 const fixture = makeFixture()
-
-const SIGNING_ENV = { APP_SECRET: 'test-secret-not-a-real-one' } as unknown as Env
 
 describe('zip writer', () => {
   it('produces a file with the right signatures and entry count', () => {
@@ -17,7 +23,7 @@ describe('zip writer', () => {
     const zip = createZip(
       [
         { path: 'index.html', data: encoder.encode('<!DOCTYPE html><html></html>') },
-        { path: 'assets/photo-01.png', data: encoder.encode('not really a png') },
+        { path: 'assets/photo-01.webp', data: encoder.encode('not really a webp') },
       ],
       new Date('2026-08-17T10:00:00Z'),
     )
@@ -25,7 +31,6 @@ describe('zip writer', () => {
     const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength)
     expect(view.getUint32(0, true)).toBe(0x04034b50) // first local file header
 
-    // End of central directory: last 22 bytes, entry count in both places.
     const eocd = zip.length - 22
     expect(view.getUint32(eocd, true)).toBe(0x06054b50)
     expect(view.getUint16(eocd + 8, true)).toBe(2)
@@ -33,9 +38,8 @@ describe('zip writer', () => {
   })
 
   it('stores file contents verbatim, because nothing is compressed', () => {
-    const encoder = new TextEncoder()
     const content = 'Website by Go Polar Creative'
-    const zip = createZip([{ path: 'a.txt', data: encoder.encode(content) }])
+    const zip = createZip([{ path: 'a.txt', data: new TextEncoder().encode(content) }])
     expect(new TextDecoder().decode(zip)).toContain(content)
   })
 
@@ -46,8 +50,7 @@ describe('zip writer', () => {
 
   it('writes the file name into both the local and the central header', () => {
     const zip = createZip([{ path: 'READ-ME-FIRST.txt', data: new Uint8Array([1, 2, 3]) }])
-    const text = new TextDecoder().decode(zip)
-    expect(text.split('READ-ME-FIRST.txt')).toHaveLength(3) // appears twice
+    expect(new TextDecoder().decode(zip).split('READ-ME-FIRST.txt')).toHaveLength(3)
   })
 })
 
@@ -90,8 +93,27 @@ describe('Web3Forms key swap on discharge', () => {
 
   it('comments every form, not just the first', () => {
     const out = swapWeb3FormsKey(fixture.html, goPolarKey, null)
-    const comments = out.html.match(/IMPORTANT: the form below/g) ?? []
-    expect(comments.length).toBe(2)
+    expect((out.html.match(/IMPORTANT: the form below/g) ?? []).length).toBe(2)
+  })
+})
+
+describe('publishing a live site', () => {
+  it('rewrites every asset path to an absolute URL so images never pass through a function', () => {
+    const { html, count } = rewriteAssetPaths(fixture.html, fixture.facts, (key) => `https://cdn.example/${key}`)
+    expect(count).toBeGreaterThan(0)
+    expect(html).not.toMatch(/src="assets\//)
+    expect(html).not.toMatch(/srcset="assets\//)
+    expect(html).toContain('https://cdn.example/')
+  })
+
+  it('does not corrupt a thumbnail path by matching the shorter full-size path inside it', () => {
+    const { html } = rewriteAssetPaths(fixture.html, fixture.facts, (key) => `https://cdn.example/${key}`)
+    // Both survive as distinct URLs. The failure mode being guarded against is the shorter
+    // path matching inside the longer one and producing something like <cdn>/photo-01.webp-thumb.
+    expect(html).not.toContain('assets/photo-01')
+    expect(html).toContain('ast_p1-web.webp')
+    expect(html).toContain('ast_p1-thumb.webp')
+    expect(html).not.toContain('.webp-thumb')
   })
 })
 
@@ -125,29 +147,49 @@ describe('domain normalising', () => {
   })
 })
 
-describe('Shopify checkout', () => {
-  it('fails with the exact missing variable name when nothing is configured', async () => {
-    const env = { SHOPIFY_STORE_DOMAIN: 'itscold.myshopify.com' } as unknown as Env
-    await expect(
-      createCheckout(env, { jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'hosting-monthly', quantity: 1 }] }),
-    ).rejects.toThrow(/SHOPIFY_VARIANT_HOSTING_MONTHLY/)
+describe('checkout', () => {
+  it('returns a local demo checkout in demo mode, and never contacts Shopify', async () => {
+    testConfig({ demoMode: true })
+    const result = await createCheckout({
+      jobId: 'job_1',
+      email: 'a@b.com',
+      lines: [{ handle: 'hosting-monthly', quantity: 1 }],
+    })
+    expect(result.method).toBe('demo')
+    expect(result.url).toContain('/demo/checkout')
+    expect(result.url).toContain('job_1')
   })
 
-  it('fails with a named error type so the UI can tell config apart from a real outage', async () => {
-    const env = {} as unknown as Env
+  it('refuses to build a real checkout unless live payments are switched on', async () => {
+    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
     await expect(
-      createCheckout(env, { jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'discharge', quantity: 1 }] }),
-    ).rejects.toBeInstanceOf(ShopifyConfigError)
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'discharge', quantity: 1 }] }),
+    ).rejects.toThrow(/ENABLE_LIVE_PAYMENTS/)
+    testConfig()
+  })
+
+  it('names the exact missing variable when a product is not configured', async () => {
+    testConfig({
+      demoMode: false,
+      live: { payments: true, email: false, crm: false, domains: false },
+      shopify: { storeDomain: 'itscold.myshopify.com' },
+    })
+    await expect(
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'hosting-monthly', quantity: 1 }] }),
+    ).rejects.toThrow(/SHOPIFY_VARIANT_HOSTING_MONTHLY/)
+    testConfig()
   })
 
   it('builds a cart permalink carrying the job id and the selling plan', async () => {
-    const env = {
-      SHOPIFY_STORE_DOMAIN: 'itscold.myshopify.com',
-      SHOPIFY_VARIANT_HOSTING_MONTHLY: '45012345678901',
-      SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY: '6890123456',
-    } as unknown as Env
+    testConfig({
+      demoMode: false,
+      live: { payments: true, email: false, crm: false, domains: false },
+      shopify: { storeDomain: 'itscold.myshopify.com' },
+    })
+    process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY = '45012345678901'
+    process.env.SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY = '6890123456'
 
-    const result = await createCheckout(env, {
+    const result = await createCheckout({
       jobId: 'job_abc',
       email: 'jobs@coldfront.com.au',
       lines: [{ handle: 'hosting-monthly', quantity: 1 }],
@@ -156,21 +198,26 @@ describe('Shopify checkout', () => {
     expect(result.method).toBe('permalink')
     expect(result.url).toContain('itscold.myshopify.com/cart/45012345678901:1')
     expect(result.url).toContain('selling_plan=6890123456')
-    expect(result.url).toContain('job_id')
     expect(result.url).toContain('job_abc')
+
+    delete process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY
+    delete process.env.SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY
+    testConfig()
   })
 
   it('refuses to silently drop an add-on a permalink cannot carry', async () => {
-    const env = {
-      SHOPIFY_STORE_DOMAIN: 'itscold.myshopify.com',
-      SHOPIFY_VARIANT_HOSTING_MONTHLY: '1',
-      SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY: '10',
-      SHOPIFY_VARIANT_EMAIL_MONTHLY: '2',
-      SHOPIFY_SELLING_PLAN_EMAIL_MONTHLY: '20',
-    } as unknown as Env
+    testConfig({
+      demoMode: false,
+      live: { payments: true, email: false, crm: false, domains: false },
+      shopify: { storeDomain: 'itscold.myshopify.com' },
+    })
+    process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY = '1'
+    process.env.SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY = '10'
+    process.env.SHOPIFY_VARIANT_EMAIL_MONTHLY = '2'
+    process.env.SHOPIFY_SELLING_PLAN_EMAIL_MONTHLY = '20'
 
     await expect(
-      createCheckout(env, {
+      createCheckout({
         jobId: 'job_abc',
         email: 'a@b.com',
         lines: [
@@ -179,23 +226,41 @@ describe('Shopify checkout', () => {
         ],
       }),
     ).rejects.toThrow(/SHOPIFY_STOREFRONT_TOKEN/)
+
+    for (const key of [
+      'SHOPIFY_VARIANT_HOSTING_MONTHLY',
+      'SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY',
+      'SHOPIFY_VARIANT_EMAIL_MONTHLY',
+      'SHOPIFY_SELLING_PLAN_EMAIL_MONTHLY',
+    ]) {
+      delete process.env[key]
+    }
+    testConfig()
+  })
+
+  it('config errors are a named type, so the UI can tell them from an outage', async () => {
+    testConfig({ demoMode: false, live: { payments: true, email: false, crm: false, domains: false } })
+    await expect(
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'discharge', quantity: 1 }] }),
+    ).rejects.toBeInstanceOf(ShopifyConfigError)
+    testConfig()
   })
 })
 
-describe('Shopify order parsing', () => {
-  const env = { SHOPIFY_VARIANT_BUILD_TOKEN: '999' } as unknown as Env
-
+describe('order parsing', () => {
   it('matches a line item by configured variant id first', () => {
-    expect(handleForLineItem(env, { variant_id: 999, title: 'Something else' })).toBe('build-token')
+    process.env.SHOPIFY_VARIANT_BUILD_TOKEN = '999'
+    expect(handleForLineItem({ variant_id: 999, title: 'Something else' })).toBe('build-token')
+    delete process.env.SHOPIFY_VARIANT_BUILD_TOKEN
   })
 
   it('falls back to the SKU', () => {
-    expect(handleForLineItem(env, { sku: 'hosting-monthly', title: 'Whatever' })).toBe('hosting-monthly')
+    expect(handleForLineItem({ sku: 'hosting-monthly', title: 'Whatever' })).toBe('hosting-monthly')
   })
 
   it('falls back to the title, and reports nothing rather than guessing wrong', () => {
-    expect(handleForLineItem(env, { title: 'Website Build Token' })).toBe('build-token')
-    expect(handleForLineItem(env, { title: 'A tin of paint' })).toBeNull()
+    expect(handleForLineItem({ title: 'Website Build Token' })).toBe('build-token')
+    expect(handleForLineItem({ title: 'A tin of paint' })).toBeNull()
   })
 
   it('maps handles to order kinds', () => {
@@ -225,52 +290,37 @@ describe('Shopify order parsing', () => {
 
 describe('signing', () => {
   it('round trips claims', async () => {
-    const token = await signClaims(SIGNING_ENV, {
-      kind: 'download',
-      jobId: 'job_1',
-      exp: Math.floor(Date.now() / 1000) + 60,
-    })
-    const claims = await readClaims(SIGNING_ENV, token, 'download')
-    expect(claims?.jobId).toBe('job_1')
+    const token = await signClaims({ kind: 'download', jobId: 'job_1', exp: Math.floor(Date.now() / 1000) + 60 })
+    expect((await readClaims(token, 'download'))?.jobId).toBe('job_1')
   })
 
   it('rejects a tampered payload', async () => {
-    const token = await signClaims(SIGNING_ENV, {
-      kind: 'download',
-      jobId: 'job_1',
-      exp: Math.floor(Date.now() / 1000) + 60,
-    })
+    const token = await signClaims({ kind: 'download', jobId: 'job_1', exp: Math.floor(Date.now() / 1000) + 60 })
     const [, signature] = token.split('.')
     const forged = `${btoa(JSON.stringify({ kind: 'download', jobId: 'job_someone_else', exp: 9999999999 }))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '')}.${signature}`
-    expect(await readClaims(SIGNING_ENV, forged, 'download')).toBeNull()
+    expect(await readClaims(forged, 'download')).toBeNull()
   })
 
   it('rejects an expired token', async () => {
-    const token = await signClaims(SIGNING_ENV, {
-      kind: 'download',
-      jobId: 'job_1',
-      exp: Math.floor(Date.now() / 1000) - 5,
-    })
-    expect(await readClaims(SIGNING_ENV, token, 'download')).toBeNull()
+    const token = await signClaims({ kind: 'download', jobId: 'job_1', exp: Math.floor(Date.now() / 1000) - 5 })
+    expect(await readClaims(token, 'download')).toBeNull()
   })
 
   it('will not let a session cookie be replayed as a download link', async () => {
-    const session = await signClaims(SIGNING_ENV, {
-      kind: 'session',
-      jobId: 'job_1',
-      exp: Math.floor(Date.now() / 1000) + 60,
-    })
-    expect(await readClaims(SIGNING_ENV, session, 'download')).toBeNull()
-    expect(await readClaims(SIGNING_ENV, session, 'session')).not.toBeNull()
+    const session = await signClaims({ kind: 'session', jobId: 'job_1', exp: Math.floor(Date.now() / 1000) + 60 })
+    expect(await readClaims(session, 'download')).toBeNull()
+    expect(await readClaims(session, 'session')).not.toBeNull()
   })
 
   it('fails loudly when APP_SECRET is missing rather than signing with nothing', async () => {
-    await expect(
-      signClaims({} as unknown as Env, { kind: 'session', jobId: 'j', exp: 9999999999 }),
-    ).rejects.toThrow(/APP_SECRET/)
+    const noSecret = testConfig({ appSecret: undefined })
+    await expect(signClaims({ kind: 'session', jobId: 'j', exp: 9999999999 }, noSecret)).rejects.toThrow(
+      /APP_SECRET/,
+    )
+    testConfig()
   })
 
   it('stores only a hash of a build token', async () => {
@@ -307,8 +357,7 @@ describe('Shopify webhook verification', () => {
   })
 
   it('rejects a modified body', async () => {
-    const signature = await realSignature()
-    expect(await verifyShopifyHmac(secret, body.replace('12345', '99999'), signature)).toBe(false)
+    expect(await verifyShopifyHmac(secret, body.replace('12345', '99999'), await realSignature())).toBe(false)
   })
 
   it('rejects a missing or rubbish header', async () => {

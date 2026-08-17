@@ -217,6 +217,32 @@ export const planSchema = z.object({
 export type ContentPlan = z.infer<typeof planSchema>
 
 /**
+ * One photo as it will ship: a web-sized and a thumbnail variant, each with a WebP and a JPEG,
+ * so the generated site can use <picture> and every browser takes the smaller file it supports.
+ * See server/lib/images.ts and DECISIONS.md D25 for why originals are never referenced.
+ */
+export interface PhotoRef {
+  assetId: string
+  webWebp: string
+  webJpeg: string
+  thumbWebp: string
+  thumbJpeg: string
+  width: number
+  height: number
+  /** Bytes of the web WebP, which is what most visitors actually download. */
+  bytes: number
+}
+
+export interface LogoRef {
+  /** Preferred file, WebP or SVG. */
+  path: string
+  /** PNG fallback for the <picture>, absent when the logo is an SVG. */
+  fallback: string | null
+  width: number
+  height: number
+}
+
+/**
  * Facts the build call is not allowed to change. Passed alongside the plan so the model cannot
  * quietly reformat a phone number or drop a suburb.
  */
@@ -235,8 +261,13 @@ export interface BuildFacts {
   web3formsKey: string
   heroFormSubject: string
   contactFormSubject: string
-  logoPath: string | null
-  photoPaths: Array<{ assetId: string; path: string }>
+  logo: LogoRef | null
+  photos: PhotoRef[]
+  /**
+   * Every file that will ship alongside index.html, by the exact path the HTML must use, with
+   * its byte size. Drives the "referenced assets exist" check and the page weight check.
+   */
+  assetManifest: Record<string, { key: string; bytes: number; contentType: string }>
   canonicalUrl: string
   googleReviewLink: string | null
 }

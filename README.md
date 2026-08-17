@@ -4,8 +4,97 @@ A self-serve web app where Australian trade businesses pay $200, answer a guided
 questions, and watch a complete single-page website get generated in front of them. They get 10
 rounds of changes, then choose to go live on Go Polar hosting or take the files elsewhere.
 
-Built to the build brief dated 17 Aug 2026. **All six phases are built.** Nothing has been
-deployed. Read `DECISIONS.md` for every judgement call the brief did not settle.
+Vercel, Postgres and Vercel Blob. Nothing is deployed. Nothing can charge money, email a real
+person or touch a domain unless a flag is deliberately switched on.
+
+---
+
+# Preview It
+
+Written for someone who has just cloned this and wants to look at it. In order.
+
+## 1. Look at a finished website right now, no setup at all
+
+Open this file by double clicking it:
+
+```
+sample/index.html
+```
+
+That is a complete generated site for a fictional plumbing business: sticky header, hero with a
+quote form, services, gallery, animated counters, FAQ accordion, the lot. No server, no API key,
+nothing to install. It works offline.
+
+Beside it, `sample/verification.json` is the check report for that exact file. Every check that
+ran, and what it found.
+
+**Two honest notes.** The photos are generated fixtures, not real job photos, because there are
+none to use. And the copy was produced by the offline fixture generator rather than by Claude,
+because no Anthropic key was available while building. Structure, styling, schema, forms, image
+handling and every check are the real pipeline.
+
+## 2. Run the whole app locally, still with no accounts
+
+```bash
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173>.
+
+That is it. No database to install, no `.env` to write, no services to sign up for. It runs in
+**demo mode**: the database is Postgres compiled to wasm running inside the process, files go to a
+folder on disk, and Shopify, email, the CRM and the registrar are all local fakes that print what
+they would have done.
+
+You should see the builder front door with a status grid at the bottom showing `Demo mode: on`.
+
+## 3. Load the test business and click through it
+
+In a second terminal, with `npm run dev` still going:
+
+```bash
+npm run seed
+```
+
+It prints two links. Both sign you in exactly the way a paying customer would, through the real
+token flow:
+
+- **Start the wizard from scratch** lands on question one, five steps, all validation live.
+- **Straight to generating a site** lands on a job with the intake already submitted, four photos
+  uploaded and processed, ready to press the button.
+
+On the second one, press **Start the build**. You will watch the HTML stream in, then the
+verification checks run, then the finished site appear in an iframe. From there:
+
+- **Looks good, let me make changes** opens the preview and edit screen. The changes counter, the
+  version history and rollback all work.
+- **I am ready to go live** walks the three go-live screens. The checkout is a local pretend
+  checkout: confirming it runs the same code a real Shopify webhook would.
+- **Take your files elsewhere** packages a real zip you can download and unzip.
+
+Watch the terminal while you do it. Every integration that would have fired prints a line:
+
+```
+FAKE RESEND: would send "Your website build is ready to start" to jobs@coldfrontplumbing.com.au
+FAKE GHL: would fire "build_complete" into the CRM  [contact=... preview_link=...]
+FAKE SHOPIFY: would create a checkout  [jobId=job_... lines=hosting-monthly]
+```
+
+## 4. Run the checks yourself
+
+```bash
+npm test              # 158 unit tests
+npm run sample:verify # all 17 checks against sample/index.html, using a real browser
+```
+
+`sample:verify` uses whichever Chrome or Edge is already installed. If there is none it reports
+checks 13 to 16 as skipped, with the reason, and still runs the other thirteen.
+
+## What this preview does NOT do
+
+Nothing deploys. Nothing bills. No email leaves the machine. No DNS record changes. There is no
+`npm run deploy`, on purpose: deploying is `npx vercel --prod` typed by a human.
 
 ---
 
@@ -13,84 +102,34 @@ deployed. Read `DECISIONS.md` for every judgement call the brief did not settle.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Scaffold, D1 schema, R2, wrangler config, runs locally | done |
-| 1 | Intake wizard, validation, suburb and ABN lookups, R2 uploads, logo colour sampling, gap audit | done |
+| 0 | Scaffold, schema, storage, config, runs locally | done |
+| 1 | Intake wizard, validation, lookups, uploads, image pipeline, gap audit | done |
 | 2 | Two-call generation, streaming, sectioned fallback, cached house rules | done |
-| 3 | All 16 verification checks, repair loop, hold and notify | done, 4 of 16 unrun (see below) |
+| 3 | 17 verification checks, repair loop, hold and notify | done |
 | 4 | Preview, edit loop, version history, rollback | done |
-| 5 | Go live, three domain branches, WHOIS and MX lookups, discharge | done |
-| 6 | Auth, Shopify, Resend, GHL, cron sweep, deploy-ready config | done, not deployed |
+| 5 | Go live, three domain branches, RDAP and DNS lookups, discharge | done |
+| 6 | Auth, Shopify, Resend, GHL, cron, demo mode, deploy-ready config | done, not deployed |
 
-**133 unit tests.** `npm test`.
+**158 unit tests.** Plus a 34-check end-to-end script and a verification self-test.
 
-### What cannot run without credentials
+### What needs real credentials
 
-Everything below is fully built and fails with an error naming the exact missing variable. None
-of it is stubbed, mocked or silently skipped.
+Everything below is fully built and fails with an error naming the exact missing variable. None of
+it is stubbed or silently skipped.
 
-| Needs | Missing | What happens without it |
+| Needs | For | Without it |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | real generation and edits | Clear error, or set `DEV_OFFLINE_GENERATION=1` for the deterministic fixture |
-| Browser Rendering binding | verification checks 13 to 16 | Reported as `skipped`, never `pass` |
-| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Checkout returns 503 naming the variable; webhooks refuse outright |
-| `RESEND_API_KEY` | build links, receipts, handover emails | Recorded as `email.failed` and retried hourly |
-| `GHL_INBOUND_WEBHOOK_URL` | CRM notifications | Recorded as `ghl.failed`, never blocks a payment |
-| `APP_SECRET` | sessions, build tokens, download links | Loud error naming the variable |
+| `ANTHROPIC_API_KEY` | real generation and edits | Clear error, or `DEV_OFFLINE_GENERATION=1` for the fixture |
+| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable |
+| `RESEND_API_KEY` | build links, receipts, handover | Printed to the terminal in demo mode; recorded as `email.failed` and retried otherwise |
+| `GHL_INBOUND_WEBHOOK_URL` | CRM notifications | Printed in demo mode; recorded as `ghl.failed`, never blocks a payment |
+| `DATABASE_URL` | Neon in production | Embedded PGlite locally |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob | Local folder |
+| `VERCEL_API_TOKEN` | attaching customer domains | Logged as a fake, nothing attached |
+| Chrome or Chromium | checks 13 to 16 | Reported as `skipped`, never `pass` |
 
-The two live integrations that need **no** credentials do work today and were tested against
-real services: RDAP domain lookups and DNS over HTTPS.
-
----
-
-## Running it
-
-Requires Node 20 or newer.
-
-```bash
-npm install
-cp .env.example .dev.vars      # then fill in what you have, see below
-npm run db:migrate:local       # applies db/schema.sql to the local D1
-npm run dev                    # http://localhost:5173
-```
-
-One process runs everything: Vite serves the React client, and the Cloudflare plugin runs the
-Worker in workerd with real local D1 and R2 bindings.
-
-Seed a realistic test business (in a second terminal, with `npm run dev` running):
-
-```bash
-npm run seed
-```
-
-It prints a `/start?t=...` link. Open it and you are signed in exactly the way a paying customer
-would be, then the wizard, generation, preview, edits, go live and discharge all work end to end.
-
-### Minimum .dev.vars to see it work
-
-```
-APP_SECRET=anything-long-and-random-for-local
-PUBLIC_APP_URL=http://localhost:5173
-WEB3FORMS_ACCESS_KEY=11111111-2222-3333-4444-555555555555
-DEV_OFFLINE_GENERATION=1        # or set ANTHROPIC_API_KEY for real generation
-```
-
-`DEV_OFFLINE_GENERATION=1` runs a hand-written fixture through the exact same plan, build,
-verify and store pipeline. **It is a test harness, not the product.** The real output comes from
-the two Anthropic calls. Never set it in production.
-
-### Commands
-
-```bash
-npm run dev            # everything, one process
-npm test               # 133 unit tests, inside workerd
-npm run typecheck      # all three projects, strict
-npm run build          # typecheck, build, then scan the client bundle for secrets
-npm run seed           # seed a test business through the real API
-npm run db:reset:local # wipe local D1 and R2 state, re-apply the schema
-```
-
-`npm run build` fails if an Anthropic key, a Shopify token or even the string `x-api-key` turns
-up in `dist/client`. Brief section 14 calls that a build failure, so it is one.
+The two live integrations that need **no** credentials do work today and were tested against real
+services: RDAP domain lookups and DNS over HTTPS.
 
 ---
 
@@ -99,11 +138,13 @@ up in `dist/client`. Brief section 14 calls that a build failure, so it is one.
 ```
 shared/     types, zod schemas, pricing, trades, suburbs, ABN and phone.
             Imported by BOTH sides, so client and server validation cannot drift.
-worker/     Hono API. routes/ is thin, lib/ does the work, prompts/ holds the system prompts.
+server/     Hono API. routes/ is thin, lib/ does the work, prompts/ holds the system prompts.
+api/        the Vercel function entry point. One line: it hands off to server/.
 src/        React: intake wizard, build screen, preview and edit loop, go live, discharge.
-db/         D1 schema.
-test/       unit tests, run inside workerd.
-scripts/    seed, webhook signer, local db reset, client bundle secret scan.
+db/         Drizzle schema and generated migrations.
+sample/     the committed sample website and its verification report.
+test/       unit tests.
+scripts/    seed, sample builder, migrations, end to end, bundle secret scan.
 ```
 
 The generated sites share nothing with this app. They are single-file vanilla HTML with their own
@@ -113,24 +154,23 @@ The generated sites share nothing with this app. They are single-file vanilla HT
 
 ## How it works
 
-### Intake to first build
-
 ```
 Shopify orders/paid -> HMAC verified -> user + job created -> build token emailed -> GHL
   -> intake wizard, five steps, validated by one schema shared with the server
+  -> uploads processed: original kept, web and thumbnail derivatives generated as WebP and JPEG
   -> gap audit (never blocks, always flags)
   -> call 1: content plan as strict JSON, validated, server overrides its facts
   -> call 2: HTML, streamed to the browser
   -> truncated? sectioned fallback, assembled server side
-  -> 16 verification checks, up to 2 repair passes
+  -> 17 verification checks, up to 2 repair passes
   -> pass: preview. fail: job held, Chris notified, customer never sees it
 ```
 
 ### The two calls
 
 **Call 1** produces the content plan, which is the editable source of truth and what the edit
-loop, rollback and the discharge export all read. Validated against a strict zod schema, with one
-corrective retry that feeds the validation errors back.
+loop, rollback and the discharge export all read. Validated against a strict zod schema with one
+corrective retry.
 
 **Call 2** produces the HTML and streams it, because watching the site assemble is the product.
 
@@ -138,65 +178,45 @@ Both mark the system prompt `cache_control: ephemeral`. The house rules block is
 byte-identical on every build. **Do not interpolate anything into `HOUSE_RULES`**: one changed
 character invalidates the cache for every job.
 
+Function duration limits make the sectioned fallback more likely to be needed, not less, so it is
+built, exercised and tested rather than merely present.
+
 ### The model is never trusted with facts
 
-`enforcePlanInvariants` overwrites, on every build and every edit:
+`enforcePlanInvariants` overwrites, on every build and every edit: testimonials (only real ones,
+verbatim), the gallery (off below 3 usable photos, no stock substitute), the suburb list, the
+schema.org type, `areaServed`, `sameAs`, the geo coordinates, and every stat counter, which must
+match a number that actually appears in the intake.
 
-- testimonials, which exist only if real reviews were supplied, and only verbatim
-- the gallery, which is off below 3 usable photos, with no stock photography substituted
-- the suburb list, the schema.org type, `areaServed`, `sameAs`, the geo coordinates
-- every stat counter, which must match a number that actually appears in the intake
+### Images and page weight
 
-`BuildFacts` carries what the model may not reword at all: phone numbers, the Web3Forms key, form
-subject lines, asset paths.
+Whatever a generated site references is what every visitor downloads, forever, and Vercel bills
+the bandwidth. So originals are stored for rebuilds and never served. What ships is a 1920px web
+derivative and an 800px thumbnail, each as WebP with a JPEG fallback, wired up with `<picture>`.
+Galleries use thumbnails. Check 17 measures the total and fails the build above 5MB.
+
+On the sample: 10.1MB of originals become a 1.4MB page. The full reasoning and the bandwidth
+maths are in DECISIONS.md D25.
 
 ### Verification
 
-**Checks 1 to 12** run in the Worker. Structure via HTMLRewriter, text rules over the raw source.
-Every failure carries evidence, and that evidence goes into the repair prompt verbatim.
+**Checks 1 to 12 and 17** run in the API with no browser. Structure via a real HTML parser, text
+rules over the raw source. Every failure carries evidence, and that evidence goes into the repair
+prompt verbatim.
 
-**Checks 13 to 16** need Cloudflare Browser Rendering. The binding is commented out in
-`wrangler.jsonc` because it needs a paid plan and stops local dev booting. Uncomment before
-deploying. Until then those four report `skipped` with a reason. **They never report `pass`.**
+**Checks 13 to 16** need a browser, behind a driver interface: bundled Chromium on Vercel, an
+installed Chrome or Edge locally, or a hosted browser over CDP. When none is available they report
+`skipped`, never `pass`.
 
 **Repair loop:** failing checks go back to the model, twice at most. Still failing holds the job,
-writes the event that becomes Chris's GHL notification, and shows the customer a holding message
-rather than a broken site.
+notifies Chris, and shows the customer a holding message rather than a broken site.
 
-Beyond the unit tests there is a live self-test that takes a passing build, breaks it twelve
-specific ways and asserts each break is caught:
+Prove the checks work:
 
 ```bash
-curl http://localhost:5173/api/dev/selftest/<JOB_ID>/1
+npm run sample:verify                            # all 17 against the sample
+curl http://localhost:8787/api/dev/selftest/<JOB_ID>/1   # break a build 13 ways, assert each is caught
 ```
-
-### Edits
-
-One submitted request is one edit, however many changes it contains, and the placeholder text
-says so. An edit revises the plan, then rebuilds the document from it with the previous version
-supplied and an instruction to change nothing else. Rollback moves a pointer, costs no edit and
-deletes no version. Passing the allowance escalates to Chris rather than blocking.
-
-### Go live and discharge
-
-Hosting starts billing at go live and not before. The job only advances when Shopify confirms the
-checkout. Domain screen has the three branches from the brief, with real RDAP and DNS lookups
-behind branch A and C, real availability behind branch B, and auDA eligibility collected up front
-for .au. Nothing anywhere promises a connection timeframe.
-
-Discharge packages `index.html`, `assets/`, both favicons, a standalone inlined `PREVIEW.html`
-and a `READ-ME-FIRST.txt` into a zip. Go Polar's Web3Forms key never leaves in an exported file:
-it is swapped for the customer's own validated key, or for a placeholder commented above every
-form. Prepared by the automation, released by a human.
-
-### The hourly sweep
-
-Cron, `0 * * * *`. Four jobs, each because something goes missing silently otherwise:
-
-1. paid Shopify orders with no matching job, because webhooks get dropped
-2. jobs that are paid but whose build link never actually sent
-3. intake abandoned for 24 hours, the warmest lead in the business
-4. stalled in editing for 72 hours
 
 ---
 
@@ -205,82 +225,66 @@ Cron, `0 * * * *`. Four jobs, each because something goes missing silently other
 Nothing has been deployed. This is the whole list.
 
 ```bash
-# 1. Create the resources
-npx wrangler d1 create go-polar-builder          # put the id in wrangler.jsonc
-npx wrangler r2 bucket create go-polar-builder
-npx wrangler r2 bucket create go-polar-builder-dev
+# 1. Provision, from the Vercel dashboard
+#    - Postgres (Neon) from the marketplace
+#    - a Blob store
 
-# 2. Apply the schema
-npm run db:migrate:remote
+# 2. Environment variables, from .env.example. At minimum:
+#      APP_SECRET, PUBLIC_APP_URL, DATABASE_URL, BLOB_READ_WRITE_TOKEN,
+#      ANTHROPIC_API_KEY, WEB3FORMS_ACCESS_KEY, DEMO_MODE=0
+#    Then, only when you actually want them live:
+#      ENABLE_LIVE_PAYMENTS, ENABLE_LIVE_EMAIL, ENABLE_LIVE_CRM, ENABLE_LIVE_DOMAINS
 
-# 3. Set the secrets (see .env.example for what each one does)
-npx wrangler secret put APP_SECRET
-npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put WEB3FORMS_ACCESS_KEY
-npx wrangler secret put SHOPIFY_WEBHOOK_SECRET
-npx wrangler secret put SHOPIFY_ADMIN_API_TOKEN
-npx wrangler secret put SHOPIFY_STOREFRONT_TOKEN
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put GHL_INBOUND_WEBHOOK_URL
-npx wrangler secret put ADMIN_TOKEN
-# plus one SHOPIFY_VARIANT_* per product, and SHOPIFY_SELLING_PLAN_* per subscription
+# 3. Migrate
+DATABASE_URL=... npm run db:migrate
 
-# 4. Uncomment the browser binding in wrangler.jsonc so checks 13 to 16 run
-
-# 5. Deploy
-npm run deploy
+# 4. Deploy, deliberately
+npx vercel --prod
 ```
 
-Then in Shopify, point the `orders/paid` webhook at
-`https://<your-domain>/api/webhooks/shopify` and use the same signing secret.
+Then in Shopify point the `orders/paid` webhook at
+`https://<your-domain>/api/webhooks/shopify` with the same signing secret. The hourly cron is
+already declared in `vercel.json`.
 
 ---
 
 ## Things a reviewer should know
 
-Each is flagged in the code as well.
-
 1. **The visual reference was not available.** The brief names the Gildon Constructions and CWM
-   Modular screenshots. They live in the Claude project, not in this session. The visual
-   direction in `worker/prompts/houseRules.ts` is reconstructed from the written spec. Compare a
-   real generated build against those two sites and tighten the prompt, not the code.
+   Modular screenshots. They live in the Claude project, not in this session. The visual direction
+   in `server/prompts/houseRules.ts` is reconstructed from the written spec. Compare the sample
+   against those two sites and tighten the prompt, not the code.
 
-2. **Checks 13 to 16 have never executed.** No Browser Rendering binding exists locally. The code
-   is written against the real API. They report `skipped` so nothing false reaches a customer,
-   and that behaviour is unit tested.
+2. **The sample was generated by the offline fixture, not by Claude.** With an API key the same
+   pipeline calls the model instead. The fixture exists so the pipeline and the checks can run
+   without one, and it is labelled everywhere it appears.
 
 3. **The suburb dataset is a development seed**, about 150 localities in `shared/suburbs.ts` with
-   approximate centroids. Replace it with Australia Post or G-NAF locality data before launch.
-   Everything goes through the `SuburbProvider` interface, so it is a one-file change.
+   approximate centroids. Replace it with Australia Post or G-NAF data before launch. Everything
+   goes through the `SuburbProvider` interface, so it is a one-file change.
 
-4. **Address autocomplete is partial.** Street-level autocomplete needs a Places or Geoscape key
-   that is not configured. The suburb comes from the verified dataset and the street line is
-   typed. The suburb is what drives NAP and geo tags, so the half that matters is verified.
+4. **Address autocomplete is partial.** Street-level autocomplete needs a Places or Geoscape key.
+   The suburb comes from the verified dataset and the street line is typed. The suburb is what
+   drives NAP and geo tags, so the half that matters is verified.
 
-5. **ABN validation is checksum only.** That catches typos. The live ABR lookup belongs at .au
-   domain purchase, where auDA needs the registered entity name to match.
+5. **ABN validation is checksum only.** The live ABR lookup belongs at .au domain purchase, where
+   auDA needs the registered entity name to match.
 
 6. **Domain registration is queued, not automated.** There is no registrar API and no account to
-   charge. Availability is real, the eligibility details are collected, and a human completes the
-   purchase. See DECISIONS.md D6.
+   charge. Availability is real, eligibility details are collected, a human completes the purchase.
 
-7. **Image analysis happens in the browser.** A Worker has no image decoder. `src/lib/image.ts`
-   computes the signals the gap audit uses to spot mockup renders and wide lockups. They are
-   advisory: nothing security relevant depends on them.
-
-8. **`database_id` in `wrangler.jsonc` is a placeholder.** Replace it with the real id before
-   deploying. Local dev ignores it.
+7. **Serving live client sites is written but has never served a request**, because nothing is
+   deployed. See DECISIONS.md D24.
 
 ## Open questions for Chris
 
-- **Price for `extra-edits`.** Listed as TBC in the brief, so it is `null` in
-  `shared/pricing.ts` and the UI offers to get in touch instead of showing a number. Everything
-  else on that path is built.
+- **Price for `extra-edits`.** TBC in the brief, so it is `null` in `shared/pricing.ts` and the UI
+  offers to get in touch instead of showing an invented number. Everything else on that path is
+  built.
 - **Which subscription app is installed on Shopify.** Needed for the selling plan ids.
 - **Whether the Shopify storefront is framed business to business.** Ex GST display is normal for
-  ABN holders, but Australian Consumer Law wants a single GST-inclusive total shown prominently
-  to consumers. Worth a word with your accountant.
-- **The real Web3Forms key.** A placeholder UUID is used until then.
-- **Where the generated sites get hosted at go live.** The flow takes the payment, collects the
-  domain and queues the connection, which is what section 8 describes. It does not publish the
-  site anywhere, because the brief never says where hosting lives. See DECISIONS.md D13.
+  ABN holders, but Australian Consumer Law wants a single GST-inclusive total shown prominently to
+  consumers. Worth a word with your accountant.
+- **The real Web3Forms key.**
+- **Image quality ceiling.** The current settings put a finished page near 1MB. Raising them costs
+  bandwidth on every visit forever; the trade is spelled out in DECISIONS.md D25.

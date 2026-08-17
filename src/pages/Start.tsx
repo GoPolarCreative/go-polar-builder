@@ -183,14 +183,19 @@ function DevStart({ health }: { health: Awaited<ReturnType<typeof api.health>> }
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
+        <Status label="Demo mode" ok={health.demoMode} neutral />
         <Status label="Anthropic key" ok={health.anthropicKeyPresent} />
         <Status label="Offline fixture" ok={health.offlineGeneration} neutral />
-        <Status label="Browser Rendering" ok={health.browserRendering} />
         <Status label="Sessions" ok={health.sessionsConfigured} />
         <Status label="Shopify" ok={health.shopifyConfigured} />
         <Status label="Email" ok={health.emailConfigured} />
         <Status label="GoHighLevel" ok={health.ghlConfigured} />
+        <Status label="Live actions" ok={Object.values(health.live).some(Boolean)} />
       </dl>
+      <p className="field-hint mt-2 text-center">
+        database: {health.databaseDriver} | storage: {health.storageDriver} | render checks:{' '}
+        {health.renderDriver}
+      </p>
     </div>
   )
 }

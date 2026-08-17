@@ -8,8 +8,8 @@
 // anything that needs survey accuracy.
 //
 // Before launch, replace the SEED array with a full locality dataset (Australia Post
-// postcode file, or G-NAF localities via data.gov.au) loaded from R2 or a D1 table. Nothing
-// else has to change: everything goes through the SuburbProvider interface below.
+// postcode file, or G-NAF localities via data.gov.au) loaded from blob storage or a database
+// table. Nothing else has to change: everything goes through the SuburbProvider interface below.
 //
 // The rule from the brief is what matters and it holds either way - the service-area field is
 // AUTOCOMPLETE ONLY. Free text there is how service names ended up in the service-area field
@@ -221,7 +221,7 @@ export function suburbLabel(s: Suburb): string {
   return `${s.name}, ${s.state} ${s.postcode}`
 }
 
-/** In-memory provider over the seed. Swap for a D1 or R2 backed one without touching callers. */
+/** In-memory provider over the seed. Swap for a database backed one without touching callers. */
 export class SeedSuburbProvider implements SuburbProvider {
   constructor(private readonly data: readonly Suburb[] = SEED) {}
 

@@ -2,8 +2,8 @@
  * End to end smoke test against a running dev server.
  *
  *   npm run dev          (in one terminal)
- *   node scripts/seed.mjs
- *   node scripts/e2e.mjs <JOB_ID> <SESSION>
+ *   npm run seed
+ *   npm run e2e -- <JOB_ID> <SESSION>
  *
  * Or just: node scripts/e2e.mjs      (it seeds first)
  *
@@ -15,7 +15,7 @@
  * tunnelling under it.
  */
 
-const BASE = process.env.BASE ?? 'http://localhost:5173'
+const BASE = process.env.BASE ?? 'http://localhost:8787'
 
 let jobId = process.argv[2] ?? null
 let session = process.argv[3] ?? null
@@ -90,7 +90,9 @@ async function main() {
   if (!jobId) {
     console.log('No job id given, seeding one first...\n')
     const { execFileSync } = await import('node:child_process')
-    const out = execFileSync(process.execPath, ['scripts/seed.mjs'], {
+    // tsx is resolved from node_modules rather than via npx, which is not an executable on
+    // Windows and cannot be spawned directly.
+    const out = execFileSync(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'scripts/seed.ts'], {
       encoding: 'utf8',
       env: { ...process.env, BASE },
     })
@@ -116,13 +118,18 @@ async function main() {
   check('generation completes', Boolean(genDone), genDone ? `v${genDone.version}, ${genDone.bytes} bytes` : '')
   check('generation passes verification', genDone?.passed === true)
   check(
-    'all twelve static checks ran',
-    genReport?.report?.static?.length === 12,
+    'all thirteen static checks ran',
+    genReport?.report?.static?.length === 13,
     `${genReport?.report?.static?.filter((c) => c.status === 'pass').length ?? 0} passed`,
   )
+  // Either a browser was available and all four ran, or none was and all four skipped. A mix,
+  // or a pass with no browser, is the failure mode worth guarding: it would mean a check
+  // reporting success without having looked at anything.
+  const renderStatuses = new Set((genReport?.report?.render ?? []).map((c) => c.status))
   check(
-    'render checks report skipped, never pass',
-    genReport?.report?.render?.every((c) => c.status === 'skipped') === true,
+    'render checks either all ran or all skipped, never a mix',
+    renderStatuses.size === 1 && (renderStatuses.has('pass') || renderStatuses.has('skipped')),
+    [...renderStatuses].join(','),
   )
   check('the stream carried the html as it was written', gen.some((e) => e.type === 'html_chunk'))
 
@@ -192,11 +199,11 @@ async function main() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ emailAddon: true }),
   })
+  check('a demo checkout link is offered locally', Boolean(plan.body?.checkoutUrl))
   check(
-    'checkout fails loudly with the missing variable named',
-    plan.status === 503 && String(plan.body?.detail).includes('SHOPIFY_VARIANT_HOSTING_MONTHLY'),
+    'the demo checkout points at this app, not at Shopify',
+    String(plan.body?.checkoutUrl ?? '').includes('/demo/checkout'),
   )
-  check('the customer selection is saved anyway', plan.body?.saved === true)
 
   const noAbn = await call(`/api/jobs/${jobId}/golive/domain`, {
     method: 'POST',

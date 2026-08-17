@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Env } from '../worker/env'
-import { SESSION_COOKIE, buildLink, clearCookie, jobIdFromPath, sessionCookie } from '../worker/lib/auth'
-import { readClaims, signClaims } from '../worker/lib/signing'
+import { SESSION_COOKIE, buildLink, clearCookie, jobIdFromPath, sessionCookie } from '../server/lib/auth'
+import { readClaims, signClaims } from '../server/lib/signing'
 import {
   buildCompleteEmail,
   buildLinkEmail,
@@ -9,25 +8,22 @@ import {
   goLiveReceiptEmail,
   resendLinkEmail,
   send,
-} from '../worker/lib/email'
-import { GhlConfigError, builderLoginLink, notifyGhl, previewLink } from '../worker/lib/ghl'
-
-const ENV = {
-  APP_SECRET: 'test-secret-not-a-real-one',
-  PUBLIC_APP_URL: 'https://build.itscold.com.au',
-} as unknown as Env
+} from '../server/lib/email'
+import { GhlConfigError, builderLoginLink, notifyGhl, previewLink } from '../server/lib/ghl'
+import { LiveActionBlockedError, assertLiveEnabled } from '../server/config'
+import { testConfig } from './fixtures/site'
 
 describe('build links and cookies', () => {
   it('builds a link on the configured public URL', () => {
-    expect(buildLink(ENV, 'abc123')).toBe('https://build.itscold.com.au/start?t=abc123')
+    expect(buildLink('abc123')).toBe('https://build.itscold.com.au/start?t=abc123')
   })
 
   it('url encodes the token', () => {
-    expect(buildLink(ENV, 'a+b/c=')).toContain('t=a%2Bb%2Fc%3D')
+    expect(buildLink('a+b/c=')).toContain('t=a%2Bb%2Fc%3D')
   })
 
   it('sets an HttpOnly, SameSite=Lax cookie, secure on https', () => {
-    const cookie = sessionCookie(ENV, 'value')
+    const cookie = sessionCookie('value')
     expect(cookie).toContain(`${SESSION_COOKIE}=value`)
     expect(cookie).toContain('HttpOnly')
     expect(cookie).toContain('SameSite=Lax')
@@ -36,8 +32,9 @@ describe('build links and cookies', () => {
   })
 
   it('does not mark the cookie secure on a plain http dev origin', () => {
-    const dev = { ...ENV, PUBLIC_APP_URL: 'http://localhost:5173' } as unknown as Env
-    expect(sessionCookie(dev, 'value')).not.toContain('Secure')
+    const dev = testConfig({ publicAppUrl: 'http://localhost:5173' })
+    expect(sessionCookie('value', dev)).not.toContain('Secure')
+    testConfig()
   })
 
   it('clears the cookie by expiring it', () => {
@@ -46,8 +43,8 @@ describe('build links and cookies', () => {
 })
 
 describe('job ownership is read from the path', () => {
-  // This is the check that stops one valid session reading another customer's build. It reads
-  // the path directly because the middleware runs on a wildcard route, where c.req.param() is
+  // This is the check that stops one valid session reading another customer's build. It reads the
+  // path directly because the middleware runs on a wildcard route, where c.req.param() is
   // undefined. That bug shipped once and is the reason these tests exist.
   it('finds the job id on every job route shape', () => {
     expect(jobIdFromPath('/api/jobs/job_abc')).toBe('job_abc')
@@ -64,34 +61,80 @@ describe('job ownership is read from the path', () => {
     expect(jobIdFromPath('/api/auth/me')).toBeNull()
   })
 
-  it('is not fooled by a query string or a fragment', () => {
+  it('is not fooled by a query string', () => {
     expect(jobIdFromPath('/api/jobs/job_abc?version=2')).toBe('job_abc')
   })
 })
 
 describe('session claims', () => {
   it('ties a session to one job', async () => {
-    const session = await signClaims(ENV, {
+    const session = await signClaims({
       kind: 'session',
       jobId: 'job_one',
       exp: Math.floor(Date.now() / 1000) + 3600,
     })
-    const claims = await readClaims(ENV, session, 'session')
-    expect(claims?.jobId).toBe('job_one')
+    expect((await readClaims(session, 'session'))?.jobId).toBe('job_one')
   })
 
   it('cannot be re-signed for another job without the secret', async () => {
-    const other = { ...ENV, APP_SECRET: 'a-different-secret' } as unknown as Env
-    const session = await signClaims(other, {
-      kind: 'session',
-      jobId: 'job_two',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    })
-    expect(await readClaims(ENV, session, 'session')).toBeNull()
+    const other = testConfig({ appSecret: 'a-different-secret' })
+    const session = await signClaims(
+      { kind: 'session', jobId: 'job_two', exp: Math.floor(Date.now() / 1000) + 3600 },
+      other,
+    )
+    const ours = testConfig()
+    expect(await readClaims(session, 'session', ours)).toBeNull()
+  })
+})
+
+describe('live action gating', () => {
+  // The safety rail behind local preview: nothing charges, emails or touches DNS unless a flag
+  // is explicitly on, and a blocked action throws rather than quietly doing nothing.
+  it('blocks every capability by default', () => {
+    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    for (const capability of ['payments', 'email', 'crm', 'domains'] as const) {
+      expect(() => assertLiveEnabled(capability, cfg)).toThrow(LiveActionBlockedError)
+    }
+    testConfig()
+  })
+
+  it('names the flag that would turn it on', () => {
+    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    expect(() => assertLiveEnabled('email', cfg)).toThrow(/ENABLE_LIVE_EMAIL/)
+    expect(() => assertLiveEnabled('domains', cfg)).toThrow(/ENABLE_LIVE_DOMAINS/)
+    testConfig()
+  })
+
+  it('allows a capability once it is explicitly enabled', () => {
+    const cfg = testConfig({ demoMode: false, live: { payments: true, email: false, crm: false, domains: false } })
+    expect(() => assertLiveEnabled('payments', cfg)).not.toThrow()
+    testConfig()
   })
 })
 
 describe('emails', () => {
+  it('sends nothing in demo mode and logs what it would have sent', async () => {
+    testConfig({ demoMode: true })
+    const result = await send({ to: 'someone@example.com', subject: 'Test', text: 'Body' })
+    expect(result.id).toMatch(/^fake_email_/)
+  })
+
+  it('refuses to send for real unless live email is switched on', async () => {
+    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/ENABLE_LIVE_EMAIL/)
+    testConfig()
+  })
+
+  it('names RESEND_API_KEY when live email is on but the key is missing', async () => {
+    testConfig({
+      demoMode: false,
+      live: { payments: false, email: true, crm: false, domains: false },
+      resendApiKey: undefined,
+    })
+    await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/RESEND_API_KEY/)
+    testConfig()
+  })
+
   it('the build link email carries the link and the 90 day promise', () => {
     const message = buildLinkEmail({ link: 'https://build.itscold.com.au/start?t=xyz' })
     expect(message.text).toContain('https://build.itscold.com.au/start?t=xyz')
@@ -148,37 +191,40 @@ describe('emails', () => {
       expect(message.subject).not.toContain('—')
     }
   })
-
-  it('refuses to send with no API key, naming the variable', async () => {
-    await expect(send({} as unknown as Env, { to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
-      /RESEND_API_KEY/,
-    )
-  })
 })
 
 describe('GoHighLevel', () => {
-  it('refuses to post with no webhook URL, naming the variable', async () => {
-    await expect(
-      notifyGhl({} as unknown as Env, {
-        event: 'payment_received',
-        contact: { email: 'a@b.com' },
-        jobId: 'job_1',
-        customValues: {},
-      }),
-    ).rejects.toBeInstanceOf(GhlConfigError)
+  const payload = {
+    event: 'payment_received' as const,
+    contact: { email: 'a@b.com' },
+    jobId: 'job_1',
+    customValues: {},
+  }
 
-    await expect(
-      notifyGhl({} as unknown as Env, {
-        event: 'payment_received',
-        contact: { email: 'a@b.com' },
-        jobId: 'job_1',
-        customValues: {},
-      }),
-    ).rejects.toThrow(/GHL_INBOUND_WEBHOOK_URL/)
+  it('posts nothing in demo mode', async () => {
+    testConfig({ demoMode: true })
+    await expect(notifyGhl(payload)).resolves.toBeUndefined()
+  })
+
+  it('refuses to post for real unless live CRM is switched on', async () => {
+    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    await expect(notifyGhl(payload)).rejects.toThrow(/ENABLE_LIVE_CRM/)
+    testConfig()
+  })
+
+  it('names the webhook variable when live CRM is on but the URL is missing', async () => {
+    testConfig({
+      demoMode: false,
+      live: { payments: false, email: false, crm: true, domains: false },
+      ghlWebhookUrl: undefined,
+    })
+    await expect(notifyGhl(payload)).rejects.toBeInstanceOf(GhlConfigError)
+    await expect(notifyGhl(payload)).rejects.toThrow(/GHL_INBOUND_WEBHOOK_URL/)
+    testConfig()
   })
 
   it('builds the two custom values the brief asks us to add', () => {
-    expect(builderLoginLink(ENV, 'tok')).toBe('https://build.itscold.com.au/start?t=tok')
-    expect(previewLink(ENV, 'job_1')).toBe('https://build.itscold.com.au/preview/job_1')
+    expect(builderLoginLink('tok')).toBe('https://build.itscold.com.au/start?t=tok')
+    expect(previewLink('job_1')).toBe('https://build.itscold.com.au/preview/job_1')
   })
 })
