@@ -108,6 +108,19 @@ export async function readSession(c: Context<{ Bindings: Env }>): Promise<Sessio
 }
 
 /**
+ * Pull the job id straight out of the path.
+ *
+ * NOT c.req.param(). This runs as wildcard middleware (/api/jobs/*), and a wildcard pattern has
+ * no named parameters, so param('jobId') is undefined here and the ownership check below would
+ * silently never run. That exact bug shipped for one commit and was caught by the end to end
+ * script asserting that one session cannot read another job.
+ */
+export function jobIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/api\/jobs\/([^/?#]+)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : null
+}
+
+/**
  * Guard every job route. The job id in the URL must match the session, so knowing somebody
  * else's job id gets you nowhere.
  */
@@ -123,7 +136,7 @@ export async function requireSession(c: Context<{ Bindings: Env }>, next: Next) 
     )
   }
 
-  const jobId = c.req.param('jobId') ?? c.req.param('id')
+  const jobId = jobIdFromPath(new URL(c.req.url).pathname)
   if (jobId && jobId !== session.jobId) {
     return c.json({ error: 'forbidden', detail: 'That build does not belong to this session.' }, 403)
   }

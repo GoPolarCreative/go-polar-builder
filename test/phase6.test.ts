@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Env } from '../worker/env'
-import { SESSION_COOKIE, buildLink, clearCookie, sessionCookie } from '../worker/lib/auth'
+import { SESSION_COOKIE, buildLink, clearCookie, jobIdFromPath, sessionCookie } from '../worker/lib/auth'
 import { readClaims, signClaims } from '../worker/lib/signing'
 import {
   buildCompleteEmail,
@@ -42,6 +42,30 @@ describe('build links and cookies', () => {
 
   it('clears the cookie by expiring it', () => {
     expect(clearCookie()).toContain('Max-Age=0')
+  })
+})
+
+describe('job ownership is read from the path', () => {
+  // This is the check that stops one valid session reading another customer's build. It reads
+  // the path directly because the middleware runs on a wildcard route, where c.req.param() is
+  // undefined. That bug shipped once and is the reason these tests exist.
+  it('finds the job id on every job route shape', () => {
+    expect(jobIdFromPath('/api/jobs/job_abc')).toBe('job_abc')
+    expect(jobIdFromPath('/api/jobs/job_abc/intake')).toBe('job_abc')
+    expect(jobIdFromPath('/api/jobs/job_abc/builds/2/preview')).toBe('job_abc')
+    expect(jobIdFromPath('/api/jobs/job_abc/golive/domain/inspect')).toBe('job_abc')
+    expect(jobIdFromPath('/api/jobs/job_abc/discharge/release')).toBe('job_abc')
+  })
+
+  it('returns nothing for paths that are not job routes', () => {
+    expect(jobIdFromPath('/api/health')).toBeNull()
+    expect(jobIdFromPath('/api/assets/ast_1/raw')).toBeNull()
+    expect(jobIdFromPath('/api/jobs/')).toBeNull()
+    expect(jobIdFromPath('/api/auth/me')).toBeNull()
+  })
+
+  it('is not fooled by a query string or a fragment', () => {
+    expect(jobIdFromPath('/api/jobs/job_abc?version=2')).toBe('job_abc')
   })
 })
 
