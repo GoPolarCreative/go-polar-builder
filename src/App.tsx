@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Start from './pages/Start'
 import Intake from './pages/Intake'
 import Build from './pages/Build'
+import Preview from './pages/Preview'
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Route path="/start" element={<Start />} />
       <Route path="/intake/:jobId" element={<Intake />} />
       <Route path="/build/:jobId" element={<Build />} />
+      <Route path="/preview/:jobId" element={<Preview />} />
       <Route path="*" element={<Navigate to="/start" replace />} />
     </Routes>
   )

@@ -7,6 +7,7 @@ import assets from './routes/assets'
 import lookups from './routes/lookups'
 import generate from './routes/generate'
 import builds from './routes/builds'
+import edits from './routes/edits'
 import dev from './routes/dev'
 
 /**
@@ -39,6 +40,7 @@ app.route('/api', assets)
 app.route('/api', lookups)
 app.route('/api', generate)
 app.route('/api', builds)
+app.route('/api', edits)
 app.route('/api', dev)
 
 app.notFound((c) =>

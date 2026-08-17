@@ -182,6 +182,9 @@ export default function Build() {
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-3">
+            <Link className="btn-accent" to={`/preview/${jobId}`}>
+              Looks good, let me make changes
+            </Link>
             <a className="btn-ghost" href={previewUrl(jobId, version)} target="_blank" rel="noreferrer">
               Open in a new tab
             </a>

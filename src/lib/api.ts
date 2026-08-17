@@ -129,6 +129,39 @@ export const api = {
   buildChecks: (jobId: string, version: number) =>
     request<{ report: unknown }>(`/api/jobs/${jobId}/builds/${version}/checks`),
 
+  // --- Phase 4: versions, rollback, edit allowance -------------------------------------------
+  versions: (jobId: string) =>
+    request<{
+      currentVersion: number
+      editsUsed: number
+      editsAllowed: number
+      editsRemaining: number
+      overAllowance: boolean
+      held: boolean
+      heldReason: string | null
+      builds: Array<{ version: number; bytes: number; passed: number; repair_passes: number; created_at: string }>
+      edits: Array<{
+        version_from: number
+        version_to: number
+        prompt: string | null
+        diff_summary: string | null
+        counted: number
+        created_at: string
+      }>
+    }>(`/api/jobs/${jobId}/versions`),
+
+  rollback: (jobId: string, version: number) =>
+    request<{ ok: true; currentVersion: number; editsCharged: number }>(`/api/jobs/${jobId}/rollback`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ version }),
+    }),
+
+  extraEdits: (jobId: string) =>
+    request<{ available: boolean; quantity: number; price: string | null; included: number; detail: string | null }>(
+      `/api/jobs/${jobId}/edits/extra`,
+    ),
+
   reverify: (jobId: string, version: number) =>
     request<{ report: unknown }>(`/api/jobs/${jobId}/builds/${version}/verify`, { method: 'POST' }),
 }
@@ -151,7 +184,32 @@ export async function streamGeneration(
   onEvent: (e: GenerationEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`/api/jobs/${jobId}/generate`, { method: 'POST', signal })
+  return streamSse(`/api/jobs/${jobId}/generate`, undefined, onEvent, signal)
+}
+
+/** Submit one change request. One request is one edit, however many changes it contains. */
+export async function streamEdit(
+  jobId: string,
+  editRequest: string,
+  onEvent: (e: GenerationEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamSse(`/api/jobs/${jobId}/edits`, { request: editRequest }, onEvent, signal)
+}
+
+async function streamSse(
+  path: string,
+  body: unknown,
+  onEvent: (e: GenerationEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(path, {
+    method: 'POST',
+    signal,
+    ...(body === undefined
+      ? {}
+      : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  })
 
   if (!res.ok) {
     const text = await res.text()
