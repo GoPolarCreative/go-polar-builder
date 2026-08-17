@@ -10,38 +10,39 @@ function digitsOnly(input: string): string {
   return input.replace(/[^\d+]/g, '')
 }
 
-/** Returns E.164 (+61412345678) or null if it is not a valid AU number. */
+/**
+ * Returns E.164 (+61412345678) or null if it is not a valid AU number.
+ *
+ * Note on 13/1300/1800: these carry no trunk zero, so the E.164 form keeps every digit after the
+ * country code (+611300123456). Stripping a leading digit off them the way you strip the 0 from
+ * an 04 mobile produces a number that does not connect.
+ */
 export function normaliseAuPhone(input: string): string | null {
   let s = digitsOnly(input)
 
-  if (s.startsWith('+61')) s = '0' + s.slice(3)
-  else if (s.startsWith('0061')) s = '0' + s.slice(4)
-  else if (s.startsWith('61') && s.length === 11) s = '0' + s.slice(2)
+  if (s.startsWith('+61')) s = s.slice(3)
+  else if (s.startsWith('0061')) s = s.slice(4)
+  else if (s.startsWith('61') && (s.length === 11 || s.length === 12)) s = s.slice(2)
+  else if (s.startsWith('0')) s = s.slice(1)
 
   s = s.replace(/\+/g, '')
 
-  // 8-digit number with no area code cannot be placed. Reject rather than guess a state.
-  if (s.length === 8) return null
+  // Inbound service numbers: 1300/1800 are ten digits, 13 is six. No trunk zero on any of them.
+  if (/^(1300|1800)\d{6}$/.test(s) || /^13\d{4}$/.test(s)) return '+61' + s
 
-  if (s.length !== 10 || !s.startsWith('0')) return null
+  // Everything else is nine digits after the trunk zero: 4xxxxxxxx mobile, 2/3/7/8 landline.
+  if (s.length !== 9) return null
+  const prefix = s[0]!
+  if (!['2', '3', '4', '7', '8'].includes(prefix)) return null
 
-  const area = s.slice(0, 2)
-  const isMobile = area === '04'
-  const isLandline = ['02', '03', '07', '08'].includes(area)
-  // 1300/1800 arrive as 10 digits starting 13/18, handled below.
-  const isNational = /^(1300|1800)\d{6}$/.test(s)
-
-  if (!isMobile && !isLandline && !isNational) return null
-  if (isNational) return '+61' + s.slice(1)
-
-  return '+61' + s.slice(1)
+  return '+61' + s
 }
 
 export function phoneKind(input: string): PhoneKind {
   const e164 = normaliseAuPhone(input)
   if (!e164) return 'invalid'
-  const local = '0' + e164.slice(3)
-  if (local.startsWith('04')) return 'mobile'
+  const national = e164.slice(3)
+  if (national.startsWith('4')) return 'mobile'
   return 'landline'
 }
 
@@ -49,11 +50,16 @@ export function phoneKind(input: string): PhoneKind {
 export function formatAuPhone(e164OrLocal: string): string {
   const e164 = normaliseAuPhone(e164OrLocal)
   if (!e164) return e164OrLocal
-  const local = '0' + e164.slice(3)
+  const national = e164.slice(3)
 
-  if (/^(1300|1800)/.test(local)) {
-    return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`
+  if (/^(1300|1800)/.test(national)) {
+    return `${national.slice(0, 4)} ${national.slice(4, 7)} ${national.slice(7)}`
   }
+  if (/^13\d{4}$/.test(national)) {
+    return `${national.slice(0, 2)} ${national.slice(2, 4)} ${national.slice(4)}`
+  }
+
+  const local = '0' + national
   if (local.startsWith('04')) {
     return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`
   }

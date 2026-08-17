@@ -471,6 +471,20 @@ function checkAssets(html: string, s: Structure, facts: BuildFacts): CheckResult
  */
 function faqMismatchEvidence(html: string, s: Structure): string[] {
   const evidence: string[] = []
+
+  // Compare against the visible copy only. Searching the whole document would find the FAQ text
+  // inside the JSON-LD itself and every comparison would trivially pass, which is exactly the
+  // bug this check exists to catch. Entities are decoded because page copy is escaped and
+  // schema text is not.
+  const pageText = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
   for (const block of s.jsonLd) {
     let parsed: unknown
     try {
@@ -482,17 +496,16 @@ function faqMismatchEvidence(html: string, s: Structure): string[] {
     for (const node of graph as Array<Record<string, unknown>>) {
       if (node['@type'] !== 'FAQPage') continue
       const questions = (node.mainEntity ?? []) as Array<Record<string, unknown>>
-      const text = html.replace(/\s+/g, ' ')
       for (const q of questions) {
-        const name = String(q.name ?? '')
-        const answer = String(
-          (q.acceptedAnswer as Record<string, unknown> | undefined)?.text ?? '',
-        )
-        if (name && !text.includes(name.replace(/\s+/g, ' '))) {
+        const name = String(q.name ?? '').replace(/\s+/g, ' ').trim()
+        const answer = String((q.acceptedAnswer as Record<string, unknown> | undefined)?.text ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+        if (name && !pageText.includes(name)) {
           evidence.push(`FAQ question in schema but not in page copy: "${name}"`)
         }
-        if (answer && !text.includes(answer.replace(/\s+/g, ' ').slice(0, 60))) {
-          evidence.push(`FAQ answer in schema does not match page copy: "${answer.slice(0, 60)}"`)
+        if (answer && !pageText.includes(answer)) {
+          evidence.push(`FAQ answer in schema does not match page copy: "${answer.slice(0, 80)}"`)
         }
       }
     }
