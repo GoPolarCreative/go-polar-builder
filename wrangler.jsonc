@@ -17,6 +17,12 @@
 
   "observability": { "enabled": true },
 
+  // Hourly sweep: reconciles dropped Shopify webhooks, retries build links that never sent, and
+  // fires the two time-based GHL events (intake abandoned 24h, editing stalled 72h).
+  // The brief says nightly; hourly costs one invocation an hour and turns "most of a day without
+  // your link" into "an hour". See DECISIONS.md D12.
+  "triggers": { "crons": ["0 * * * *"] },
+
   "d1_databases": [
     {
       "binding": "DB",

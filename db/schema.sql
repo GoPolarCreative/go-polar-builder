@@ -5,6 +5,11 @@
 --
 -- Conventions:
 --   ids are text (uuid or prefixed uuid), created_at/updated_at are ISO 8601 UTC strings
+--
+--   TIMESTAMPS: always compare against a bound ISO string, never against SQLite's datetime('now').
+--   datetime('now') returns "2026-08-18 07:05:00" while these columns hold
+--   "2026-08-18T07:05:00.123Z", and string comparison puts every ISO value above every
+--   datetime('now') value. A query written that way silently returns nothing, forever.
 --   money is stored in whole cents, ex GST, to avoid float drift
 
 PRAGMA foreign_keys = ON;

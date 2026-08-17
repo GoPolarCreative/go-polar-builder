@@ -28,16 +28,17 @@ there. `orders` rows store `shopify_order_id` and `product_handle`, which would 
 
 **Question.** The pricing table lists "Additional 5 edits before launch, TBC, confirm with Chris".
 
-**Chosen.** A single constant, `EXTRA_EDITS_PRICE_EX_GST_CENTS` in `shared/pricing.ts`, set to
-`null`. Every other price in that file is a real number from the brief.
+**Chosen.** `PRICING.extraEdits.exGstCents` in `shared/pricing.ts`, set to `null`. Every other
+price in that file is a real number from the brief, in cents, ex GST.
 
 While it is null the UI does not show a price or a buy button for extra edits. It offers to put
 the customer in touch instead, and the "you have used all 10" screen still offers going live,
 which is the other real option. Setting the constant to a number turns the whole path on with no
 other change.
 
-**If Chris disagrees.** Set the constant. Also create the `extra-edits` Shopify product with a
-matching handle and add its variant id to `SHOPIFY_VARIANTS` in the same file.
+**If Chris disagrees.** Set the number. Also create the `extra-edits` product in Shopify with
+that handle and set `SHOPIFY_VARIANT_EXTRA_EDITS` in the Worker environment. Nothing else
+changes: the offer, the checkout and the webhook handling that adds the 5 edits are all built.
 
 ---
 
@@ -94,8 +95,10 @@ arbitrary sockets in the way a server can, and no third-party lookup API key is 
 
 **Chosen.** Three real mechanisms, no key required:
 
-- registration data from RDAP over HTTPS (`rdap.org` routes to the right registry, and auDA runs
-  RDAP for .au)
+- registration data from RDAP over HTTPS, with the endpoint for each TLD resolved from the IANA
+  bootstrap at `data.iana.org/rdap/dns.json` rather than guessed. This matters: the .au service
+  lives at `rdap.cctld.au`, which is not a hostname anyone would guess, and the first version of
+  this code guessed wrong. `rdap.org` is kept as a last-resort fallback.
 - MX, NS and A records from Cloudflare DNS over HTTPS at `cloudflare-dns.com/dns-query`
 - if RDAP has nothing, WHOIS on port 43 through `cloudflare:sockets`, which Workers do support
 
@@ -234,7 +237,66 @@ before seeing whether customers actually ask for it would be guessing at a featu
 
 ---
 
-## D16. Test strategy
+## D17. The webhook refuses rather than degrades when it cannot verify
+
+**Question.** What should `/api/webhooks/shopify` do when `SHOPIFY_WEBHOOK_SECRET` is not set?
+
+**Chosen.** Return 503 and process nothing. The alternative, accepting unverified payloads on an
+unconfigured install, would let anyone POST themselves a paid job, and it would do it quietly.
+The refusal is logged as `webhook.refused` so it is obvious in the event trail rather than
+looking like Shopify never called.
+
+The same principle runs through the whole Phase 6 surface: the dev-only routes (job creation,
+manual sweep, verification self-test) refuse the moment a Shopify secret exists, so a production
+deployment cannot be left with a door open by forgetting a flag.
+
+---
+
+## D18. Scripts authenticate with a bearer token, not a cookie jar
+
+**Question.** Every job route sits behind a session cookie now. The seed script and any command
+line testing need to act as a customer.
+
+**Chosen.** `readSession` accepts the same signed value from either the cookie or an
+`Authorization: Bearer` header, and the dev job-creation route returns the raw session alongside
+setting the cookie. It is the same signed value with the same expiry and grants nothing extra, so
+there is no second auth path to keep secure. It also means the seed script proves the auth layer
+works rather than tunnelling under it.
+
+The dev route additionally mints a real build token and prints the `/start?t=...` link, so a
+browser can sign in exactly the way a paying customer does.
+
+---
+
+## D19. Admin actions are gated by a shared token, not by a user model
+
+**Question.** Releasing a discharge package is a human step performed by Chris. There is no staff
+login, and building one was not asked for.
+
+**Chosen.** `ADMIN_TOKEN` in Worker secrets, sent as `x-admin-token`. If it is not set, the admin
+routes refuse on any install that has Shopify configured, and allow on a development one. It is
+one shared secret for one person, which is honest about the size of the team.
+
+**If Chris disagrees, or when someone else joins.** Replace `requireAdmin` with a real staff
+session. One function, one file.
+
+---
+
+## D20. Timestamp comparison convention
+
+Not a preference, a trap worth writing down. Every timestamp column holds an ISO 8601 string
+(`2026-08-18T07:05:00.123Z`). SQLite's `datetime('now')` returns `2026-08-18 07:05:00`, and
+string comparison places every ISO value above every `datetime('now')` value. A sweep query
+written with `created_at < datetime('now')` returns nothing, forever, silently.
+
+All queries bind an ISO string computed in JavaScript. There is a warning at the top of
+`db/schema.sql` so the next person does not have to find this out the way it was found here.
+
+---
+
+---
+
+## D21. Test strategy
 
 Unit tests run inside workerd through `@cloudflare/vitest-pool-workers`, because the verification
 checks use `HTMLRewriter` and there is no honest way to test them outside the runtime they run

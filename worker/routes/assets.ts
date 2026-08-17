@@ -3,6 +3,7 @@ import type { Env } from '../env'
 import type { AssetStats } from '../../shared/types'
 import { getAsset, getJob, listAssets, recordEvent } from '../lib/db'
 import { id, nowIso, slug } from '../lib/ids'
+import { readSession } from '../lib/auth'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -141,10 +142,19 @@ app.get('/jobs/:id/assets', async (c) => {
   return c.json({ assets })
 })
 
-/** Streams the stored file back. Used by the wizard, the preview, and the build assembler. */
+/**
+ * Streams the stored file back. Used by the wizard and the build assembler.
+ *
+ * The session is already required by the middleware, but an asset id carries no job in its URL,
+ * so ownership is checked here. Otherwise a valid session for one job could read another job's
+ * uploads.
+ */
 app.get('/assets/:assetId/raw', async (c) => {
   const asset = await getAsset(c.env, c.req.param('assetId'))
   if (!asset) return c.json({ error: 'not_found' }, 404)
+
+  const session = await readSession(c)
+  if (session && session.jobId !== asset.job_id) return c.json({ error: 'forbidden' }, 403)
 
   const object = await c.env.BUCKET.get(asset.r2_key)
   if (!object) return c.json({ error: 'not_found', detail: 'File missing from storage' }, 404)
@@ -159,6 +169,9 @@ app.get('/assets/:assetId/raw', async (c) => {
 app.delete('/assets/:assetId', async (c) => {
   const asset = await getAsset(c.env, c.req.param('assetId'))
   if (!asset) return c.json({ error: 'not_found' }, 404)
+
+  const session = await readSession(c)
+  if (session && session.jobId !== asset.job_id) return c.json({ error: 'forbidden' }, 403)
 
   await c.env.BUCKET.delete(asset.r2_key).catch(() => undefined)
   await c.env.DB.prepare('DELETE FROM assets WHERE id = ?').bind(asset.id).run()

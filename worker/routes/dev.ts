@@ -91,6 +91,18 @@ const MUTATIONS: Mutation[] = [
   },
 ]
 
+/**
+ * Run the hourly sweep by hand. DEVELOPMENT ONLY.
+ * The cron trigger runs the same function in production.
+ */
+app.post('/dev/sweep', async (c) => {
+  if (c.env.SHOPIFY_WEBHOOK_SECRET) {
+    return c.json({ error: 'disabled', detail: 'Use the cron trigger once Shopify is configured.' }, 403)
+  }
+  const { runSweep } = await import('../lib/sweep')
+  return c.json(await runSweep(c.env))
+})
+
 app.get('/dev/selftest/:jobId/:version', async (c) => {
   if (c.env.SHOPIFY_WEBHOOK_SECRET) {
     return c.json({ error: 'disabled', detail: 'Self-test is off once Shopify is configured.' }, 403)

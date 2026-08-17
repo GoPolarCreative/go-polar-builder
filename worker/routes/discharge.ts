@@ -9,6 +9,8 @@ import { buildFacts } from '../lib/facts'
 import { buildDischargePackage, isValidWeb3FormsKey } from '../lib/discharge'
 import { ShopifyConfigError, createCheckout } from '../lib/shopify'
 import { readClaims, signClaims } from '../lib/signing'
+import { requireAdmin } from '../lib/auth'
+import { dischargeReadyEmail, sendSafely } from '../lib/email'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -249,6 +251,9 @@ app.post('/jobs/:jobId/discharge/prepare', async (c) => {
  * Release the package to the customer. Human step. Returns the signed download link.
  * PHASE 6: this moves behind an admin check once auth exists.
  */
+// Declared as middleware rather than inline, so the route keeps its path-param typing.
+app.use('/jobs/:jobId/discharge/release', requireAdmin)
+
 app.post('/jobs/:jobId/discharge/release', async (c) => {
   const jobId = c.req.param('jobId')
   const row = await latestDischarge(c.env, jobId)
@@ -277,11 +282,28 @@ app.post('/jobs/:jobId/discharge/release', async (c) => {
   await recordEvent(c.env, jobId, 'discharge.released', { dischargeId: row.id, expiresAt })
 
   const base = c.env.PUBLIC_APP_URL ?? new URL(c.req.url).origin
-  return c.json({
-    ok: true,
-    downloadUrl: `${base}/api/discharge/download?t=${encodeURIComponent(token)}`,
-    expiresAt,
-  })
+  const downloadUrl = `${base}/api/discharge/download?t=${encodeURIComponent(token)}`
+
+  // Email the link. A failure here is recorded, not thrown: the package is released either way
+  // and the link is returned to whoever released it.
+  const job = await getJob(c.env, jobId)
+  const user = job
+    ? await c.env.DB.prepare('SELECT email FROM users WHERE id = ?')
+        .bind(job.user_id)
+        .first<{ email: string }>()
+    : null
+
+  if (user?.email) {
+    const message = dischargeReadyEmail({
+      businessName: job?.business_name ?? 'Your',
+      downloadLink: downloadUrl,
+      expiresAt,
+      usedPlaceholder: row.used_placeholder === 1,
+    })
+    await sendSafely(c.env, jobId, 'discharge_ready', { ...message, to: user.email })
+  }
+
+  return c.json({ ok: true, downloadUrl, expiresAt })
 })
 
 /**

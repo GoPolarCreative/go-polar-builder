@@ -108,10 +108,16 @@ const INTAKE = {
 
 // ---------------------------------------------------------------------------------------------
 
-async function api(path, init) {
-  const res = await fetch(`${BASE}${path}`, init)
+// Every job route is behind a session. The dev job-creation route hands one back, and it is sent
+// as a bearer token from here rather than juggling a cookie jar.
+let SESSION = null
+
+async function api(path, init = {}) {
+  const headers = { ...(init.headers ?? {}) }
+  if (SESSION) headers.authorization = `Bearer ${SESSION}`
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
   const text = await res.text()
-  if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${path} -> ${res.status}: ${text.slice(0, 300)}`)
+  if (!res.ok) throw new Error(`${init.method ?? 'GET'} ${path} -> ${res.status}: ${text.slice(0, 300)}`)
   return text ? JSON.parse(text) : null
 }
 
@@ -177,7 +183,11 @@ async function upload(jobId, kind, filename, bytes, stats) {
   form.append('file', new Blob([bytes], { type: 'image/png' }), filename)
   form.append('kind', kind)
   form.append('stats', JSON.stringify(stats))
-  const res = await fetch(`${BASE}/api/jobs/${jobId}/assets`, { method: 'POST', body: form })
+  const res = await fetch(`${BASE}/api/jobs/${jobId}/assets`, {
+    method: 'POST',
+    body: form,
+    headers: SESSION ? { authorization: `Bearer ${SESSION}` } : {},
+  })
   const text = await res.text()
   if (!res.ok) throw new Error(`upload ${filename} -> ${res.status}: ${text.slice(0, 300)}`)
   return JSON.parse(text).asset
@@ -193,11 +203,13 @@ async function main() {
     }, browser rendering ${health.browserRendering ? 'bound' : 'unbound'}`,
   )
 
-  const { jobId } = await api('/api/dev/jobs', {
+  const created = await api('/api/dev/jobs', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email: INTAKE.email, name: INTAKE.businessName }),
   })
+  const jobId = created.jobId
+  SESSION = created.session
   console.log(`  job: ${jobId}`)
 
   const logo = await upload(jobId, 'logo', 'cold-front-logo.png', makeLogo(), LOGO_STATS)
@@ -231,8 +243,11 @@ async function main() {
   console.log(`\n  gap audit: ${submitted.auditFlags.length} flag(s)`)
   for (const f of submitted.auditFlags) console.log(`    [${f.code}] ${f.message}`)
 
-  console.log(`\nSeeded. Open ${BASE}/build/${jobId} to generate, or ${BASE}/intake/${jobId} to edit.`)
+  console.log('\nSeeded. Sign in with the link below, the same way a paying customer would:')
+  console.log(`  ${created.startLink}`)
+  console.log(`\nThen: ${BASE}/build/${jobId} to generate, ${BASE}/preview/${jobId} to edit.`)
   console.log(`JOB_ID=${jobId}`)
+  console.log(`SESSION=${SESSION}`)
 }
 
 main().catch((err) => {

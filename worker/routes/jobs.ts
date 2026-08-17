@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { getIntake, getJob, listAssets, recordEvent } from '../lib/db'
 import { id, nowIso } from '../lib/ids'
+import { SESSION_TTL_DAYS, buildLink, createBuildToken, sessionCookie } from '../lib/auth'
+import { signClaims } from '../lib/signing'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -49,7 +51,26 @@ app.post('/dev/jobs', async (c) => {
     .run()
 
   await recordEvent(c.env, jobId, 'job.created.dev', { email })
-  return c.json({ jobId, userId: user.id }, 201)
+
+  // A session comes back with it, since every job route is behind auth. The cookie covers the
+  // browser; the raw session is returned so the seed script and curl can act as this customer.
+  const session = await signClaims(c.env, {
+    kind: 'session',
+    jobId,
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_DAYS * 86_400,
+  })
+
+  // A real build token too, so a browser can sign in the same way a paying customer does
+  // instead of needing the cookie this response happens to set.
+  const token = await createBuildToken(c.env, jobId)
+
+  return new Response(
+    JSON.stringify({ jobId, userId: user.id, session, startLink: buildLink(c.env, token) }),
+    {
+      status: 201,
+      headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(c.env, session) },
+    },
+  )
 })
 
 /** Everything the app needs to render a job: status, intake, audit flags, assets. */

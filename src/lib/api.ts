@@ -67,10 +67,39 @@ export const api = {
       anthropicKeyPresent: boolean
       offlineGeneration: boolean
       browserRendering: boolean
+      shopifyConfigured: boolean
+      emailConfigured: boolean
+      ghlConfigured: boolean
+      sessionsConfigured: boolean
     }>('/api/health'),
 
+  // --- Phase 6: auth --------------------------------------------------------------------------
+  /** Exchange the emailed build token for a session cookie. */
+  startWithToken: (token: string) =>
+    request<{ jobId: string; status: string; currentVersion: number; session: string }>('/api/auth/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }),
+
+  me: () =>
+    request<{
+      signedIn: boolean
+      jobId?: string
+      status?: string
+      currentVersion?: number
+      editsRemaining?: number
+    }>('/api/auth/me'),
+
+  resendLink: (email: string) =>
+    request<{ ok: true; detail: string }>('/api/auth/resend', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }),
+
   createDevJob: (email: string, name?: string) =>
-    request<{ jobId: string; userId: string }>('/api/dev/jobs', {
+    request<{ jobId: string; userId: string; session: string; startLink: string }>('/api/dev/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email, name }),

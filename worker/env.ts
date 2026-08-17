@@ -23,6 +23,8 @@ export interface Env {
   WEB3FORMS_ACCESS_KEY?: string
   PUBLIC_APP_URL?: string
   APP_SECRET?: string
+  /** Required in production for the human steps, currently releasing a discharge package. */
+  ADMIN_TOKEN?: string
 
   // Shopify. Every payment goes through here, one-off and recurring (brief s3a, DECISIONS.md D1).
   SHOPIFY_WEBHOOK_SECRET?: string

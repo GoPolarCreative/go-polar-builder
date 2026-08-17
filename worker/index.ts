@@ -1,6 +1,9 @@
 import { Hono } from 'hono'
 import type { Env } from './env'
 import { recordEvent } from './lib/db'
+import { requireSession } from './lib/auth'
+import { runSweep } from './lib/sweep'
+import auth from './routes/auth'
 import jobs from './routes/jobs'
 import intake from './routes/intake'
 import assets from './routes/assets'
@@ -10,6 +13,7 @@ import builds from './routes/builds'
 import edits from './routes/edits'
 import golive from './routes/golive'
 import discharge from './routes/discharge'
+import webhooks from './routes/webhooks'
 import dev from './routes/dev'
 
 /**
@@ -17,34 +21,51 @@ import dev from './routes/dev'
  *
  * Everything lives under /api. Static assets are served by the Workers Assets binding, with
  * run_worker_first scoped to /api/* so the SPA fallback does not swallow API calls.
- *
- * AUTH: none yet. Phase 6 adds the magic-link session and every route below moves behind it.
- * Until then a job id is the only thing standing between a caller and a job, which is fine for
- * local development and is NOT fine in production. The Phase 6 middleware slot is marked below.
  */
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/api/health', (c) =>
   c.json({
     ok: true,
-    // Useful when someone asks why generation is not working.
+    // Useful when someone asks why something is not working. No secret values, only presence.
     anthropicKeyPresent: Boolean(c.env.ANTHROPIC_API_KEY),
     offlineGeneration: c.env.DEV_OFFLINE_GENERATION === '1',
     browserRendering: Boolean(c.env.BROWSER),
+    shopifyConfigured: Boolean(c.env.SHOPIFY_WEBHOOK_SECRET),
+    emailConfigured: Boolean(c.env.RESEND_API_KEY),
+    ghlConfigured: Boolean(c.env.GHL_INBOUND_WEBHOOK_URL),
+    sessionsConfigured: Boolean(c.env.APP_SECRET),
   }),
 )
 
-// PHASE 6: app.use('/api/jobs/*', requireSession)
+// ---------------------------------------------------------------------------------------------
+// Public: no session required, each protects itself
+//   auth      - token exchange and the resend-my-link flow
+//   webhooks  - HMAC verified against the raw body, refuses outright without a secret
+//   lookups   - suburb and ABN checks, no customer data
+//   discharge/download - signed link, verified by signature and expiry
+// ---------------------------------------------------------------------------------------------
+app.route('/api', auth)
+app.route('/api', webhooks)
+app.route('/api', lookups)
+
+// ---------------------------------------------------------------------------------------------
+// Everything touching a job is behind a session. The job id in the URL must match the session,
+// so knowing somebody else's job id gets a caller nowhere.
+// ---------------------------------------------------------------------------------------------
+app.use('/api/jobs/*', requireSession)
+app.use('/api/assets/*', requireSession)
 
 app.route('/api', jobs)
 app.route('/api', intake)
 app.route('/api', assets)
-app.route('/api', lookups)
 app.route('/api', generate)
 app.route('/api', builds)
 app.route('/api', edits)
 app.route('/api', golive)
 app.route('/api', discharge)
+
+// Development only. Every route inside refuses to run once Shopify is configured.
 app.route('/api', dev)
 
 app.notFound((c) =>
@@ -75,4 +96,20 @@ app.onError(async (err, c) => {
   )
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+
+  /**
+   * Hourly sweep. Reconciles dropped Shopify webhooks, retries build links that never sent, and
+   * fires the two time-based GHL events. See lib/sweep.ts and DECISIONS.md D12.
+   */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      runSweep(env)
+        .then((report) => {
+          if (report.problems.length > 0) console.error('sweep problems', report.problems)
+        })
+        .catch((err) => console.error('sweep failed', err)),
+    )
+  },
+} satisfies ExportedHandler<Env>
