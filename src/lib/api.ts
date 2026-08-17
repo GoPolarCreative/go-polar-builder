@@ -157,6 +157,91 @@ export const api = {
       body: JSON.stringify({ version }),
     }),
 
+  // --- Phase 5: go live, domains, discharge ---------------------------------------------------
+  goLive: (jobId: string) =>
+    request<{
+      jobStatus: string
+      currentVersion: number
+      selection: {
+        hosting: boolean
+        emailAddon: boolean
+        domainAddon: boolean
+        status: string
+        checkoutUrl: string | null
+        paidAt: string | null
+      } | null
+      domain: { name: string; branch: string; status: string; report: unknown } | null
+      pricing: Record<string, { label: string; price: string | null; required: boolean }>
+      promise: string
+    }>(`/api/jobs/${jobId}/golive`),
+
+  goLivePlan: (jobId: string, body: { emailAddon: boolean; domainAddon: boolean }) =>
+    request<{ checkoutUrl: string | null; promise: string }>(`/api/jobs/${jobId}/golive/plan`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+
+  inspectDomain: (jobId: string, domain: string) =>
+    request<{ report: unknown }>(
+      `/api/jobs/${jobId}/golive/domain/inspect?domain=${encodeURIComponent(domain)}`,
+    ),
+
+  checkDomain: (jobId: string, domain: string) =>
+    request<{ domain: string; available: boolean | null; detail: string; requiresAbn: boolean }>(
+      `/api/jobs/${jobId}/golive/domain/available?domain=${encodeURIComponent(domain)}`,
+    ),
+
+  submitDomain: (
+    jobId: string,
+    body: { branch: string; domain: string; abn?: string; entityName?: string },
+  ) =>
+    request<{ ok: true; branch: string; domain: string; report: unknown; nextSteps: string[] }>(
+      `/api/jobs/${jobId}/golive/domain`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    ),
+
+  goLiveConfirmation: (jobId: string) =>
+    request<{
+      paid: boolean
+      monthly: Array<{ label: string; price: string | null }>
+      domain: { name: string; branch: string; status: string } | null
+      promise: string
+      afterLaunch: { label: string; price: string | null; detail: string }
+    }>(`/api/jobs/${jobId}/golive/confirmation`),
+
+  discharge: (jobId: string) =>
+    request<{
+      price: string | null
+      includes: string[]
+      excludes: string[]
+      footerCreditStays: boolean
+      web3formsNote: string
+      current: {
+        status: string
+        checkoutUrl: string | null
+        preparedAt: string | null
+        releasedAt: string | null
+        expiresAt: string | null
+        usedPlaceholder: boolean
+        fileCount: number | null
+      } | null
+    }>(`/api/jobs/${jobId}/discharge`),
+
+  requestDischarge: (jobId: string, web3formsKey?: string) =>
+    request<{ dischargeId: string; checkoutUrl: string | null; price: string | null }>(
+      `/api/jobs/${jobId}/discharge/request`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ web3formsKey }),
+      },
+    ),
+
   extraEdits: (jobId: string) =>
     request<{ available: boolean; quantity: number; price: string | null; included: number; detail: string | null }>(
       `/api/jobs/${jobId}/edits/extra`,

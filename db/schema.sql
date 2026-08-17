@@ -189,6 +189,48 @@ CREATE TABLE IF NOT EXISTS domains (
 CREATE INDEX IF NOT EXISTS idx_domains_job ON domains(job_id);
 
 -- ---------------------------------------------------------------------------
+-- golive - Phase 5 screen 1. What they chose, and whether it has been paid.
+-- The job does not advance until the orders/paid webhook confirms (brief s3a).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS golive (
+  job_id            TEXT PRIMARY KEY REFERENCES jobs(id),
+  hosting           INTEGER NOT NULL DEFAULT 1,
+  email_addon       INTEGER NOT NULL DEFAULT 0,
+  domain_addon      INTEGER NOT NULL DEFAULT 0,
+  checkout_url      TEXT,
+  checkout_created_at TEXT,
+  paid_at           TEXT,
+  status            TEXT NOT NULL DEFAULT 'selecting',
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  CHECK (status IN ('selecting','awaiting_payment','paid','queued','live'))
+);
+
+-- ---------------------------------------------------------------------------
+-- discharges - Phase 5, brief s9. One row per discharge request.
+-- The automation prepares the package, a human releases it.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS discharges (
+  id                    TEXT PRIMARY KEY,
+  job_id                TEXT NOT NULL REFERENCES jobs(id),
+  status                TEXT NOT NULL DEFAULT 'requested',
+  customer_web3forms_key TEXT,
+  version               INTEGER,
+  r2_key                TEXT,
+  file_count            INTEGER,
+  bytes                 INTEGER,
+  used_placeholder      INTEGER,
+  checkout_url          TEXT,
+  paid_at               TEXT,
+  prepared_at           TEXT,
+  released_at           TEXT,
+  expires_at            TEXT,
+  created_at            TEXT NOT NULL,
+  CHECK (status IN ('requested','awaiting_payment','paid','prepared','released','expired'))
+);
+CREATE INDEX IF NOT EXISTS idx_discharges_job ON discharges(job_id, created_at);
+
+-- ---------------------------------------------------------------------------
 -- events - append-only audit trail, also the GHL webhook feed
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS events (

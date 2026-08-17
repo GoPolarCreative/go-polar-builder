@@ -8,6 +8,8 @@ import lookups from './routes/lookups'
 import generate from './routes/generate'
 import builds from './routes/builds'
 import edits from './routes/edits'
+import golive from './routes/golive'
+import discharge from './routes/discharge'
 import dev from './routes/dev'
 
 /**
@@ -41,6 +43,8 @@ app.route('/api', lookups)
 app.route('/api', generate)
 app.route('/api', builds)
 app.route('/api', edits)
+app.route('/api', golive)
+app.route('/api', discharge)
 app.route('/api', dev)
 
 app.notFound((c) =>

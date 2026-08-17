@@ -24,10 +24,21 @@ export interface Env {
   PUBLIC_APP_URL?: string
   APP_SECRET?: string
 
-  // Phase 6, declared now so the shape is known
+  // Shopify. Every payment goes through here, one-off and recurring (brief s3a, DECISIONS.md D1).
   SHOPIFY_WEBHOOK_SECRET?: string
   SHOPIFY_ADMIN_API_TOKEN?: string
   SHOPIFY_STORE_DOMAIN?: string
+  /** Optional. With it, carts are created through the Storefront API, which is the only way to
+   *  put a different selling plan on each line. Without it, checkout falls back to a cart
+   *  permalink, which can only carry one subscription line. */
+  SHOPIFY_STOREFRONT_TOKEN?: string
+  /**
+   * Per-product variant and selling-plan ids, read dynamically by name:
+   *   SHOPIFY_VARIANT_BUILD_TOKEN, SHOPIFY_VARIANT_HOSTING_MONTHLY, ...
+   *   SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY, ...
+   * They are per-store values that only exist once the products are created, so they are read
+   * from env rather than declared here one by one. See shared/pricing.ts.
+   */
   RESEND_API_KEY?: string
   RESEND_FROM?: string
   GHL_INBOUND_WEBHOOK_URL?: string

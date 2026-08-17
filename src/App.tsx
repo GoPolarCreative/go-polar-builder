@@ -3,6 +3,8 @@ import Start from './pages/Start'
 import Intake from './pages/Intake'
 import Build from './pages/Build'
 import Preview from './pages/Preview'
+import GoLive from './pages/GoLive'
+import Discharge from './pages/Discharge'
 
 export default function App() {
   return (
@@ -13,6 +15,8 @@ export default function App() {
       <Route path="/intake/:jobId" element={<Intake />} />
       <Route path="/build/:jobId" element={<Build />} />
       <Route path="/preview/:jobId" element={<Preview />} />
+      <Route path="/golive/:jobId" element={<GoLive />} />
+      <Route path="/discharge/:jobId" element={<Discharge />} />
       <Route path="*" element={<Navigate to="/start" replace />} />
     </Routes>
   )
