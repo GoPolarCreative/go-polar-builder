@@ -33,6 +33,16 @@ none to use. And the copy was produced by the offline fixture generator rather t
 because no Anthropic key was available while building. Structure, styling, schema, forms, image
 handling and every check are the real pipeline.
 
+### The design styles, side by side
+
+```
+sample/styles/index.html
+```
+
+The same business built four times, once per design style the customer can choose in step 5.
+Identical intake, identical photos, identical copy, identical colours. Only the look differs. That
+page links all four and lists exactly what changed between each pair. All four pass all 17 checks.
+
 ## 2. Run the whole app locally, still with no accounts
 
 ```bash

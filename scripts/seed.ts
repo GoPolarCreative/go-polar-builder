@@ -99,6 +99,7 @@ const INTAKE: IntakePayload = {
     youtube: '',
   },
 
+  designStyle: 'auto',
   logoAssetId: null,
   photoAssetIds: [],
   palette: {

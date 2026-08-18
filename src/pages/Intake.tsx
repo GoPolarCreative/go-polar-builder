@@ -16,6 +16,7 @@ import { ApiCallError, api } from '../lib/api'
 import { Banner, CharCounter, Field, Select, Spinner, TextArea, TextInput, YesNo } from '../components/ui'
 import { SuburbChips, SuburbSearch } from '../components/SuburbPicker'
 import { LogoUploader, PhotoUploader } from '../components/Uploader'
+import { StylePicker } from '../components/StylePicker'
 import { AuditFlagList, HoursEditor, ReviewsEditor } from '../components/StoryInputs'
 
 type Draft = Partial<IntakePayload>
@@ -760,6 +761,16 @@ function StepBrand({
           ))}
         </div>
       </div>
+
+      <StylePicker
+        value={data.designStyle}
+        onChange={(designStyle) => patch({ designStyle })}
+        trade={data.trade}
+        // Drawn in their own colours, which is the clearest way to show that the style decides
+        // the shape and the logo decides the palette.
+        palette={{ primary: palette.primary, accent: palette.accent }}
+        error={errors.designStyle}
+      />
 
       <div>
         <span className="field-label">Photos of your work</span>

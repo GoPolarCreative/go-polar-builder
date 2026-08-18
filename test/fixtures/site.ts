@@ -79,6 +79,7 @@ export function makeIntake(overrides: Partial<IntakePayload> = {}): IntakePayloa
     googleReviewLink: '',
     socials: { facebook: '', instagram: '', linkedin: '', tiktok: '', youtube: '' },
 
+    designStyle: 'auto',
     logoAssetId: 'ast_logo',
     photoAssetIds: ['ast_p1', 'ast_p2', 'ast_p3'],
     palette: {

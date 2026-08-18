@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design styles compared</title>
+<style>
+:root{--ink:#16191d;--muted:#5b646e;--line:#e2e6ea;--surface:#fff;--alt:#f4f6f8;--good:#1f8a4c;--bad:#c0392b;}
+*{box-sizing:border-box;}
+body{margin:0;padding:2.5rem 1.5rem 4rem;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:var(--surface);}
+main{max-width:70rem;margin:0 auto;}
+h1{font-size:1.9rem;margin:0 0 .5rem;}
+p.lede{color:var(--muted);max-width:60ch;margin:0 0 2rem;}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin-bottom:2.5rem;}
+.card{border:1px solid var(--line);border-radius:10px;padding:1.25rem;}
+.card h2{font-size:1.05rem;margin:0 0 .25rem;}
+.card a{display:inline-block;margin-top:.75rem;font-weight:600;}
+.meta{font-size:.85rem;color:var(--muted);}
+table{border-collapse:collapse;width:100%;font-size:.86rem;margin-bottom:2.5rem;}
+th,td{border-bottom:1px solid var(--line);padding:.5rem .6rem;text-align:left;vertical-align:top;}
+th{background:var(--alt);font-weight:600;}
+td.name{color:var(--muted);white-space:nowrap;}
+.ok{color:var(--good);font-weight:600;}
+.no{color:var(--bad);font-weight:600;}
+.wrap{overflow-x:auto;}
+</style>
+</head>
+<body>
+<main>
+<h1>The same business, four design styles</h1>
+<p class="lede">Identical intake data, identical photos, identical copy. Only the design style differs. Open each one and compare. Every one of them passes all seventeen verification checks, and the brand colours are byte for byte the same in all four.</p>
+
+<div class="grid">
+  <div class="card">
+    <h2>Bold and industrial</h2>
+    <p class="meta">1.44 MB page weight, checks <span class="ok">passed</span></p>
+    <a href="industrial.html">Open the industrial version</a>
+  </div>
+  <div class="card">
+    <h2>Clean and modern</h2>
+    <p class="meta">1.44 MB page weight, checks <span class="ok">passed</span></p>
+    <a href="modern.html">Open the modern version</a>
+  </div>
+  <div class="card">
+    <h2>Warm and established</h2>
+    <p class="meta">1.44 MB page weight, checks <span class="ok">passed</span></p>
+    <a href="established.html">Open the established version</a>
+  </div>
+  <div class="card">
+    <h2>Premium and refined</h2>
+    <p class="meta">1.44 MB page weight, checks <span class="ok">passed</span></p>
+    <a href="refined.html">Open the refined version</a>
+  </div>
+</div>
+
+<h2>What actually changed</h2>
+<div class="wrap">
+<table>
+<tr><th>Signal</th><th>industrial</th><th>modern</th><th>established</th><th>refined</th></tr>
+<tr><td class="name">heading font</td><td>"Barlow Condensed", Impact, sans-serif</td><td>Inter, system-ui, -apple-system, "Segoe UI", sans-serif</td><td>Lora, Georgia, "Times New Roman", serif</td><td>Jost, "Helvetica Neue", system-ui, sans-serif</td></tr>
+<tr><td class="name">heading weight</td><td>800</td><td>600</td><td>600</td><td>400</td></tr>
+<tr><td class="name">heading tracking</td><td>0.01em</td><td>-0.02em</td><td>-0.01em</td><td>0.16em</td></tr>
+<tr><td class="name">h1 size</td><td>clamp(2.9rem, 1.8rem + 5vw, 5.4rem)</td><td>clamp(2.4rem, 1.6rem + 3.4vw, 4rem)</td><td>clamp(2.3rem, 1.6rem + 3vw, 3.7rem)</td><td>clamp(1.7rem, 1.3rem + 1.8vw, 2.6rem)</td></tr>
+<tr><td class="name">body size</td><td>1.0625rem</td><td>1.0625rem</td><td>1.09rem</td><td>1rem</td></tr>
+<tr><td class="name">section padding</td><td>5rem</td><td>7rem</td><td>6rem</td><td>9rem</td></tr>
+<tr><td class="name">gap</td><td>1rem</td><td>1.5rem</td><td>1.35rem</td><td>2rem</td></tr>
+<tr><td class="name">measure</td><td>68ch</td><td>62ch</td><td>65ch</td><td>54ch</td></tr>
+<tr><td class="name">corner radius</td><td>0px</td><td>16px</td><td>10px</td><td>2px</td></tr>
+<tr><td class="name">button radius</td><td>0px</td><td>10px</td><td>999px</td><td>2px</td></tr>
+<tr><td class="name">raised shadow</td><td>10px 10px 0 var(--shadow-hard)</td><td>0 12px 32px var(--shadow-soft)</td><td>0 10px 26px var(--shadow-soft)</td><td>none</td></tr>
+<tr><td class="name">strong border</td><td>4px</td><td>1px</td><td>2px</td><td>1px</td></tr>
+<tr><td class="name">hero shape</td><td>slab</td><td>cardwrap</td><td>panel</td><td>rule</td></tr>
+</table>
+</div>
+
+<h2>Every pair, compared</h2>
+<div class="wrap">
+<table>
+<tr><th>Pair</th><th>Stylesheet lines changed</th><th>Signals differing</th></tr>
+<tr><td class="name">industrial vs modern</td><td>20.9%</td><td>12 of 13: heading font, heading weight, heading tracking, h1 size, section padding, gap, measure, corner radius, button radius, raised shadow, strong border, hero shape</td></tr>
+<tr><td class="name">industrial vs refined</td><td>19.4%</td><td>13 of 13: heading font, heading weight, heading tracking, h1 size, body size, section padding, gap, measure, corner radius, button radius, raised shadow, strong border, hero shape</td></tr>
+<tr><td class="name">modern vs refined</td><td>19.1%</td><td>12 of 13: heading font, heading weight, heading tracking, h1 size, body size, section padding, gap, measure, corner radius, button radius, raised shadow, hero shape</td></tr>
+<tr><td class="name">established vs industrial</td><td>21.0%</td><td>13 of 13: heading font, heading weight, heading tracking, h1 size, body size, section padding, gap, measure, corner radius, button radius, raised shadow, strong border, hero shape</td></tr>
+<tr><td class="name">established vs modern</td><td>17.1%</td><td>12 of 13: heading font, heading tracking, h1 size, body size, section padding, gap, measure, corner radius, button radius, raised shadow, strong border, hero shape</td></tr>
+<tr><td class="name">established vs refined</td><td>19.5%</td><td>13 of 13: heading font, heading weight, heading tracking, h1 size, body size, section padding, gap, measure, corner radius, button radius, raised shadow, strong border, hero shape</td></tr>
+</table>
+</div>
+<p class="meta">Generated by the offline fixture generator, not the Anthropic API. Regenerate with <code>npm run sample</code>.</p>
+</main>
+</body>
+</html>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formatAbn, isValidAbn, normaliseAbn } from '../shared/abn'
 import { formatAuPhone, normaliseAuPhone, phoneKind } from '../shared/phone'
 import { PRICING, formatPrice, isPriceSet } from '../shared/pricing'
-import { intakeSchema } from '../shared/intake'
+import { STEP_SCHEMAS, intakeSchema } from '../shared/intake'
 import { runGapAudit, statedYearsFromText, isUsablePhoto } from '../server/lib/audit'
 import { hoursLines, openingHoursSpec } from '../server/lib/facts'
 import { assembleSections, enforcePlanInvariants } from '../server/lib/generate'
@@ -125,6 +125,26 @@ describe('intake validation', () => {
 
   it('rejects a too-short business description', () => {
     expect(intakeSchema.safeParse(makeIntake({ about: 'We do plumbing.' })).success).toBe(false)
+  })
+
+  it('will not let the wizard past step 5 without a design style picked', () => {
+    const { designStyle, ...withoutStyle } = makeIntake()
+    void designStyle
+    const result = STEP_SCHEMAS[4]!.safeParse(withoutStyle)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.join('.') === 'designStyle')).toBe(true)
+    }
+  })
+
+  it('still parses a stored payload written before design styles existed', () => {
+    // Records created before this feature must keep loading, so the payload schema defaults where
+    // the wizard demands. A default here would be wrong; a hard failure there would be worse.
+    const { designStyle, ...withoutStyle } = makeIntake()
+    void designStyle
+    const result = intakeSchema.safeParse(withoutStyle)
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.designStyle).toBe('auto')
   })
 })
 

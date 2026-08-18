@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { TRADES } from './trades'
 import { isValidAbn } from './abn'
 import { normaliseAuPhone } from './phone'
+import { DESIGN_STYLES } from './styles'
 
 // ---------------------------------------------------------------------------------------------
 // Shared leaf types
@@ -200,6 +201,12 @@ export type Step4 = z.infer<typeof step4Schema>
 
 export const step5Schema = z.object({
   logoAssetId: z.string().nullable(),
+  /**
+   * How the site should look. The wizard requires an explicit pick among the five options, one
+   * of which is 'auto', so nothing is preselected on the customer's behalf. The default here is
+   * for payloads written before this field existed, which must keep parsing.
+   */
+  designStyle: z.enum(DESIGN_STYLES).default('auto'),
   photoAssetIds: z.array(z.string()).max(20, 'Up to 20 photos'),
   palette: paletteSchema,
   existingDomain: z
@@ -230,7 +237,25 @@ export type IntakePayload = Step1 & Step2 & Step3 & Step4 & Step5
 // Partial version used while the wizard is in progress and autosaving.
 export const draftIntakeSchema = z.record(z.string(), z.unknown())
 
-export const STEP_SCHEMAS = [step1Schema, step2Schema, step3Schema, step4Schema, step5Schema] as const
+/**
+ * The wizard is stricter than the payload about the design style: it will not let a customer past
+ * step 5 without picking one of the five options. 'Not sure, pick for me' is one of the five, so
+ * this costs them a single tap and it means a stored 'auto' is a decision they made rather than a
+ * field they never saw. The payload schema keeps its default so older records still parse.
+ */
+const step5WizardSchema = step5Schema.extend({
+  designStyle: z.enum(DESIGN_STYLES, {
+    message: 'Pick a look, or choose "Not sure, pick for me" and we will choose one.',
+  }),
+})
+
+export const STEP_SCHEMAS = [
+  step1Schema,
+  step2Schema,
+  step3Schema,
+  step4Schema,
+  step5WizardSchema,
+] as const
 export const STEP_TITLES = [
   'Business basics',
   'Services',
@@ -288,6 +313,8 @@ export function emptyIntake(): Partial<IntakePayload> {
     socials: { facebook: '', instagram: '', linkedin: '', tiktok: '', youtube: '' },
     logoAssetId: null,
     photoAssetIds: [],
+    // Deliberately undefined: the customer picks, we do not preselect.
+    designStyle: undefined,
     palette: DEFAULT_PALETTE,
     existingDomain: '',
   } as Partial<IntakePayload>

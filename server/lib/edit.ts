@@ -147,7 +147,10 @@ export async function generateEditedPlan(args: {
       continue
     }
 
-    return enforcePlanInvariants(parsed.data, args.intake, args.facts, usablePhotos)
+    // An edit may deliberately change the look, so the style is allowed through here.
+    return enforcePlanInvariants(parsed.data, args.intake, args.facts, usablePhotos, {
+      allowStyleChange: true,
+    })
   }
 
   throw new Error(`The revised plan did not validate after 2 attempts.\n${lastError}`)

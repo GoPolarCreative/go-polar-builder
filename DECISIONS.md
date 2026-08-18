@@ -481,12 +481,112 @@ match the API, and the server closes the database on the way out.
 
 ## D21. Test strategy
 
-Unit tests run inside workerd through `@cloudflare/vitest-pool-workers`, because the verification
-checks use `HTMLRewriter` and there is no honest way to test them outside the runtime they run
-in. Fixtures live in `test/fixtures/`.
+*Rewritten after the move to Vercel. The original version of this entry described tests running
+inside workerd through `@cloudflare/vitest-pool-workers`, which is no longer true of anything.*
 
-The 16 checks are covered both ways: a known-good document must pass every check, and a set of
-deliberately broken documents must each trip the specific check that owns that fault and nothing
-else. Checks 13 to 16 cannot be unit tested without Browser Rendering, so what is tested there is
-that they report `skipped` rather than `pass` when the binding is missing, which is the property
-that actually protects a customer.
+Unit tests run under plain Vitest on Node. The static checks parse with `node-html-parser` rather
+than `HTMLRewriter`, so they need no special runtime. Tests that need a database run against
+PGlite, which is Postgres compiled to wasm and needs no server and no account. Fixtures live in
+`test/fixtures/`.
+
+The 13 static checks are covered both ways: a known-good document must pass every one of them, and
+a set of deliberately broken documents must each trip the specific check that owns that fault and
+nothing else. That second half is the half that matters, and it has already caught two checks that
+could never have failed.
+
+The 4 render checks need a real browser. They are tested for the property that actually protects a
+customer: with no render driver available they report `skipped`, never `pass`. They are exercised
+for real by `npm run sample:verify`, which runs Playwright against the committed sample.
+
+Integration tests that involve money or a customer's edit allowance run the real routes against a
+real database rather than mocks, because that is the only way the assertion means anything.
+
+---
+
+## D28. The design style choice
+
+**Question.** Chris wants the customer to feel they are customising the site to their taste, via a
+style choice in the intake with an explicit "not sure, you pick" option. The brief settles none of
+it: not the options, not the words, not how far the choice reaches into the output.
+
+### The copy is not approved
+
+The five labels and their one-line descriptions are a proposal and **need Chris's sign off before
+any customer sees them**. They are all in one place, `DESIGN_STYLE_OPTIONS` in `shared/styles.ts`,
+and nothing else reads the wording, so changing them is editing five strings:
+
+| id | Label (draft) | Description (draft) |
+| --- | --- | --- |
+| `industrial` | Bold and industrial | Heavy condensed type, dark surfaces, high contrast, chunky blocks. |
+| `modern` | Clean and modern | Light and airy, generous whitespace, crisp type, restrained. |
+| `established` | Warm and established | Warmer neutrals, a serif for headings, softer edges, family business feel. |
+| `refined` | Premium and refined | Restrained, wide spacing, smaller type set with more room around it. |
+| `auto` | Not sure, pick for me | We will choose the one that suits your trade and your logo. Most people pick this. |
+
+The `id` values are stored in the database and in every plan JSON. The labels are not. Rewording is
+safe; renaming an id is a migration.
+
+### The choice changes the output, and that is provable
+
+A style that swapped a font would be worse than not offering the choice at all, so a style is
+stored as concrete values rather than adjectives: font families and weights, the whole type scale,
+section padding, gap, measure, corner radii, shadow weight, border weight, header treatment, hero
+composition and card treatment. `STYLE_SPECS` in `shared/styles.ts` holds them. The renderer reads
+them, and the model gets the same values read out as a directive, so a real build and the offline
+fixture make the same decisions.
+
+The proof is a file, not a claim. `npm run sample` builds the one seeded business four times and
+writes `sample/styles/{industrial,modern,established,refined}.html` plus a comparison page at
+`sample/styles/index.html`. Same intake, same photos, same copy, same colours. At the time of
+writing the closest pair of styles differs in 12 of 13 measured signals, and all four pass all 17
+verification checks. `test/styles.test.ts` fails the build if they ever converge.
+
+### Style does not touch colour
+
+The palette is sampled from the customer's logo and stays theirs. Style decides how the colours are
+used and never what they are. Every colour still lives once in `:root`, which check 1 already
+enforces.
+
+The two only meet in one place: a style may want white text on large blocks of the brand colour. If
+the sampled colour is too light to carry that, **the logo wins**. The hue is kept and deepened until
+it is readable, and only if that is still not enough does the dark area fall back to the neutral,
+with the brand colour kept for accents. Either way the compromise is recorded on the plan in
+`style.constraints` and written into the document as a `STYLE NOTE` comment saying which of the two
+happened. `resolveSurfaces` in `server/lib/render/site.ts` is the only code that decides it.
+
+### Pictures, not words
+
+Tradies are not designers and will not choose between four paragraphs of adjectives, so every option
+carries a drawing of the shape it produces: header treatment, hero composition, heading weight,
+corner radius, section density. They are inline SVG in `src/components/StylePicker.tsx`, drawn in
+the customer's own sampled colours, so they cost nothing to serve and they make the point that the
+style changes the shape and the logo decides the palette.
+
+### Suggested, never preselected
+
+Nothing is selected when step 5 loads. When the trade is known from step 1 the matching style is
+softly badged "often suits electricians", and every option stays freely selectable.
+`TRADE_STYLE_SUGGESTION` holds the mapping. The wizard does require an explicit pick before step 5
+can be completed, which costs one tap given "not sure" is one of the five, and means a stored
+`auto` is a decision the customer made rather than a field they never saw. The stored payload
+schema keeps a default so records written before this feature existed still parse.
+
+### When they ask us to pick
+
+`resolveDesignStyle` starts from the trade, then reads the logo palette and their own description of
+the business. A pale logo moves it off `industrial` because that style is built on dark blocks. Words
+like "dad", "family", "since 1998" move it to `established`. The choice and the reason go into the
+plan JSON so they survive edits and rollbacks. **The reasoning is never shown to the customer**;
+telling someone we called their business a family operation is not a conversation this product
+should start. It is in the plan for support and for Chris.
+
+### Changing it later
+
+The style lives on the plan, so a customer can ask for a different look during the edit loop and it
+costs one round like any other change. The edit prompt allows `style.resolved` to move only for a
+request that is genuinely about the overall look. "Make the header darker" is a request about the
+header, not an invitation to restyle their site.
+
+**If Chris disagrees.** Dropping a style is deleting its entry from `STYLE_SPECS`,
+`DESIGN_STYLE_OPTIONS` and the trade mapping. Adding one is adding the same three. The renderer,
+the prompt directive and the tests all iterate `NAMED_STYLES`, so nothing else needs touching.

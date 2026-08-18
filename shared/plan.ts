@@ -6,6 +6,7 @@
 // malformed site, and the customer is watching.
 
 import { z } from 'zod'
+import { DESIGN_STYLES, NAMED_STYLES } from './styles'
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 
@@ -43,6 +44,20 @@ export const planSchema = z.object({
     geoRegion: z.string().regex(/^AU-(QLD|NSW|VIC|SA|WA|TAS|NT|ACT)$/),
     geoPlacename: z.string().min(2),
     geoPosition: z.object({ lat: z.number(), lng: z.number() }),
+  }),
+
+  /**
+   * The design style this build was made in. Carried on the plan so it survives an edit and a
+   * rollback, and so a later edit can change it like any other part of the plan.
+   *
+   * `reason` is how the style was arrived at when the customer said 'not sure'. It is internal:
+   * nothing renders it to the customer, who asked us to pick rather than to explain.
+   */
+  style: z.object({
+    chosen: z.enum(DESIGN_STYLES),
+    resolved: z.enum(NAMED_STYLES),
+    reason: z.string(),
+    constraints: z.array(z.string()).default([]),
   }),
 
   brand: z.object({

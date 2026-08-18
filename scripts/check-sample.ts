@@ -46,4 +46,31 @@ for (const check of [...report.static, ...report.render]) {
 console.log(`\n  page weight: ${formatBytes(report.pageWeightBytes)}`)
 console.log(`  overall: ${report.passed ? 'passed' : 'FAILED'}`)
 
-process.exit(report.passed ? 0 : 1)
+// The same suite, in the same browser, for every design style. A style that produced a site which
+// overflowed on a phone or broke its own accordions would be a style we should not be offering.
+const { NAMED_STYLES } = await import('../shared/styles')
+let styleFailures = 0
+
+console.log('\nDesign styles, full suite each')
+for (const style of NAMED_STYLES) {
+  const styleFacts = buildFacts({ ...SAMPLE_INTAKE, designStyle: style }, await sampleAssets())
+  // The committed variants live a folder down so they open by double clicking. Put the asset
+  // paths back the way the manifest describes them before verifying.
+  const styleHtml = (await readFile(`sample/styles/${style}.html`, 'utf8')).replaceAll(
+    '"../assets/',
+    '"assets/',
+  )
+  const styleReport = await verify(styleHtml, styleFacts)
+  const bad = [...styleReport.static, ...styleReport.render].filter((c) => c.status === 'fail')
+  const skipped = [...styleReport.static, ...styleReport.render].filter((c) => c.status === 'skipped')
+
+  styleFailures += bad.length
+  console.log(
+    `  ${style.padEnd(12)} ${formatBytes(styleReport.pageWeightBytes).padStart(9)}  ${
+      bad.length === 0 ? 'all checks passed' : `${bad.length} FAILED`
+    }${skipped.length > 0 ? `, ${skipped.length} skipped` : ''}`,
+  )
+  for (const c of bad) console.log(`        FAIL ${c.id}: ${c.detail ?? ''}`)
+}
+
+process.exit(report.passed && styleFailures === 0 ? 0 : 1)

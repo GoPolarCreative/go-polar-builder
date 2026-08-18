@@ -3,6 +3,7 @@ import type { BuildFacts, ContentPlan } from '../../shared/plan'
 import type { IntakePayload } from '../../shared/intake'
 import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades'
 import { formatAuPhone } from '../../shared/phone'
+import { styleDirective, styleSpec, type NamedStyleId } from '../../shared/styles'
 
 /**
  * User-message builders for both generation calls.
@@ -77,6 +78,8 @@ export function planUserMessage(args: {
   auditFlags: AuditFlag[]
   photoInventory: Array<{ assetId: string; path: string; note: string }>
   usablePhotoCount: number
+  /** Already decided, by the customer or on their behalf. Not the model's to choose. */
+  style: NamedStyleId
 }): string {
   const { intake, facts, auditFlags, photoInventory, usablePhotoCount } = args
 
@@ -173,6 +176,13 @@ ${
     : auditFlags.map((f) => `- [${f.code}] ${f.message}\n  Build effect: ${f.buildEffect}`).join('\n')
 }
 
+${styleDirective(styleSpec(args.style))}
+
+The style is already decided and is not yours to change. It is applied when the site is built, so
+do not put it in the JSON. What it should change here is the WRITING: an industrial site wants
+short, blunt lines; a refined one wants fewer words with more room around them; a warm one can
+afford a longer, more personal about section. Same facts, pitched to match.
+
 # RETURN THIS SHAPE
 
 ${PLAN_SHAPE}
@@ -260,6 +270,8 @@ Logo treatment: ${plan.brand.logoTreatment}${
 export function buildUserMessage(plan: ContentPlan, facts: BuildFacts): string {
   return `${factsBlock(facts, plan)}
 
+${styleDirective(styleSpec(plan.style.resolved))}
+
 # CONTENT PLAN
 
 ${JSON.stringify(plan, null, 2)}
@@ -326,6 +338,8 @@ export function sectionUserMessage(args: {
   const { plan, facts, spec, stylesheet, previousSectionIds } = args
 
   return `${factsBlock(facts, plan)}
+
+${styleDirective(styleSpec(plan.style.resolved))}
 
 # CONTENT PLAN
 

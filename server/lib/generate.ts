@@ -4,6 +4,7 @@ import { planSchema } from '../../shared/plan'
 import { config } from '../config'
 import type { IntakePayload } from '../../shared/intake'
 import { TRADE_SCHEMA_TYPE } from '../../shared/trades'
+import { constraintsFor, resolveDesignStyle } from '../../shared/styles'
 import {
   callMessage,
   extractJson,
@@ -70,12 +71,20 @@ export async function generatePlan(args: {
     return enforcePlanInvariants(parsed.data, intake, facts, usablePhotos)
   }
 
+  const style = resolveDesignStyle({
+    chosen: intake.designStyle,
+    trade: intake.trade,
+    palette: intake.palette,
+    description: `${intake.about} ${intake.different ?? ''}`,
+  })
+
   const userMessage = planUserMessage({
     intake,
     facts,
     auditFlags,
     photoInventory,
     usablePhotoCount: usablePhotos.length,
+    style: style.resolved,
   })
 
   let lastError = ''
@@ -100,7 +109,7 @@ export async function generatePlan(args: {
 
     let candidate: unknown
     try {
-      candidate = JSON.parse(extractJson(result.text))
+      candidate = { ...(JSON.parse(extractJson(result.text)) as object), style }
     } catch (err) {
       lastError = `The response was not valid JSON: ${(err as Error).message}`
       continue
@@ -143,8 +152,35 @@ export function enforcePlanInvariants(
   intake: IntakePayload,
   facts: BuildFacts,
   usablePhotos: AssetRecord[],
+  opts: { allowStyleChange?: boolean } = {},
 ): ContentPlan {
   const out: ContentPlan = structuredClone(plan)
+
+  /*
+   * Design style.
+   *
+   * On a first build the style comes from what the customer picked, or from what we picked for
+   * them, and the model does not get a vote. During an edit the customer may ask to change the
+   * look, so a style the model set is accepted, with the constraints recomputed against their
+   * palette either way: a style can never talk its way past the colour rules.
+   */
+  const fromIntake = resolveDesignStyle({
+    chosen: intake.designStyle,
+    trade: intake.trade,
+    palette: intake.palette,
+    description: `${intake.about} ${intake.different ?? ''}`,
+  })
+
+  if (opts.allowStyleChange && plan.style && plan.style.resolved !== fromIntake.resolved) {
+    out.style = {
+      chosen: plan.style.resolved,
+      resolved: plan.style.resolved,
+      reason: 'Changed during an edit at the request of the customer.',
+      constraints: constraintsFor(plan.style.resolved, intake.palette),
+    }
+  } else {
+    out.style = fromIntake
+  }
 
   // Testimonials exist only if real reviews were supplied, and only as supplied.
   if (intake.reviews.length === 0) {

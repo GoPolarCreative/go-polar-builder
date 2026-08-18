@@ -83,6 +83,7 @@ export const SAMPLE_INTAKE: IntakePayload = {
     youtube: '',
   },
 
+  designStyle: 'auto',
   logoAssetId: 'ast_logo',
   photoAssetIds: ['ast_p1', 'ast_p2', 'ast_p3', 'ast_p4'],
   palette: {

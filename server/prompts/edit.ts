@@ -26,7 +26,14 @@ Rules:
 - If the request is about wording, change wording. If it is about colour, change the tokens. If
   it is about a section being present, change that section's enabled flag or its contents. Match
   the scope of the request exactly.
-- One request can contain several changes. Apply all of them.`
+- One request can contain several changes. Apply all of them.
+
+CHANGING THE LOOK. The plan carries a design style in \`style.resolved\`, one of industrial,
+modern, established or refined. If the customer asks for something that is really a style change,
+"make it feel more upmarket", "this is too plain", "can it look tougher", set \`style.resolved\` to
+the style that matches and set \`style.chosen\` to the same value, with \`style.reason\` saying it was
+changed during an edit. Do not change the style for a request that is not about the overall look:
+"make the header darker" is a request about the header, not an invitation to restyle their site.`
 
 export function editPlanUserMessage(args: {
   plan: ContentPlan

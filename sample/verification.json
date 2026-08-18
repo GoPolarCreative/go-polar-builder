@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-08-17T22:03:19.779Z",
+  "generatedAt": "2026-08-18T03:43:44.209Z",
   "generator": "offline fixture, not the Anthropic API",
   "business": "Cold Front Plumbing",
-  "pageWeightBytes": 1507686,
+  "pageWeightBytes": 1514103,
   "pageWeightHuman": "1.4MB",
-  "originalImageBytes": 10615527,
+  "originalImageBytes": 10615534,
   "originalImageHuman": "10.1MB",
   "passed": true,
   "checks": [

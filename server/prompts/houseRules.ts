@@ -69,6 +69,22 @@ Testimonials, opening hours, service areas and contact details are the usual sus
 
 12. LANGUAGE. <html lang="en-AU">. Australian spelling throughout: colour, metre, licence as a noun, organisation, specialise, neighbourhood. Suburb, not neighborhood.
 
+# DESIGN STYLE
+
+Every build carries a design style, supplied with the plan as a block of concrete values: type
+family, weight, transform and tracking, the heading scale, section padding, grid gap, reading
+measure, corner radii, shadow weights, border widths, header treatment, hero composition and card
+treatment. Use those numbers. They are not suggestions and they are not a starting point.
+
+The style decides shape, density and typography. IT DECIDES NO COLOURS AT ALL. The palette is
+sampled from the customer's own logo and is fixed in the plan's tokens. If a style reads as dark
+and heavy, that means large blocks of the customer's existing dark token, not a new colour you
+picked to suit the mood. Every colour still lives once in :root, and there are no exceptions for
+style.
+
+Two different styles must produce two visibly different pages from the same content. If somebody
+put them side by side, the difference should be obvious from across a room, not a font swap.
+
 # WRITING STYLE
 
 You are writing for a tradesperson's customers, most of whom are on a phone, in a hurry, with a problem.

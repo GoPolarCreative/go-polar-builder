@@ -19,7 +19,7 @@
 <meta name="theme-color" content="#0d3b66">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Inter:wght@300;400;500&display=swap">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -205,38 +205,38 @@
 --on-primary:#ffffff;
 --on-dark:#ffffff;
 --dark-block:var(--primary);
---font-head:Lora, Georgia, "Times New Roman", serif;
+--font-head:Jost, "Helvetica Neue", system-ui, sans-serif;
 --font-body:Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
---weight-head:600;
---track-head:-0.01em;
---track-btn:0.01em;
---track-eyebrow:0.16em;
---h1:clamp(2.3rem, 1.6rem + 3vw, 3.7rem);
---h2:clamp(1.75rem, 1.35rem + 1.7vw, 2.5rem);
---h3:1.25rem;
---step-body:1.09rem;
---step-lead:1.18rem;
---section-pad:4rem;
---section-pad-lg:6rem;
---gap:1.35rem;
---measure:65ch;
---radius:10px;
---radius-btn:999px;
---radius-input:10px;
---shadow-card:0 2px 6px var(--shadow-soft);
---shadow-raised:0 10px 26px var(--shadow-soft);
---shadow-hover:0 14px 34px var(--shadow-medium);
+--weight-head:400;
+--track-head:0.16em;
+--track-btn:0.18em;
+--track-eyebrow:0.3em;
+--h1:clamp(1.7rem, 1.3rem + 1.8vw, 2.6rem);
+--h2:clamp(1.25rem, 1.05rem + 0.9vw, 1.75rem);
+--h3:1rem;
+--step-body:1rem;
+--step-lead:1.05rem;
+--section-pad:5.5rem;
+--section-pad-lg:9rem;
+--gap:2rem;
+--measure:54ch;
+--radius:2px;
+--radius-btn:2px;
+--radius-input:2px;
+--shadow-card:none;
+--shadow-raised:none;
+--shadow-hover:0 6px 18px var(--shadow-soft);
 --border-hairline:1px;
---border-strong:2px;
+--border-strong:1px;
 --wrap:1200px;
---header-h:76px;
+--header-h:64px;
 }
 *,*::before,*::after{box-sizing:border-box;}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
 body{margin:0;font-family:var(--font-body);font-size:var(--step-body);line-height:1.7;color:var(--ink);background:var(--surface);overflow-x:hidden;}
 img{max-width:100%;height:auto;display:block;}
 picture{display:block;}
-h1,h2,h3{font-family:var(--font-head);font-weight:var(--weight-head);letter-spacing:var(--track-head);line-height:1.1;margin:0 0 1rem;}
+h1,h2,h3{font-family:var(--font-head);font-weight:var(--weight-head);letter-spacing:var(--track-head);line-height:1.1;margin:0 0 1rem;text-transform:uppercase;}
 h1{font-size:var(--h1);}
 h2{font-size:var(--h2);}
 h3{font-size:var(--h3);line-height:1.3;}
@@ -249,34 +249,37 @@ a{color:var(--primary);}
 .lead{color:var(--ink-muted);max-width:var(--measure);font-size:var(--step-lead);}
 .eyebrow{font-family:var(--font-head);text-transform:uppercase;letter-spacing:var(--track-eyebrow);color:var(--accent);font-size:0.85rem;margin:0 0 0.5rem;}
 .icon{width:22px;height:22px;flex:0 0 auto;}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-weight:600;border-radius:var(--radius-btn);padding:14px 24px;text-decoration:none;border:var(--border-hairline) solid transparent;cursor:pointer;font-size:1rem;letter-spacing:var(--track-btn);transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-weight:600;border-radius:var(--radius-btn);padding:14px 24px;text-decoration:none;border:var(--border-hairline) solid transparent;cursor:pointer;font-size:1rem;letter-spacing:var(--track-btn);text-transform:uppercase;transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease;}
 .btn--primary{background:var(--accent);color:var(--on-primary);}
 .btn--solid{background:var(--primary);color:var(--on-primary);}
 .btn--ghost{border-color:var(--white);color:var(--white);}
 .btn--ghost:hover{background:var(--overlay-soft);}
 .btn--block{width:100%;}
 .btn--primary:hover,.btn--solid:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);}
-.card{background:var(--surface);border:var(--border-hairline) solid var(--line);border-radius:var(--radius);padding:1.8rem;box-shadow:var(--shadow-card);transition:transform .18s ease,box-shadow .18s ease;}
-.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);}
-.card--feature{background:var(--surface-alt);border-color:var(--primary-light);}
-.card__icon{width:56px;height:56px;border-radius:50%;background:var(--surface-alt);color:var(--primary);display:grid;place-items:center;margin-bottom:1.1rem;}
-.site-header{position:fixed;top:0;left:0;right:0;z-index:60;background:var(--surface-alt);border-bottom:var(--border-hairline) solid var(--line);}
-.brand__name{color:var(--ink);}
-.nav a{color:var(--ink);}
-.menu-toggle{background:var(--surface);color:var(--ink);}
+.card{background:transparent;border:0;border-top:var(--border-hairline) solid var(--line);border-radius:0;padding:2.2rem 0 0;box-shadow:none;}
+.card:hover{box-shadow:none;}
+.card--feature{border-top-color:var(--primary);}
+.card__icon{width:40px;height:40px;border-radius:0;background:transparent;color:var(--primary);display:grid;place-items:start;margin-bottom:1.4rem;}
+.site-header{position:fixed;top:0;left:0;right:0;z-index:60;transition:background-color .3s ease;}
+.site-header--solid{background:var(--surface);border-bottom:var(--border-hairline) solid var(--line);}
+.brand__name{color:var(--white);letter-spacing:var(--track-eyebrow);}
+.site-header--solid .brand__name{color:var(--ink);}
+.nav a{color:var(--white);letter-spacing:var(--track-eyebrow);font-size:0.78rem;text-transform:uppercase;}
+.site-header--solid .nav a{color:var(--ink);}
+.menu-toggle{background:transparent;color:var(--white);border:var(--border-hairline) solid var(--white);}
+.site-header--solid .menu-toggle{color:var(--ink);border-color:var(--line);}
 .hero__inner{display:block;text-align:center;}
-.hero__copy{margin:0 auto;max-width:60ch;}
+.hero__copy{margin:0 auto;max-width:46ch;}
+.hero h1{margin-bottom:1.75rem;}
+.hero__rule{width:64px;height:1px;background:var(--accent);margin:1.75rem auto;}
 .hero__ctas{justify-content:center;}
-.hero__points{grid-template-columns:repeat(2,1fr);max-width:36rem;margin:0 auto;}
-.hero__points--inline{display:flex;flex-wrap:wrap;justify-content:center;gap:0.5rem 1.25rem;margin:1.25rem auto 1.5rem;}
-.hero__points--inline li{font-size:0.9rem;}
-.hero__panel{margin-top:2.5rem;}
-.card-form{margin:0 auto;max-width:34rem;text-align:left;}
+.hero__points{grid-template-columns:repeat(2,1fr);max-width:32rem;margin:0 auto;gap:0.5rem;}
+.card-form{margin:3.5rem auto 0;max-width:30rem;text-align:left;border:var(--border-hairline) solid var(--line);box-shadow:none;}
 .site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;height:var(--header-h);}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
 .brand__mark{width:42px;height:42px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.3rem;}
 .brand__logo{max-height:44px;width:auto;}
-.brand__name{font-family:var(--font-head);font-size:1.3rem;}
+.brand__name{font-family:var(--font-head);font-size:1.3rem;text-transform:uppercase;}
 .nav{display:none;}
 .nav a{text-decoration:none;font-weight:500;padding:8px 10px;}
 .nav a:hover{color:var(--accent);}
@@ -309,7 +312,7 @@ a{color:var(--primary);}
 .trust-strip__grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--gap);}
 .trust-strip__item{display:flex;gap:12px;align-items:flex-start;}
 .trust-strip__item .icon{color:var(--accent);}
-.trust-strip__label{font-family:var(--font-head);font-size:1.05rem;display:block;}
+.trust-strip__label{font-family:var(--font-head);text-transform:uppercase;font-size:1.05rem;display:block;}
 .trust-strip__detail{font-size:0.9rem;opacity:0.85;}
 .about__grid{display:grid;gap:2.5rem;}
 .about__media{border-radius:var(--radius);overflow:hidden;min-height:280px;background:linear-gradient(150deg,var(--primary),var(--primary-dark));box-shadow:var(--shadow-card);}
@@ -395,7 +398,7 @@ html{scroll-behavior:auto;}
 
 <header class="site-header" id="siteHeader">
   <div class="wrap site-header__inner">
-    <a class="brand" href="#top"><img class="brand__logo" src="assets/logo.webp" alt="Cold Front Plumbing logo" width="180" height="44"></a>
+    <a class="brand" href="#top"><img class="brand__logo" src="../assets/logo.webp" alt="Cold Front Plumbing logo" width="180" height="44"></a>
     <nav class="nav" aria-label="Main">
       <a href="#about">About</a>
       <a href="#services">Services</a>
@@ -421,8 +424,8 @@ html{scroll-behavior:auto;}
 <section class="hero" id="top">
   <div class="hero__bg">
     <picture>
-        <source type="image/webp" srcset="assets/photo-01.webp" sizes="100vw">
-        <img src="assets/photo-01.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="eager" fetchpriority="high">
+        <source type="image/webp" srcset="../assets/photo-01.webp" sizes="100vw">
+        <img src="../assets/photo-01.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="eager" fetchpriority="high">
       </picture>
     <div class="hero__scrim"></div>
   </div>
@@ -430,20 +433,20 @@ html{scroll-behavior:auto;}
     <div class="hero__copy">
       <p class="eyebrow">Blocked drains done properly in Chermside</p>
       <h1>Blocked drains in Chermside</h1>
-      <ul class="hero__points hero__points--inline">
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>14 years in the trade</span></li>
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>After hours available</span></li>
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Licensed and insured</span></li>
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Tidy work, no mess left</span></li>
-      </ul>
+      <div class="hero__rule"></div>
       <p class="hero__sub">Cold Front Plumbing has been on the tools for 14 years. We turn up when we say we will, and you get the price before we start.</p>
       <div class="hero__ctas">
         <a class="btn btn--primary" href="tel:+61412345678"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Call 0412 345 678</a>
         <a class="btn btn--ghost" href="#contact">Request a free quote</a>
       </div>
     </div>
-    <div class="hero__panel">
-      <div class="card-form">
+    <ul class="hero__points">
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>14 years in the trade</span></li>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>After hours available</span></li>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Licensed and insured</span></li>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Tidy work, no mess left</span></li>
+      </ul>
+    <div class="card-form">
       <h2>Request a free quote</h2>
       <form action="https://api.web3forms.com/submit" method="POST" data-web3form id="heroForm">
         <input type="hidden" name="access_key" value="11111111-2222-3333-4444-555555555555">
@@ -457,7 +460,6 @@ html{scroll-behavior:auto;}
         <p class="form-status" role="status"></p>
         <p class="form-note">We will get back to you as soon as we can. If it is urgent, ring us instead.</p>
       </form>
-    </div>
     </div>
   </div>
 </section>
@@ -484,8 +486,8 @@ html{scroll-behavior:auto;}
     </div>
     <div class="about__media">
       <picture>
-        <source type="image/webp" srcset="assets/photo-02.webp" sizes="(min-width: 768px) 50vw, 100vw">
-        <img src="assets/photo-02.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-02.webp" sizes="(min-width: 768px) 50vw, 100vw">
+        <img src="../assets/photo-02.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
       </picture>
     </div>
   </div>
@@ -543,20 +545,20 @@ html{scroll-behavior:auto;}
     <h2>Our work</h2>
     <div class="gallery__grid">
       <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="assets/photo-01-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="800" height="600" loading="eager" fetchpriority="high">
+        <source type="image/webp" srcset="../assets/photo-01-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
+        <img src="../assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="800" height="600" loading="eager" fetchpriority="high">
       </picture></figure>
       <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="assets/photo-02-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="800" height="600" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-02-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
+        <img src="../assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="800" height="600" loading="lazy" decoding="async">
       </picture></figure>
       <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="assets/photo-03-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="800" height="600" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-03-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
+        <img src="../assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="800" height="600" loading="lazy" decoding="async">
       </picture></figure>
       <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="assets/photo-04-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="800" height="600" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-04-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
+        <img src="../assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="800" height="600" loading="lazy" decoding="async">
       </picture></figure>
     </div>
   </div>
@@ -735,7 +737,7 @@ html{scroll-behavior:auto;}
   <div class="wrap">
     <div class="site-footer__grid">
       <div>
-        <img class="site-footer__logo" src="assets/logo.webp" alt="Cold Front Plumbing logo" width="240" height="70">
+        <img class="site-footer__logo" src="../assets/logo.webp" alt="Cold Front Plumbing logo" width="240" height="70">
         <p>Blocked drains done properly in Chermside</p>
         <p><a href="tel:+61412345678">0412 345 678</a></p>
       </div>

@@ -399,6 +399,14 @@ export default function Preview() {
                 : 'Changes are switched off on this install. See the note above.'
             }
           />
+          {canEdit ? (
+            // The style chosen in the intake is on the plan, so a restyle is a normal edit. Worth
+            // saying, because nobody guesses that the whole look is on the table.
+            <p className="field-hint">
+              You can change the overall look here too. Something like "can it feel more upmarket"
+              or "this is too plain, make it tougher" counts as one change like any other.
+            </p>
+          ) : null}
           <div className="mt-3 flex items-center justify-between gap-3">
             <Link className="text-xs text-ice-500 underline" to={`/golive/${jobId}`}>
               I am ready to go live
