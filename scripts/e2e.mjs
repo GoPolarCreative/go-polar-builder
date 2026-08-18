@@ -155,22 +155,52 @@ async function main() {
   )
 
   // --- edit loop ---------------------------------------------------------------------------------
+  // With no Anthropic key an edit cannot be applied. It must be refused loudly rather than
+  // quietly writing a version that looks identical and charging the customer for it.
   const before = await call(`/api/jobs/${jobId}/versions`)
-  const edit = await stream(`/api/jobs/${jobId}/edits`, {
-    request: 'Make the header darker and put the phone number in the hero.',
-  })
-  const editDone = edit.find((e) => e.type === 'done')
-  check('an edit produces a new version', editDone?.version === version + 1)
-  check('the edited version passes verification', editDone?.passed === true)
+  check('the panel says up front whether edits can work', typeof before.body?.capability?.available === 'boolean')
 
-  const after = await call(`/api/jobs/${jobId}/versions`)
-  check(
-    'one request costs exactly one edit',
-    after.body.editsUsed === before.body.editsUsed + 1,
-    `${after.body.editsRemaining} of ${after.body.editsAllowed} remaining`,
-  )
+  if (before.body?.capability?.available === false) {
+    check(
+      'the reason names the missing variable in plain English',
+      /ANTHROPIC_API_KEY/.test(before.body?.capability?.reason ?? ''),
+    )
+
+    const refused = await call(`/api/jobs/${jobId}/edits`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ request: 'Make the header darker and put the phone number in the hero.' }),
+    })
+    check('an edit that cannot be applied is refused loudly', refused.status === 503, refused.body?.error)
+    check('the refusal says nothing was charged', refused.body?.editCharged === false)
+
+    const after = await call(`/api/jobs/${jobId}/versions`)
+    check(
+      'a refused edit costs nothing',
+      after.body.editsUsed === before.body.editsUsed,
+      `${after.body.editsRemaining} of ${after.body.editsAllowed} remaining`,
+    )
+    check('a refused edit writes no version', after.body.currentVersion === before.body.currentVersion)
+  } else {
+    const edit = await stream(`/api/jobs/${jobId}/edits`, {
+      request: 'Make the header darker and put the phone number in the hero.',
+    })
+    const editDone = edit.find((e) => e.type === 'done')
+    check('an edit produces a new version', editDone?.version === version + 1)
+    check('the edited version passes verification', editDone?.passed === true)
+
+    const after = await call(`/api/jobs/${jobId}/versions`)
+    check(
+      'one request costs exactly one edit',
+      after.body.editsUsed === before.body.editsUsed + 1,
+      `${after.body.editsRemaining} of ${after.body.editsAllowed} remaining`,
+    )
+  }
 
   // --- rollback ----------------------------------------------------------------------------------
+  // Read the state fresh, since the edit branch above differs depending on whether edits can run.
+  const beforeRollback = await call(`/api/jobs/${jobId}/versions`)
+
   const rolled = await call(`/api/jobs/${jobId}/rollback`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -179,10 +209,10 @@ async function main() {
   check('rollback moves the current version', rolled.body?.currentVersion === version)
 
   const afterRollback = await call(`/api/jobs/${jobId}/versions`)
-  check('rollback costs no edit', afterRollback.body.editsUsed === after.body.editsUsed)
+  check('rollback costs no edit', afterRollback.body.editsUsed === beforeRollback.body.editsUsed)
   check(
     'rollback destroys nothing',
-    afterRollback.body.builds.length === after.body.builds.length,
+    afterRollback.body.builds.length === beforeRollback.body.builds.length,
     `${afterRollback.body.builds.length} versions kept`,
   )
 

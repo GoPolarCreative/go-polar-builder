@@ -35,6 +35,8 @@ export interface AppConfig {
   // --- generation ----------------------------------------------------------------------------
   anthropicApiKey?: string
   anthropicModel: string
+  /** Overridable so a gateway or proxy can be used, and so tests can exercise failures. */
+  anthropicBaseUrl?: string
   offlineGeneration: boolean
 
   // --- render checks 13 to 16 ------------------------------------------------------------------
@@ -109,6 +111,7 @@ export function loadConfig(): AppConfig {
 
     anthropicApiKey,
     anthropicModel: env('ANTHROPIC_MODEL') ?? 'claude-sonnet-5',
+    anthropicBaseUrl: env('ANTHROPIC_BASE_URL'),
     // In demo mode with no key, fall back to the offline fixture rather than failing at the
     // moment someone presses the button. Outside demo mode this stays off unless asked for, so a
     // production install with a missing key fails loudly instead of quietly shipping a fixture.
@@ -181,6 +184,35 @@ const FLAG_FOR: Record<LiveCapability, string> = {
  */
 export function assertLiveEnabled(capability: LiveCapability, cfg: AppConfig = config()): void {
   if (!cfg.live[capability]) throw new LiveActionBlockedError(capability, FLAG_FOR[capability])
+}
+
+/**
+ * Can this install actually apply a change to a built site?
+ *
+ * An edit is a real model call: it revises the content plan from the customer's words and
+ * rebuilds from it. The offline fixture cannot do that. It can only replay the same deterministic
+ * site, which looks to a customer exactly like nothing happening, except that it costs them one
+ * of their ten included changes.
+ *
+ * So this is asked BEFORE anything is written, the answer is shown in the edit panel when it
+ * loads, and a refusal is loud. See DECISIONS.md D27.
+ */
+export function editCapability(cfg: AppConfig = config()): { available: boolean; reason: string | null } {
+  if (cfg.anthropicApiKey) return { available: true, reason: null }
+
+  if (cfg.offlineGeneration) {
+    return {
+      available: false,
+      reason:
+        'Changes need the AI model, and this install is running the offline sample generator instead. It can rebuild the same site, but it cannot apply what you asked for. Set ANTHROPIC_API_KEY and restart, and the edit panel will work.',
+    }
+  }
+
+  return {
+    available: false,
+    reason:
+      'Changes need the AI model, and no ANTHROPIC_API_KEY is set on this install. Set it and restart, and the edit panel will work.',
+  }
 }
 
 export const DEFAULT_MODEL = 'claude-sonnet-5'

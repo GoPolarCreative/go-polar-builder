@@ -30,6 +30,38 @@ if (cfg.databaseDriver === 'pglite') {
   await migrate()
 }
 
+/*
+ * Close the database on the way out.
+ *
+ * The local database is Postgres compiled to wasm, and it keeps its data in a directory it opens
+ * exclusively. Killing the process without closing it leaves that directory half-written, and
+ * the next start fails to open it at all. Since `tsx watch` restarts on every file save, and
+ * anyone running this will eventually press Ctrl+C, an unflushed shutdown is the normal case
+ * rather than the rare one.
+ */
+const { closeDb } = await import('./db/client')
+let shuttingDown = false
+
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return
+  shuttingDown = true
+  try {
+    await closeDb()
+  } catch (err) {
+    console.error('database did not close cleanly', err)
+  }
+  console.log(`\n  Stopped (${signal}).`)
+  process.exit(0)
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(signal, () => void shutdown(signal))
+}
+// tsx sends this to the child before restarting on a file change.
+process.on('message', (message) => {
+  if (message === 'shutdown') void shutdown('watch restart')
+})
+
 serve({ fetch: api.fetch, port }, (info) => {
   console.log('')
   console.log(`  Go Polar Website Builder API on http://localhost:${info.port}`)

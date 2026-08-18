@@ -163,6 +163,8 @@ export const api = {
     request<{ report: unknown }>(`/api/jobs/${jobId}/builds/${version}/checks`),
 
   // --- Phase 4: versions, rollback, edit allowance -------------------------------------------
+  // Field names are camelCase, matching what the API returns. They were snake_case here after
+  // the database migration and every date rendered as "Invalid Date" because of it.
   versions: (jobId: string) =>
     request<{
       currentVersion: number
@@ -172,15 +174,24 @@ export const api = {
       overAllowance: boolean
       held: boolean
       heldReason: string | null
-      builds: Array<{ version: number; bytes: number; passed: number; repair_passes: number; created_at: string }>
-      edits: Array<{
-        version_from: number
-        version_to: number
-        prompt: string | null
-        diff_summary: string | null
-        counted: number
-        created_at: string
+      builds: Array<{
+        version: number
+        bytes: number
+        pageWeightBytes: number | null
+        passed: boolean
+        repairPasses: number
+        createdAt: string
       }>
+      edits: Array<{
+        versionFrom: number
+        versionTo: number
+        prompt: string | null
+        diffSummary: string | null
+        counted: boolean
+        createdAt: string
+      }>
+      /** Whether this install can actually apply a change, and why not if it cannot. */
+      capability: { available: boolean; reason: string | null }
     }>(`/api/jobs/${jobId}/versions`),
 
   rollback: (jobId: string, version: number) =>
@@ -351,16 +362,21 @@ async function streamSse(
   })
 
   if (!res.ok) {
+    // A refusal carries a real reason. Keep it: the caller shows it to the customer verbatim,
+    // and "something went wrong" is never an acceptable substitute for "no API key is set".
     const text = await res.text()
     let detail = text.slice(0, 300)
+    let code = 'request_failed'
     try {
-      detail = (JSON.parse(text) as { detail?: string }).detail ?? detail
+      const body = JSON.parse(text) as { error?: string; detail?: string }
+      detail = body.detail ?? detail
+      code = body.error ?? code
     } catch {
       /* keep the raw text */
     }
-    throw new ApiCallError('Generation could not start', res.status, detail)
+    throw new ApiCallError(code, res.status, detail)
   }
-  if (!res.body) throw new ApiCallError('Generation returned no stream', 502)
+  if (!res.body) throw new ApiCallError('no_stream', 502, 'The server returned no response body.')
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
   let buffer = ''

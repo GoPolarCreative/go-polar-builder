@@ -5,33 +5,19 @@ import { ApiCallError, api, previewUrl, streamEdit } from '../lib/api'
 import { Banner, Spinner } from '../components/ui'
 
 /**
- * Phase 4. Preview and the edit loop.
+ * Preview and the edit loop.
  *
  * The preview is a sandboxed iframe fed by srcdoc with every image inlined as a data URI, so
- * relative asset paths cannot break (brief s7). The edit counter is visible at all times, and
- * the placeholder tells the customer to batch their changes, because one submitted request is
- * one edit however many changes it contains.
+ * relative asset paths cannot break (brief s7). The edit counter is visible at all times, and the
+ * placeholder tells the customer to batch their changes, because one submitted request is one
+ * edit however many changes it contains.
+ *
+ * EVERY SUBMISSION ENDS IN SOMETHING VISIBLE. A change lands and the preview refreshes, or a
+ * message says what went wrong in plain words. There is no third outcome, because an editor that
+ * silently does nothing costs a customer one of their ten changes and all of their confidence.
  */
 
-interface VersionsState {
-  currentVersion: number
-  editsUsed: number
-  editsAllowed: number
-  editsRemaining: number
-  overAllowance: boolean
-  held: boolean
-  heldReason: string | null
-  builds: Array<{ version: number; bytes: number; passed: number; repair_passes: number; created_at: string }>
-  edits: Array<{
-    version_from: number
-    version_to: number
-    prompt: string | null
-    diff_summary: string | null
-    counted: number
-    created_at: string
-  }>
-}
-
+type VersionsState = Awaited<ReturnType<typeof api.versions>>
 type Device = 'desktop' | 'mobile'
 
 export default function Preview() {
@@ -49,9 +35,10 @@ export default function Preview() {
   const [statusMessage, setStatusMessage] = useState('')
   const [liveHtml, setLiveHtml] = useState('')
   const [report, setReport] = useState<VerificationReport | null>(null)
-  const [extra, setExtra] = useState<{ available: boolean; quantity: number; price: string | null; detail: string | null } | null>(
+  const [outcome, setOutcome] = useState<{ tone: 'ok' | 'warn' | 'error'; title: string; body: string } | null>(
     null,
   )
+  const [extra, setExtra] = useState<Awaited<ReturnType<typeof api.extraEdits>> | null>(null)
 
   const streamRef = useRef<HTMLPreElement>(null)
 
@@ -104,11 +91,17 @@ export default function Preview() {
     const text = request.trim()
     if (text.length < 3 || running) return
 
+    const before = versions
     setRunning(true)
     setError(null)
+    setOutcome(null)
     setLiveHtml('')
     setReport(null)
     setStatusMessage('Sending it through')
+
+    // Every path out of here sets one of these, so the submission can never end in silence.
+    let sawDone: { version: number; passed: boolean } | null = null
+    let sawError: string | null = null
 
     try {
       await streamEdit(jobId, text, (event: GenerationEvent) => {
@@ -123,33 +116,95 @@ export default function Preview() {
             setReport(event.report)
             break
           case 'error':
-            setError(event.detail ? `${event.message} ${event.detail}` : event.message)
+            sawError = event.detail ? `${event.message} ${event.detail}` : event.message
             break
           case 'done':
-            setStatusMessage('')
+            sawDone = { version: event.version, passed: event.passed }
             break
           default:
             break
         }
       })
-      setRequest('')
+    } catch (err) {
+      // A refusal arrives here as a non-200 with a real reason attached. It is not an unknown
+      // failure and must not be described as one.
+      sawError =
+        err instanceof ApiCallError
+          ? (err.detail ?? err.message)
+          : err instanceof Error
+            ? err.message
+            : 'That change did not go through.'
+    }
+
+    setRunning(false)
+    setLiveHtml('')
+    setStatusMessage('')
+
+    if (sawError) {
+      setOutcome({
+        tone: 'error',
+        title: 'That change was not made',
+        body: `${sawError} Your website has not been touched, and this has not used up one of your changes.`,
+      })
+      // Re-read the counter rather than trusting the local copy, so what is shown is what the
+      // server actually recorded.
+      await loadVersions().catch(() => undefined)
+      return
+    }
+
+    if (!sawDone) {
+      setOutcome({
+        tone: 'error',
+        title: 'That change was not made',
+        body: 'The connection dropped before your change finished. Your website has not been touched. Try again, and if it keeps happening give us a ring.',
+      })
+      await loadVersions().catch(() => undefined)
+      return
+    }
+
+    // Success path. Refresh both the counter and the iframe to the version just written.
+    const done = sawDone as { version: number; passed: boolean }
+    try {
       const v = await loadVersions()
       await loadPreview(v.currentVersion)
+      setRequest('')
+
+      const applied = v.currentVersion > (before?.currentVersion ?? 0)
+      setOutcome(
+        done.passed && applied
+          ? {
+              tone: 'ok',
+              title: 'Change made',
+              body: `You are now looking at version ${v.currentVersion}. ${v.editsRemaining} of ${v.editsAllowed} changes left.`,
+            }
+          : {
+              tone: 'warn',
+              title: 'Held for a check',
+              body: 'Your change was built but did not pass all our checks, so one of our team is looking at it. Your previous version is safe and you can roll back to it below.',
+            },
+      )
     } catch (err) {
-      setError(err instanceof ApiCallError ? (err.detail ?? err.message) : 'That change did not go through')
-    } finally {
-      setRunning(false)
-      setLiveHtml('')
+      setOutcome({
+        tone: 'warn',
+        title: 'Change made, but the preview did not refresh',
+        body: `${err instanceof ApiCallError ? (err.detail ?? err.message) : 'Reload the page to see it.'}`,
+      })
     }
   }
 
   const rollback = async (version: number) => {
     setRunning(true)
     setError(null)
+    setOutcome(null)
     try {
       await api.rollback(jobId, version)
       const v = await loadVersions()
       await loadPreview(v.currentVersion)
+      setOutcome({
+        tone: 'ok',
+        title: `Back on version ${version}`,
+        body: 'Going back does not use up a change.',
+      })
     } catch (err) {
       setError(err instanceof ApiCallError ? (err.detail ?? err.message) : 'Could not roll back')
     } finally {
@@ -167,6 +222,7 @@ export default function Preview() {
 
   const remaining = versions?.editsRemaining ?? 0
   const outOfEdits = remaining === 0
+  const canEdit = versions?.capability.available !== false
 
   return (
     <div className="flex min-h-screen flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
@@ -197,9 +253,7 @@ export default function Preview() {
             // cannot reach back into the builder.
             sandbox="allow-scripts"
             className={
-              device === 'mobile'
-                ? 'h-full w-[390px] max-w-full border-x border-ice-200'
-                : 'h-full w-full'
+              device === 'mobile' ? 'h-full w-[390px] max-w-full border-x border-ice-200' : 'h-full w-full'
             }
           />
         </div>
@@ -216,12 +270,29 @@ export default function Preview() {
         </header>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {/* Said on load, before anything is typed. */}
+          {!canEdit ? (
+            <Banner tone="warn" title="Changes are switched off on this install">
+              <p>{versions?.capability.reason}</p>
+              <p className="mt-2">
+                Everything else works: you can look through your website, go back to an earlier version, go live,
+                or take your files.
+              </p>
+            </Banner>
+          ) : null}
+
           {versions?.held ? (
             <Banner tone="warn" title="This version is being looked at">
               <p>
                 The last change did not pass all our checks, so one of our team has been notified. Your earlier
                 versions are safe and you can roll back to any of them below.
               </p>
+            </Banner>
+          ) : null}
+
+          {outcome ? (
+            <Banner tone={outcome.tone} title={outcome.title}>
+              <p>{outcome.body}</p>
             </Banner>
           ) : null}
 
@@ -253,7 +324,7 @@ export default function Preview() {
             </Banner>
           ) : null}
 
-          {outOfEdits ? (
+          {outOfEdits && canEdit ? (
             <Banner tone="info" title="You have used all your included changes">
               <p>You can still go live whenever you are ready.</p>
               {extra?.available ? (
@@ -275,39 +346,38 @@ export default function Preview() {
           <section>
             <h2 className="mb-2 text-sm font-semibold">History</h2>
             <ul className="space-y-2">
-              {versions?.builds.map((b) => (
-                <li
-                  key={b.version}
-                  className={`rounded-lg border px-3 py-2 text-xs ${
-                    b.version === versions.currentVersion ? 'border-ice-700 bg-ice-100' : 'border-ice-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">
-                      Version {b.version}
-                      {b.version === versions.currentVersion ? ' (showing)' : ''}
-                    </span>
-                    {b.version !== versions.currentVersion ? (
-                      <button
-                        className="font-medium text-ice-700 underline disabled:opacity-50"
-                        disabled={running}
-                        onClick={() => rollback(b.version)}
-                      >
-                        Go back to this
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="mt-0.5 text-ice-500">
-                    {new Date(b.created_at).toLocaleString('en-AU')} | {Math.round(b.bytes / 1024)}KB
-                    {b.passed ? '' : ' | did not pass checks'}
-                  </p>
-                  {versions.edits.find((e) => e.version_to === b.version)?.prompt ? (
-                    <p className="mt-1 text-ice-700">
-                      &ldquo;{versions.edits.find((e) => e.version_to === b.version)?.prompt}&rdquo;
+              {versions?.builds.map((b) => {
+                const edit = versions.edits.find((e) => e.versionTo === b.version)
+                return (
+                  <li
+                    key={b.version}
+                    className={`rounded-lg border px-3 py-2 text-xs ${
+                      b.version === versions.currentVersion ? 'border-ice-700 bg-ice-100' : 'border-ice-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">
+                        Version {b.version}
+                        {b.version === versions.currentVersion ? ' (showing)' : ''}
+                      </span>
+                      {b.version !== versions.currentVersion ? (
+                        <button
+                          className="font-medium text-ice-700 underline disabled:opacity-50"
+                          disabled={running}
+                          onClick={() => rollback(b.version)}
+                        >
+                          Go back to this
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 text-ice-500">
+                      {new Date(b.createdAt).toLocaleString('en-AU')} | {Math.round((b.bytes ?? 0) / 1024)}KB
+                      {b.passed ? '' : ' | did not pass checks'}
                     </p>
-                  ) : null}
-                </li>
-              ))}
+                    {edit?.prompt ? <p className="mt-1 text-ice-700">&ldquo;{edit.prompt}&rdquo;</p> : null}
+                  </li>
+                )
+              })}
             </ul>
             <p className="field-hint mt-2">Going back to an earlier version does not use up a change.</p>
           </section>
@@ -319,17 +389,25 @@ export default function Preview() {
           </label>
           <textarea
             id="editRequest"
-            className="input min-h-24"
+            className="input min-h-24 disabled:cursor-not-allowed disabled:bg-ice-50"
             value={request}
-            disabled={running}
+            disabled={running || !canEdit}
             onChange={(e) => setRequest(e.target.value)}
-            placeholder="Send as many changes as you like in one go, it only counts as one. For example: make the header darker, change the phone number to 0400 111 222, and swap the second and third services around."
+            placeholder={
+              canEdit
+                ? 'Send as many changes as you like in one go, it only counts as one. For example: make the header darker, change the phone number to 0400 111 222, and swap the second and third services around.'
+                : 'Changes are switched off on this install. See the note above.'
+            }
           />
           <div className="mt-3 flex items-center justify-between gap-3">
             <Link className="text-xs text-ice-500 underline" to={`/golive/${jobId}`}>
               I am ready to go live
             </Link>
-            <button className="btn-accent" onClick={submitEdit} disabled={running || request.trim().length < 3}>
+            <button
+              className="btn-accent"
+              onClick={submitEdit}
+              disabled={running || !canEdit || request.trim().length < 3}
+            >
               {running ? 'Working' : 'Make this change'}
             </button>
           </div>

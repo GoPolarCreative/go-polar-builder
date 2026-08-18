@@ -44,12 +44,42 @@ export async function getDb(): Promise<Database> {
   }
 
   const { PGlite } = await import('@electric-sql/pglite')
-  const client = new PGlite(cfg.pgliteDir)
-  instance = drizzlePglite(client, { schema })
-  closer = async () => {
-    await client.close()
+
+  /*
+   * Retry, because of one specific local failure.
+   *
+   * PGlite holds an exclusive lock on its data directory. In development the API runs under
+   * `tsx watch`, so saving a file starts a new process while the old one is still shutting down,
+   * and the new one fails to open the database. Before this retry existed the API simply died,
+   * the Vite proxy started refusing connections, and the app in the browser went quiet with no
+   * explanation, which is the same class of silent failure this project keeps stamping out.
+   *
+   * The old process is gone within a second or so, so a few short retries cover it. If it still
+   * cannot open, that is a real problem and it says so rather than exiting into nothing.
+   */
+  const attempts = 5
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const client = new PGlite(cfg.pgliteDir)
+      await client.waitReady
+      instance = drizzlePglite(client, { schema })
+      closer = async () => {
+        await client.close()
+      }
+      return instance
+    } catch (err) {
+      if (attempt === attempts) {
+        throw new Error(
+          `Could not open the local database at ${cfg.pgliteDir} after ${attempts} attempts. Another process is probably still using it. Stop any other "npm run dev" and try again, or run "npm run db:reset" to start fresh. Original error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt))
+    }
   }
-  return instance
+
+  throw new Error('unreachable')
 }
 
 export async function closeDb(): Promise<void> {

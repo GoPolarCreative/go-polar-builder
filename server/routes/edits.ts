@@ -5,12 +5,11 @@ import type { GenerationEvent } from '../../shared/types'
 import type { ContentPlan } from '../../shared/plan'
 import { intakeSchema, type IntakePayload } from '../../shared/intake'
 import { EDITS_INCLUDED, EXTRA_EDITS_QUANTITY, PRICING, formatPrice, isPriceSet } from '../../shared/pricing'
-import { config } from '../config'
+import { editCapability } from '../config'
 import { getIntake, getJob, holdJob, listAssets, nextVersion, recordEvent, setJobStatus } from '../lib/db'
 import { id } from '../lib/ids'
 import { buildFacts } from '../lib/facts'
-import { diffPlans, generateEditedPlan, offlineEdit, rebuildFromPlan, summariseDiff } from '../lib/edit'
-import { offlineHtml } from '../lib/offline'
+import { diffPlans, generateEditedPlan, rebuildFromPlan, summariseDiff } from '../lib/edit'
 import { storage } from '../lib/storage'
 import { summarise, verifyAndRepair } from '../lib/verify'
 
@@ -90,6 +89,9 @@ app.get('/jobs/:jobId/versions', async (c) => {
     heldReason: job.heldReason,
     builds,
     edits,
+    // Answered when the panel loads, not after the customer has typed a request and pressed
+    // send. An editor that cannot edit has to say so before it takes any typing.
+    capability: editCapability(),
   })
 })
 
@@ -117,6 +119,37 @@ app.post('/jobs/:jobId/edits', async (c) => {
   const fromVersion = job.currentVersion
   if (fromVersion < 1) {
     return c.json({ error: 'not_ready', detail: 'There is nothing built to change yet.' }, 409)
+  }
+
+  /*
+   * Refuse before anything is written.
+   *
+   * This check used to be missing, and the offline fixture happily accepted the request, wrote a
+   * new version that was byte-for-byte the same site, reported success, and charged the customer
+   * one of their ten changes. From their seat that is indistinguishable from the product being
+   * broken, and they are one round poorer for it.
+   *
+   * Nothing below this line runs unless a change can actually be applied: no status change, no
+   * version, and above all no increment of edits_used.
+   */
+  const capability = editCapability()
+  if (!capability.available) {
+    await recordEvent(jobId, 'edit.refused', {
+      reason: capability.reason,
+      request: request.slice(0, 500),
+      editsUsed: job.editsUsed,
+      // Stated explicitly in the trail: this refusal cost the customer nothing.
+      editCharged: false,
+    })
+    return c.json(
+      {
+        error: 'edits_unavailable',
+        detail: capability.reason,
+        editCharged: false,
+        editsRemaining: Math.max(0, job.editsAllowed - job.editsUsed),
+      },
+      503,
+    )
   }
 
   const db = await getDb()
@@ -174,16 +207,14 @@ app.post('/jobs/:jobId/edits', async (c) => {
         const facts = buildFacts(intake, assets)
         await emit({ type: 'status', stage: 'planning', message: 'Working out what to change' })
 
-        const revisedPlan = config().offlineGeneration
-          ? offlineEdit(currentPlan, request)
-          : await generateEditedPlan({
-              plan: currentPlan,
-              facts,
-              intake,
-              assets,
-              request,
-              previousRequests: priorEdits.map((e) => e.prompt!).filter(Boolean),
-            })
+        const revisedPlan = await generateEditedPlan({
+          plan: currentPlan,
+          facts,
+          intake,
+          assets,
+          request,
+          previousRequests: priorEdits.map((e) => e.prompt!).filter(Boolean),
+        })
 
         const changes = diffPlans(currentPlan, revisedPlan)
         await emit({ type: 'plan', plan: revisedPlan })
@@ -191,26 +222,13 @@ app.post('/jobs/:jobId/edits', async (c) => {
         const toVersion = await nextVersion(jobId)
         await db.insert(schema.plans).values({ id: id('pln'), jobId, version: toVersion, plan: revisedPlan })
 
-        let html: string
-        if (config().offlineGeneration) {
-          await emit({
-            type: 'status',
-            stage: 'building',
-            message: 'Applying your changes (offline fixture, no Anthropic key configured)',
-          })
-          html = offlineHtml(revisedPlan, facts)
-          for (let i = 0; i < html.length; i += 2000) {
-            await emit({ type: 'html_chunk', text: html.slice(i, i + 2000) })
-          }
-        } else {
-          html = await rebuildFromPlan({
-            plan: revisedPlan,
-            facts,
-            previousHtml: currentHtml,
-            changes,
-            emit,
-          })
-        }
+        const html = await rebuildFromPlan({
+          plan: revisedPlan,
+          facts,
+          previousHtml: currentHtml,
+          changes,
+          emit,
+        })
 
         await emit({ type: 'status', stage: 'verifying', message: 'Checking every line of it' })
         const outcome = await verifyAndRepair({

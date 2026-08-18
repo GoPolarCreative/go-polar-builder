@@ -8,7 +8,7 @@ import { config, modelFor, type AppConfig } from '../config'
  * never leaves the Worker.
  */
 
-const API_URL = 'https://api.anthropic.com/v1/messages'
+const DEFAULT_API_URL = 'https://api.anthropic.com/v1/messages'
 const API_VERSION = '2023-06-01'
 
 /** Output ceiling for the single-shot build call. A finished site runs 80-150KB. */
@@ -93,7 +93,7 @@ async function post(opts: CallOptions, stream: boolean): Promise<Response> {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(cfg.anthropicBaseUrl ?? DEFAULT_API_URL, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

@@ -436,6 +436,49 @@ say so.
 
 ---
 
+## D27. An editor that cannot edit says so, and never charges for it
+
+**What happened.** Chris ran the app in demo mode, submitted a few change requests, and nothing
+appeared to happen. The cause was not the obvious one. The request reached the server, the server
+accepted it, wrote a new version, ran verification, reported success, and spent one of his ten
+included changes. The offline fixture cannot apply a change, so the version it produced was the
+same site with one extra HTML comment: invisible to a customer, and one round poorer each time.
+
+**Why it matters more than it looks.** Brief section 14 requires every external call to surface a
+real error rather than fail silently. This failed worse than silently, it reported success. A
+customer would submit a change, see nothing move, try again in different words, and burn their
+allowance discovering that the product does not work.
+
+**Chosen.**
+
+1. **Ask before accepting.** `editCapability()` answers whether this install can actually apply a
+   change. It is checked at the top of the edit route, before any status change, any version, and
+   above all before the counter moves. Unavailable means 503, a plain English reason naming the
+   missing variable, and `editCharged: false` in the body.
+2. **Say it on load, not on submit.** The same answer comes back from the versions endpoint, so
+   the panel shows the reason and disables the box the moment it opens. Nobody types a paragraph
+   into a field that was never going to work.
+3. **The fixture edit path is gone.** It existed to exercise the plumbing offline, and it caused
+   this. Regenerating identical output is not an edit, and pretending otherwise is what did the
+   damage. The end to end script asserts the refusal instead.
+4. **Every submission ends in something visible.** Success with the preview moved to the new
+   version, a failure carrying the real reason, or a dropped connection reported as one. There is
+   no fourth branch.
+
+**Held down by tests, because this one costs money.** `test/edits.integration.test.ts` and
+`test/edits.failure.test.ts` run the real routes against a real database and assert the invariant
+directly: a change that was not made never costs an edit. One covers a missing key, the other
+covers a key whose endpoint fails, pointed at a local stub so it is deterministic and never
+touches the network.
+
+**Two adjacent bugs found while in there.** The version history rendered every date as "Invalid
+Date" and never showed the customer's own words, because the client types were still snake_case
+after the Postgres migration. And killing the local API left the embedded database unopenable,
+taking the whole app down on the next start with no explanation. Both fixed: the client types
+match the API, and the server closes the database on the way out.
+
+---
+
 ## D21. Test strategy
 
 Unit tests run inside workerd through `@cloudflare/vitest-pool-workers`, because the verification
