@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { GenerationEvent, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamEdit } from '../lib/api'
-import { Banner, Spinner, Wordmark } from '../components/ui'
+import { Banner, Eyebrow, Spinner, Wordmark } from '../components/ui'
+import {
+  PAGE_CAVEAT,
+  PAGE_MECHANISM_SHORT,
+  PREVIEW_BODY,
+  PREVIEW_HEADING,
+  pagePriceLine,
+} from '../../shared/pages-copy'
 
 /**
  * Preview and the edit loop.
@@ -39,6 +46,9 @@ export default function Preview() {
     null,
   )
   const [extra, setExtra] = useState<Awaited<ReturnType<typeof api.extraEdits>> | null>(null)
+  const [activePage, setActivePage] = useState('/')
+
+  const pages = versions?.pages ?? [{ url: '/', path: 'index.html', service: null }]
 
   const streamRef = useRef<HTMLPreElement>(null)
 
@@ -240,6 +250,21 @@ export default function Preview() {
               Mobile
             </button>
           </div>
+          {pages.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-ice-500">Page</span>
+              {pages.map((pg) => (
+                <button
+                  key={pg.url}
+                  className={pg.url === activePage ? 'chip-on' : 'chip-off'}
+                  onClick={() => setActivePage(pg.url)}
+                >
+                  {pg.url === '/' ? 'Home' : (pg.service ?? pg.url)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="text-xs text-ice-500">
             Version {versions?.currentVersion} of {versions?.builds.length}
           </div>
@@ -323,6 +348,19 @@ export default function Preview() {
               </ul>
             </Banner>
           ) : null}
+
+          <div className="rounded-lg border border-ice-200 bg-ice-50 p-4">
+            <Eyebrow>Optional</Eyebrow>
+            <p className="mb-1 font-semibold">{PREVIEW_HEADING}</p>
+            <p className="field-hint">{PREVIEW_BODY}</p>
+            <p className="field-hint mt-2">{PAGE_MECHANISM_SHORT}</p>
+            <p className="field-hint mt-2">
+              {pagePriceLine()} {PAGE_CAVEAT}
+            </p>
+            <a className="link-arrow mt-3 inline-flex" href={`mailto:hello@itscold.com.au?subject=Additional pages for my site`}>
+              Ask us about adding one
+            </a>
+          </div>
 
           {outOfEdits && canEdit ? (
             <Banner tone="info" title="You have used all your included changes">

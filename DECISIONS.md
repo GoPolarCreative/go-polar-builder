@@ -1040,3 +1040,97 @@ The one demanding four different heroes, the one demanding a serif on `establish
 stylesheet-difference floor. The four sites share a skeleton, so most of the stylesheet SHOULD be
 identical and the weight belongs on the named signals. The replacements assert the real design:
 the skeleton is shared, the vocabulary is present in all four, and the treatment differs.
+
+---
+
+## D42. Additional pages are an entitlement, and entitlements are money
+
+**The product.** The $220 build token buys ONE page. Each Additional DIY Page at $25 buys another.
+Bought at the original checkout or later through a generated link.
+
+**Chosen.** `jobs.pages_allowed`, defaulting to 1. Every `additional-page` line item increments it
+by the line's **quantity**, so four bought in one go grants four. An INCREMENT, never a set, because
+a later purchase has to top up the job the customer already has rather than replacing what they
+already paid for.
+
+**Two failures, in opposite directions, and both are tested.** Generating a page nobody paid for is
+theft from Chris. Leaving a paid-for page unbuilt is theft from the customer, and they will not
+notice until they go looking for a page that is not there. `enforcePagesAllowed` trims the plan to
+the allowance and **returns what it dropped**, which is then written into the plan's assumptions so
+the customer is told rather than left to discover it.
+
+**The bug that would have shipped.** An order can carry a build token AND additional pages, and the
+job does not exist until the build line is processed. Shopify does not promise line item order, so a
+page line arriving first found no job and was skipped as unmatched: the customer paid for three
+pages and got one, silently. The build line is now sorted to the front of the order. There is a test
+that puts the page line first specifically.
+
+**Idempotency is unchanged and still holds.** The unique index on (order id, product handle) means a
+webhook retry or the hourly sweep re-examining the same order never double-grants.
+
+---
+
+## D43. A build is a page set, and every check runs per page
+
+**URL structure**, chosen to be readable because this is sold as an SEO feature and an opaque URL
+would undercut the whole point:
+
+```
+/                          index.html
+/services/blocked-drains/  services/blocked-drains/index.html
+```
+
+Directories with an `index.html`, so the served URL is clean and the same file opens by double
+click out of a discharge zip.
+
+**Links between pages are relative, not root-absolute.** `/services/x/` is correct on a server and
+resolves to the filesystem root when a customer opens the zip on their desktop. A test asserts no
+rendered page contains a root-absolute internal link.
+
+**EVERY CHECK IS PER PAGE.** "Exactly one h1" and "page weight within budget" are meaningless at the
+level of a set: three h1s across three pages is correct, and a set whose home page is 1MB and whose
+service page is 6MB has one page that fails. `verifySet` verifies each page independently and the
+set passes only if all of them do. The failure this exists to prevent is a multi-page build
+reporting success because the home page was checked and the rest were not, and there is a test that
+breaks only the last page and asserts the set fails while the home page still passes.
+
+**One design system, not two.** The service page renderer imports the same `stylesheet`, the same
+cards, the same form and the same section heads as the home page. A test asserts the `:root` block
+is byte identical across the set. A page set that looked like two different studios would be worse
+than one page.
+
+**Schema stops being decorative.** Each service page carries a real `BreadcrumbList` (home, then the
+service) and a `Service` tied back to the `LocalBusiness` by `@id`, with `areaServed` in the same
+shape the home page declares. Canonicals are per page. `sitemap.xml` and `robots.txt` are written
+only when there is more than one page, because a sitemap listing one URL says nothing.
+
+---
+
+## D44. The additional pages copy persuades with the mechanism, never with a promise
+
+**Why this is a decision and not just copy.** Chris sells to Australian small businesses. An
+unsubstantiated performance claim is exposure under the Australian Consumer Law before it is
+anything else, and it is exactly the kind of thing that destroys trust when it does not come true.
+
+**Chosen.** Every word the builder says about additional pages lives in `shared/pages-copy.ts`, so
+the entire claim surface can be read in one sitting and signed off in one go. What it says:
+
+> A single page covering all your services is competing with itself for every one of them. A page
+> about one service, in the suburbs you actually work in, gives a search engine something specific
+> to match against.
+
+That is a description of how search works. It is verifiable and it is not a promise. The copy also
+states the limit plainly rather than burying it: *"This is not a guarantee of anything. It is a
+structure that gives you a chance of being found for a specific job in a specific place, which one
+page trying to cover everything does not."*
+
+**Held down by a test, not by good intentions.** `test/pages.copy.test.ts` greps the copy module AND
+the two components that render it for ranking claims, position claims, traffic and lead volume
+claims, growth claims, timeframes and guarantees. Writing that test immediately caught one thing:
+a blunt `/guarantee/` pattern banned the honest disclaimer, so the pattern was narrowed to
+affirmative forms. The rule is about claims, not about a word.
+
+**Two placements**, as asked: per service in intake step 2, where they are choosing services
+anyway, and at the preview stage where they can see what a page actually is.
+
+**COPY IS NOT APPROVED.** This needs Chris's sign-off before a customer reads it, same as D28.

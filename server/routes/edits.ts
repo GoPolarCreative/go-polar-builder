@@ -78,7 +78,27 @@ app.get('/jobs/:jobId/versions', async (c) => {
       .orderBy(desc(schema.edits.createdAt)),
   ])
 
+  // The page set, so the preview can offer a switcher and the customer can see every page they
+  // paid for. Derived from the current plan rather than a second source of truth.
+  const planRow = await db
+    .select({ plan: schema.plans.plan })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, job.currentVersion)))
+    .limit(1)
+
+  const currentPlan = planRow[0]?.plan as { servicePages?: Array<{ slug: string; service: string }> } | undefined
+  const pages = [
+    { url: '/', path: 'index.html', service: null as string | null },
+    ...(currentPlan?.servicePages ?? []).map((sp) => ({
+      url: `/services/${sp.slug}/`,
+      path: `services/${sp.slug}/index.html`,
+      service: sp.service,
+    })),
+  ]
+
   return c.json({
+    pages,
+    pagesAllowed: job.pagesAllowed,
     currentVersion: job.currentVersion,
     editsUsed: job.editsUsed,
     editsAllowed: job.editsAllowed,

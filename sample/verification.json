@@ -1,10 +1,33 @@
 {
-  "generatedAt": "2026-08-19T07:59:35.631Z",
+  "generatedAt": "2026-08-19T09:50:45.931Z",
   "generator": "offline fixture, not the Anthropic API",
   "business": "Cold Front Plumbing",
-  "pageWeightBytes": 1522825,
+  "pages": [
+    {
+      "url": "/",
+      "path": "index.html",
+      "title": "Blocked drains in Chermside | Cold Front Plumbing",
+      "passed": true,
+      "pageWeightBytes": 1520823
+    },
+    {
+      "url": "/services/blocked-drains/",
+      "path": "services/blocked-drains/index.html",
+      "title": "Blocked drains in Chermside | Cold Front Plumbing",
+      "passed": true,
+      "pageWeightBytes": 53480
+    },
+    {
+      "url": "/services/hot-water-systems/",
+      "path": "services/hot-water-systems/index.html",
+      "title": "Hot water systems in Chermside | Cold Front Plumbing",
+      "passed": true,
+      "pageWeightBytes": 53549
+    }
+  ],
+  "pageWeightBytes": 1520823,
   "pageWeightHuman": "1.5MB",
-  "originalImageBytes": 10618785,
+  "originalImageBytes": 10612818,
   "originalImageHuman": "10.1MB",
   "passed": true,
   "checks": [
@@ -84,7 +107,7 @@
       "id": "page_weight",
       "label": "Page weight within budget",
       "status": "pass",
-      "detail": "1.5MB total, HTML 61KB"
+      "detail": "1.5MB total, HTML 62KB"
     },
     {
       "id": "renders_clean",

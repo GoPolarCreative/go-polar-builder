@@ -28,6 +28,7 @@ versions of this document said otherwise on all three counts and were wrong.
 | Website Hosting | handle `website-hosting-australia` | $33.00 | Appstle, every 1 MONTH | Live. $33.00 inc GST = $30 + GST |
 | Domain Hosting | handle `domain-1-year` | $5.50 | Appstle, every 1 MONTH | Live. $5.50 inc GST = $5 + GST |
 | Email Hosting | handle `email-hosting` | $14.95 | Appstle, every 1 MONTH | Live. **Price confirmed correct as it stands** |
+| Additional DIY Page | SKU `additional-page` | $25.00 | One-off, no selling plan | Live. The build token buys one page, this buys another |
 
 **The email price is settled.** $14.95 **including** GST, which is $13.59 ex GST. Decided on shelf
 price rather than margin, because the shelf price is what the market compares. The store already
@@ -50,6 +51,7 @@ on sale. A draft product cannot be bought by anybody.
 | Product | SKU | Price | Product id | Variant id |
 | --- | --- | --- | --- | --- |
 | DIY Website Build | `build-token` | $220.00 | 10930413568159 | 62852208328863 |
+| Additional DIY Page | `additional-page` | $25.00 | 10930420875423 | 62852241948831 |
 | Website Update | `post-live-edit` | $110.00 | 10930413600927 | 62852208361631 |
 | Website Discharge | `discharge` | $330.00 | 10930413633695 | 62852208394399 |
 
@@ -181,6 +183,12 @@ bait and switch. See DECISIONS.md D31.
 > - Hosting **$33/month inc GST**
 > - Domain name **$5.50/month inc GST**, if you need us to get you one
 > - Custom email address like enquiries@yourbusiness.com.au, **$14.95/month inc GST**, optional
+>
+> The build covers one page. Want a dedicated page for a particular service? **$25 inc GST** each,
+> one off. A single page covering all your services is competing with itself for every one of them.
+> A page about one service, in the suburbs you actually work in, gives a search engine something
+> specific to match against. It is not a guarantee of anything, it is a structure that gives you a
+> chance of being found for a specific job in a specific place.
 >
 > No maintenance retainer. No lock-in contract. If you ever want to take your website and go
 > elsewhere, you can, for $330 inc GST.

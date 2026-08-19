@@ -3,6 +3,7 @@ import type { BuildFacts, ContentPlan } from '../../shared/plan'
 import type { IntakePayload } from '../../shared/intake'
 import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades'
 import { resolveDesignStyle } from '../../shared/styles'
+import { slugify } from './pages'
 import { renderSite } from './render/site'
 
 /**
@@ -218,6 +219,52 @@ export function offlinePlan(
       blurb: `${name} handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.`,
       iconHint: 'tool outline',
     })),
+
+    // One page per service the customer bought a page for. Copy is derived from what they told
+    // us about that service and the area they work in, because that is the whole mechanism: a page
+    // about one service in a named service area gives a search engine something specific.
+    servicePages: (intake.ownPageServices ?? [])
+      .filter((name) => intake.services.includes(name))
+      .map((name) => {
+        const slug = slugify(name)
+        const nearby = intake.suburbsServiced
+          .slice(0, 3)
+          .map((s) => s.name)
+          .join(', ')
+        return {
+          slug,
+          service: name,
+          title: `${name} in ${base} | ${intake.businessName}`.slice(0, 70),
+          metaDescription: padTo(
+            `${intake.businessName} handle ${name.toLowerCase()} across ${base}, ${nearby} and nearby. ${intake.yearsInBusiness} years in the trade, and a price before we start.`,
+            70,
+            165,
+            ' Call us and we will talk it through.',
+          ),
+          h1: `${name} in ${base}. ${intake.emergency ? 'Answered day or night.' : 'Done properly.'}`.slice(0, 90),
+          intro: [
+            truncateTo(
+              `If you need ${name.toLowerCase()} in ${base}, we handle it start to finish. ${intake.businessName} has been on the tools for ${intake.yearsInBusiness} years and the bloke who quotes the job is the bloke who does it.`,
+              40,
+              400,
+            ),
+            truncateTo(
+              `We cover ${base} and the surrounding suburbs, including ${nearby}. You get a price before we start and a tidy site when we leave.`,
+              40,
+              400,
+            ),
+          ],
+          included: [
+            `A price before we start, so there is no guessing what ${name.toLowerCase()} will cost.`,
+            'The person who quotes the job is the person who turns up to do it.',
+            'Licensed and insured, with the paperwork available if you want to see it.',
+            `Local to ${base}, so we are not driving across town to get to you.`,
+            intake.emergency
+              ? 'After hours calls answered, because these things do not wait for business hours.'
+              : 'Turn up when we say we will, and ring ahead if anything changes.',
+          ],
+        }
+      }),
 
     gallery: {
       enabled: galleryOn,

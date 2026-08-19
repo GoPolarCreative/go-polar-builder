@@ -15,6 +15,13 @@
       "when": 1787111257958,
       "tag": "0001_fair_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787127797042,
+      "tag": "0002_even_redwing",
+      "breakpoints": true
     }
   ]
 }

@@ -123,6 +123,32 @@ export const planSchema = z.object({
     .min(3)
     .max(8),
 
+  /**
+   * One extra page per additional page the customer bought, each about a single service.
+   *
+   * Empty on a one-page build, which is what the $220 build token buys. The mechanism this sells
+   * on: a home page covering eight services competes with itself, while a page about one service
+   * in a named service area gives a search engine something specific to match. Never longer than
+   * the job's page allowance: see server/lib/pages.ts.
+   */
+  servicePages: z
+    .array(
+      z.object({
+        /** URL slug, kebab-case, derived from the service name. */
+        slug: z.string().min(2).max(60).regex(/^[a-z0-9-]+$/),
+        /** The service this page is about, matching one of the services above exactly. */
+        service: z.string().min(2).max(60),
+        title: z.string().min(10).max(70),
+        metaDescription: z.string().min(70).max(165),
+        h1: z.string().min(10).max(90),
+        intro: z.array(z.string().min(40)).min(1).max(3),
+        /** What the job actually involves. Three to six lines, from the intake, never invented. */
+        included: z.array(z.string().min(10).max(160)).min(3).max(6),
+      }),
+    )
+    .max(8)
+    .default([]),
+
   gallery: z.object({
     // Off when fewer than 3 usable photos were supplied. The brief is explicit: no stock photos.
     enabled: z.boolean(),

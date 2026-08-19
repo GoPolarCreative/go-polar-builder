@@ -426,11 +426,24 @@ export function referencedPaths(html: string, s: Structure): string[] {
   return [...referenced]
 }
 
+/**
+ * Collapse a page-relative reference to a site-relative one.
+ *
+ * "../../assets/photo-01.webp" on a page at services/x/index.html is the same file as
+ * "assets/photo-01.webp" at the root. Without this every image on every service page reads as
+ * missing, which is how a correct page set fails its own check.
+ */
+function resolveAgainstPage(ref: string): string {
+  return ref.replace(/^(?:\.\.\/)+/, '')
+}
+
 function checkAssets(html: string, s: Structure, facts: BuildFacts): CheckResult {
   const id = 'assets_exist' as const
   const label = 'Referenced assets exist'
   const allowed = new Set(Object.keys(facts.assetManifest))
-  const missing = referencedPaths(html, s).filter((r) => !allowed.has(r))
+  const missing = referencedPaths(html, s)
+    .map(resolveAgainstPage)
+    .filter((r) => !allowed.has(r))
 
   return missing.length === 0
     ? pass(id, label)

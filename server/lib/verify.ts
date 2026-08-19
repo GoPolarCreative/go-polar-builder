@@ -147,3 +147,60 @@ export function summarise(report: VerificationReport): string {
   }
   return `${failed.length} check(s) failed: ${failed.map((f) => f.label).join(', ')}.`
 }
+
+// -----------------------------------------------------------------------------------------------
+// Page sets
+// -----------------------------------------------------------------------------------------------
+
+export interface PageVerification {
+  path: string
+  url: string
+  title: string
+  report: VerificationReport
+}
+
+export interface SetVerification {
+  /** True only when every page passed. A set is as good as its worst page. */
+  passed: boolean
+  pages: PageVerification[]
+  /** The heaviest page, which is the one that matters for the weight budget. */
+  heaviestBytes: number
+  failures: Array<{ path: string; checkId: string; detail: string }>
+}
+
+/**
+ * Verify every page in a set.
+ *
+ * EVERY CHECK IS PER PAGE. "Exactly one h1" and "page weight within budget" are meaningless at the
+ * level of a set: a set with three h1s across three pages is correct, and a set whose home page is
+ * 1MB and whose service page is 6MB has one page that fails. So each page is verified on its own
+ * and the set passes only if all of them do.
+ *
+ * The failure this exists to prevent: a multi-page build reporting success because the home page
+ * was checked and the rest were not.
+ */
+export async function verifySet(
+  pages: Array<{ path: string; url: string; title: string; html: string }>,
+  facts: BuildFacts,
+  opts: { runRender?: boolean } = {},
+): Promise<SetVerification> {
+  const results: PageVerification[] = []
+
+  for (const page of pages) {
+    const report = await verify(page.html, facts, opts)
+    results.push({ path: page.path, url: page.url, title: page.title, report })
+  }
+
+  const failures = results.flatMap((p) =>
+    [...p.report.static, ...p.report.render]
+      .filter((c) => c.status === 'fail')
+      .map((c) => ({ path: p.path, checkId: c.id, detail: c.detail ?? '' })),
+  )
+
+  return {
+    passed: results.length > 0 && results.every((p) => p.report.passed),
+    pages: results,
+    heaviestBytes: Math.max(0, ...results.map((p) => p.report.pageWeightBytes)),
+    failures,
+  }
+}

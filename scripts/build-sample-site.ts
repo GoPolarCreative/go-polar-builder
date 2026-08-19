@@ -1,6 +1,6 @@
 import { config as loadEnvFiles } from 'dotenv'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 /**
  * Build the committed sample client website.
@@ -33,6 +33,8 @@ const { processImage } = await import('../server/lib/images')
 const { storage } = await import('../server/lib/storage')
 const { buildFacts } = await import('../server/lib/facts')
 const { offlinePlan, offlineHtml } = await import('../server/lib/offline')
+const { renderSiteSet } = await import('../server/lib/render/set')
+const { verifySet } = await import('../server/lib/verify')
 const { runGapAudit } = await import('../server/lib/audit')
 const { verify } = await import('../server/lib/verify')
 const { formatBytes } = await import('../server/lib/images')
@@ -118,14 +120,41 @@ async function main() {
     auditFlags,
     facts.photos.map((p) => ({ assetId: p.assetId, path: p.webWebp, note: 'client photo' })),
   )
-  const html = offlineHtml(plan, facts)
+  // A page SET now: the home page plus one service page per additional page bought.
+  const set = renderSiteSet(plan, facts)
 
-  // --- verify --------------------------------------------------------------------------------
-  const report = await verify(html, facts, { runRender: false })
+  // --- verify EVERY page ------------------------------------------------------------------------
+  // Not just the home page. A multi-page build that reports success because one page was checked
+  // is the failure this guards against.
+  const setReport = await verifySet(
+    set.pages.map((pg) => ({ path: pg.path, url: pg.url, title: pg.title, html: pg.html })),
+    facts,
+    { runRender: false },
+  )
+  const report = setReport.pages[0]!.report
 
   // --- write ----------------------------------------------------------------------------------
   await mkdir(join(OUT, 'assets'), { recursive: true })
-  await writeFile(join(OUT, 'index.html'), html, 'utf8')
+  for (const pg of set.pages) {
+    const full = join(OUT, pg.path)
+    await mkdir(dirname(full), { recursive: true })
+    await writeFile(full, pg.html, 'utf8')
+  }
+  for (const file of set.files) {
+    await writeFile(join(OUT, file.path), file.content, 'utf8')
+  }
+  console.log(`
+  pages:       ${set.pages.length}`)
+  for (const pg of setReport.pages) {
+    const bad = [...pg.report.static, ...pg.report.render].filter((c) => c.status === 'fail')
+    console.log(
+      `    ${pg.url.padEnd(30)} ${formatBytes(pg.report.pageWeightBytes).padStart(9)}  ${
+        bad.length === 0 ? 'all checks passed' : `${bad.length} FAILED`
+      }`,
+    )
+    for (const f of bad) console.error(`        FAIL ${f.id}: ${f.detail}`)
+  }
+  for (const file of set.files) console.log(`    ${file.path}`)
 
   for (const [path, meta] of Object.entries(facts.assetManifest)) {
     const bytes = await store.get(meta.key)
@@ -140,11 +169,18 @@ async function main() {
         generatedAt: new Date().toISOString(),
         generator: 'offline fixture, not the Anthropic API',
         business: SAMPLE_INTAKE.businessName,
+        pages: setReport.pages.map((pg) => ({
+          url: pg.url,
+          path: pg.path,
+          title: pg.title,
+          passed: pg.report.passed,
+          pageWeightBytes: pg.report.pageWeightBytes,
+        })),
         pageWeightBytes: report.pageWeightBytes,
         pageWeightHuman: formatBytes(report.pageWeightBytes),
         originalImageBytes: originalTotal,
         originalImageHuman: formatBytes(originalTotal),
-        passed: report.passed,
+        passed: setReport.passed,
         checks: [...report.static, ...report.render].map((c) => ({
           id: c.id,
           label: c.label,
@@ -158,7 +194,7 @@ async function main() {
     'utf8',
   )
 
-  const failed = [...report.static, ...report.render].filter((c) => c.status === 'fail')
+  const failed = setReport.failures
   const skipped = [...report.static, ...report.render].filter((c) => c.status === 'skipped')
 
   console.log(`\n  page weight: ${formatBytes(report.pageWeightBytes)}`)
@@ -172,7 +208,7 @@ async function main() {
   console.log(`  Open ${join(OUT, 'styles', 'index.html')} to compare the four design styles.`)
 
   if (failed.length > 0) {
-    for (const f of failed) console.error(`    FAIL ${f.id}: ${f.detail}`)
+    for (const f of failed) console.error(`    FAIL ${f.path} ${f.checkId}: ${f.detail}`)
     process.exit(1)
   }
   if (styleFailures > 0) process.exit(1)

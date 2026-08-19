@@ -25,6 +25,7 @@ import {
 import { buildFacts } from './facts'
 import { isUsablePhoto } from './audit'
 import { offlinePlan, offlineHtml } from './offline'
+import { enforcePagesAllowed } from './pages'
 
 export type Emit = (e: GenerationEvent) => void | Promise<void>
 
@@ -152,9 +153,30 @@ export function enforcePlanInvariants(
   intake: IntakePayload,
   facts: BuildFacts,
   usablePhotos: AssetRecord[],
-  opts: { allowStyleChange?: boolean } = {},
+  opts: { allowStyleChange?: boolean; pagesAllowed?: number } = {},
 ): ContentPlan {
   const out: ContentPlan = structuredClone(plan)
+
+  // PAGES ARE PAID FOR, so the model does not get a vote on how many there are. It can be
+  // generous or forgetful; neither changes what the customer bought. Two rules failing in opposite
+  // directions: never generate a page nobody paid for, and never silently drop one they did.
+  const requested = (intake.ownPageServices ?? []).filter((name) => intake.services.includes(name))
+  out.servicePages = requested
+    .map((service) => {
+      const existing = out.servicePages.find((sp) => sp.service === service)
+      return existing ?? null
+    })
+    .filter((sp): sp is NonNullable<typeof sp> => sp !== null)
+
+  if (opts.pagesAllowed !== undefined) {
+    const { plan: trimmed, dropped } = enforcePagesAllowed(out, opts.pagesAllowed)
+    out.servicePages = trimmed.servicePages
+    for (const service of dropped) {
+      out.assumptions.push(
+        `A page for "${service}" was asked for but not built: this job has an allowance of ${opts.pagesAllowed} page(s). Buy another additional page and it can be added.`,
+      )
+    }
+  }
 
   /*
    * Design style.

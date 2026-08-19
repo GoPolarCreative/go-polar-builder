@@ -182,6 +182,8 @@ export const api = {
   // the database migration and every date rendered as "Invalid Date" because of it.
   versions: (jobId: string) =>
     request<{
+      pages: Array<{ url: string; path: string; service: string | null }>
+      pagesAllowed: number
       currentVersion: number
       editsUsed: number
       editsAllowed: number

@@ -1,8 +1,11 @@
 # Go Polar Website Builder
 
 A self-serve web app where Australian trade businesses pay $220 inc GST, answer a guided set of
-questions, and watch a complete single-page website get generated in front of them. They get 10
-rounds of changes, then choose to go live on Go Polar hosting or take the files elsewhere.
+questions, and watch a complete website get generated in front of them. They get 10 rounds of
+changes, then choose to go live on Go Polar hosting or take the files elsewhere.
+
+The build token buys one page. Additional pages are $25 inc GST each: one service, its own URL at
+`/services/<service>/`, its own copy, its own enquiry form and a link in the navigation.
 
 Vercel, Postgres and Vercel Blob. Nothing is deployed. Nothing can charge money, email a real
 person or touch a domain unless a flag is deliberately switched on.
@@ -38,6 +41,9 @@ handling and every check are the real pipeline.
 ```
 sample/styles/index.html
 ```
+
+The committed sample is a three-page set: the home page plus two service pages. Every one of the
+17 checks passes on every page.
 
 The same business built four times, once per design style the customer can choose in step 5.
 Identical intake, identical photos, identical copy, identical colours. Only the look differs. That

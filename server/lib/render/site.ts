@@ -19,7 +19,7 @@ import { paletteCarriesDarkSurfaces, styleSpec, type StyleSpec } from '../../../
  * recorded on the plan.
  */
 
-function esc(text: string): string {
+export function esc(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -28,30 +28,30 @@ function esc(text: string): string {
 }
 
 /** Strip anything the house rules ban from copy that came from a human. */
-function clean(text: string): string {
+export function clean(text: string): string {
   return text.replace(/—/g, ', ').replace(/–/g, ' to ').replace(/\p{Extended_Pictographic}/gu, '')
 }
 
-function icon(path: string): string {
+export function icon(path: string): string {
   return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`
 }
 
-const ICON_TICK = '<polyline points="20 6 9 17 4 12"></polyline>'
-const ICON_PHONE =
+export const ICON_TICK = '<polyline points="20 6 9 17 4 12"></polyline>'
+export const ICON_PHONE =
   '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path>'
-const ICON_PIN =
+export const ICON_PIN =
   '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>'
-const ICON_CLOCK = '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
-const ICON_SHIELD = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>'
-const ICON_TOOL =
+export const ICON_CLOCK = '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>'
+export const ICON_SHIELD = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>'
+export const ICON_TOOL =
   '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>'
-const ICON_MAIL =
+export const ICON_MAIL =
   '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22 6 12 13 2 6"></polyline>'
-const ICON_CHEVRON = '<polyline points="6 9 12 15 18 9"></polyline>'
-const ICON_ARROW = '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>'
-const ICON_STAR =
+export const ICON_CHEVRON = '<polyline points="6 9 12 15 18 9"></polyline>'
+export const ICON_ARROW = '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>'
+export const ICON_STAR =
   '<polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon>'
-const ICON_MENU =
+export const ICON_MENU =
   '<line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line>'
 
 /**
@@ -61,7 +61,7 @@ const ICON_MENU =
  * biggest cost on these sites: whatever is referenced is downloaded by every visitor on every
  * visit, and Vercel bills the bandwidth. See DECISIONS.md D25.
  */
-function picture(args: {
+export function picture(args: {
   webp: string
   jpeg: string
   alt: string
@@ -88,7 +88,7 @@ interface Surfaces {
   altTinted: boolean
 }
 
-function resolveSurfaces(plan: ContentPlan, spec: StyleSpec): Surfaces {
+export function resolveSurfaces(plan: ContentPlan, spec: StyleSpec): Surfaces {
   const wantsDark = spec.heroSurface === 'dark' || spec.altSurface === 'dark'
   // The style may ask for the brand colour behind white text. If the sampled logo colour is too
   // light to carry that, the neutral dark is used instead and the brand colour keeps its job as
@@ -108,7 +108,7 @@ function resolveSurfaces(plan: ContentPlan, spec: StyleSpec): Surfaces {
  * the split is on the final clause where there is one and the last words otherwise.
  * Returns escaped HTML, ready to drop straight into a heading.
  */
-function twoTone(text: string, enabled: boolean): string {
+export function twoTone(text: string, enabled: boolean): string {
   const copy = clean(text).trim()
   if (!enabled) return esc(copy)
 
@@ -134,7 +134,7 @@ function twoTone(text: string, enabled: boolean): string {
 }
 
 /** The small ALL CAPS label that sits above a section heading on every reference site. */
-function sectionHead(args: {
+export function sectionHead(args: {
   eyebrow: string
   heading: string
   blurb?: string | null
@@ -166,7 +166,7 @@ function sectionHead(args: {
  * skeleton is identical across all four; what changes is palette, heading case and weight, and
  * density. See shared/styles.ts for which site each style came from, and DECISIONS.md D40.
  */
-function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surfaces): string {
+export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surfaces): string {
   const t = plan.tokens
   const darkToken = surfaces.darkBlock === 'ink' ? 'var(--ink)' : 'var(--primary)'
   const onDarkPage = spec.rhythm === 'dark-on-dark'
@@ -558,7 +558,7 @@ function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surfaces): str
   ].join('\n')
 }
 
-function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
+export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
   const name = esc(plan.brand.wordmarkText)
 
   if (plan.brand.logoTreatment === 'image' && facts.logo) {
@@ -579,7 +579,7 @@ function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
     <a class="brand" href="#top"><span class="brand__mark">${esc(initials)}</span><span class="brand__name">${name}</span></a>`
 }
 
-function formMarkup(args: {
+export function formMarkup(args: {
   id: string
   heading: string
   button: string
@@ -668,9 +668,16 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
   const surfaces = resolveSurfaces(plan, spec)
   const t = plan.tokens
 
+  // Service pages sit in the nav between Services and Areas, on desktop and in the mobile panel,
+  // because a page nobody can navigate to is a page nobody reads. Relative links, so the same
+  // markup works served and opened from disk out of a discharge zip.
   const navItems = [
     { href: '#about', label: 'About' },
     { href: '#services', label: 'Services' },
+    ...plan.servicePages.map((sp) => ({
+      href: `services/${sp.slug}/index.html`,
+      label: sp.service,
+    })),
     ...(plan.gallery.enabled ? [{ href: '#work', label: 'Our work' }] : []),
     { href: '#areas', label: 'Areas' },
     { href: '#faq', label: 'FAQ' },

@@ -28,9 +28,17 @@
  *    unpublished, archived or re-priced is caught without anybody having to remember to edit here.
  */
 
-export type PriceKey = 'build' | 'hosting' | 'domain' | 'email' | 'postLiveEdit' | 'extraEdits' | 'discharge'
+export type PriceKey =
+  | 'build'
+  | 'additionalPage'
+  | 'hosting'
+  | 'domain'
+  | 'email'
+  | 'postLiveEdit'
+  | 'extraEdits'
+  | 'discharge'
 
-export type OrderKind = 'build' | 'hosting' | 'domain' | 'email' | 'edit' | 'discharge'
+export type OrderKind = 'build' | 'page' | 'hosting' | 'domain' | 'email' | 'edit' | 'discharge'
 
 /** Australian GST. Used only to convert between the two ways of stating the same price. */
 export const GST_RATE = 0.1
@@ -116,6 +124,27 @@ export const PRICING: Record<PriceKey, Product> = {
       exists: true,
       title: 'DIY Website Build',
       todo: 'Nothing. Published and verified active on 2026-08-19.',
+    },
+  },
+  additionalPage: {
+    // Created and published 2026-08-20. The build token buys one page; each of these buys another.
+    // Bought at the original checkout or later through a generated link, and the webhook honours
+    // line item quantity, so four in one go grants four. See DECISIONS.md D42.
+    ref: 'additional-page',
+    refKind: 'sku',
+    proposedRef: 'additional-page',
+    label: 'Additional page',
+    incGstCents: 2_500, // $25.00
+    recurrence: 'once',
+    kind: 'page',
+    requiresSellingPlan: false,
+    variantId: '62852241948831',
+    productId: '10930420875423',
+    storeHandle: 'additional-diy-page',
+    store: {
+      exists: true,
+      title: 'Additional DIY Page',
+      todo: 'Nothing. Published and verified active on 2026-08-20.',
     },
   },
   hosting: {

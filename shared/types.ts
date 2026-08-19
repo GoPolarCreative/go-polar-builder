@@ -31,6 +31,8 @@ export interface Job {
    * Web3Forms succeeded, so a value here means the enquiry forms are known to reach them. The
    * full key is never put on this object: server code that needs it reads the row. D29.
    */
+  /** How many pages this job may build. The build token grants one. See DECISIONS.md D42. */
+  pagesAllowed: number
   web3formsKeyMasked: string | null
   web3formsVerifiedAt: string | null
   createdAt: string

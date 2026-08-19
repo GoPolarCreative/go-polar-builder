@@ -29,6 +29,12 @@ import {
 import { SuburbChips, SuburbSearch } from '../components/SuburbPicker'
 import { LogoUploader, PhotoUploader } from '../components/Uploader'
 import { StylePicker } from '../components/StylePicker'
+import {
+  PAGE_CAVEAT,
+  PAGE_INCLUDES,
+  PAGE_MECHANISM,
+  pagePriceLine,
+} from '../../shared/pages-copy'
 import { AuditFlagList, HoursEditor, ReviewsEditor } from '../components/StoryInputs'
 
 type Draft = Partial<IntakePayload>
@@ -557,6 +563,8 @@ function StepServices({ data, patch, errors }: StepProps) {
         />
       </Field>
 
+      {selected.length > 0 ? <OwnPagePicker data={data} patch={patch} selected={selected} /> : null}
+
       <div>
         <span className="field-label">Do you offer free quotes?</span>
         <YesNo value={data.freeQuotes ?? true} onChange={(v) => patch({ freeQuotes: v })} />
@@ -821,6 +829,70 @@ function StepBrand({
           placeholder="yourbusiness.com.au"
         />
       </Field>
+    </div>
+  )
+}
+
+/**
+ * The additional pages option, offered per service.
+ *
+ * PERSUADES WITH THE MECHANISM, NEVER WITH A PROMISE. Every word a customer reads here comes from
+ * shared/pages-copy.ts, which exists so the whole claim surface can be read and signed off in one
+ * place, and which has a test that greps it for ranking, traffic, timeframe and guarantee claims.
+ * See DECISIONS.md D44.
+ */
+function OwnPagePicker({
+  data,
+  patch,
+  selected,
+}: {
+  data: Draft
+  patch: (p: Draft) => void
+  selected: string[]
+}) {
+  const chosen = data.ownPageServices ?? []
+
+  const toggle = (name: string) => {
+    const next = chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name]
+    patch({ ownPageServices: next })
+  }
+
+  return (
+    <div className="rounded-lg border border-ice-200 p-4">
+      <Eyebrow>Optional</Eyebrow>
+      <span className="field-label">Want any of these on their own page?</span>
+      <p className="field-hint mb-3">{PAGE_MECHANISM}</p>
+
+      <div className="flex flex-wrap gap-2">
+        {selected.map((name) => (
+          <button
+            key={name}
+            type="button"
+            aria-pressed={chosen.includes(name)}
+            className={chosen.includes(name) ? 'chip-on' : 'chip-off'}
+            onClick={() => toggle(name)}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
+      <ul className="mt-3 space-y-1 text-[13px] text-ice-500">
+        {PAGE_INCLUDES.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+
+      <p className="field-hint mt-3">
+        {pagePriceLine()} {PAGE_CAVEAT}
+      </p>
+
+      {chosen.length > 0 ? (
+        <p className="mt-3 text-sm font-semibold text-ice-700">
+          {chosen.length} extra {chosen.length === 1 ? 'page' : 'pages'}. We will confirm this before
+          anything is charged, and your site is built either way.
+        </p>
+      ) : null}
     </div>
   )
 }

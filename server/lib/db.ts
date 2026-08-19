@@ -30,6 +30,7 @@ function toJob(row: typeof schema.jobs.$inferSelect): Job {
     currentVersion: row.currentVersion,
     held: row.held,
     heldReason: row.heldReason,
+    pagesAllowed: row.pagesAllowed,
     web3formsKeyMasked: row.customerWeb3formsKey ? maskKey(row.customerWeb3formsKey) : null,
     web3formsVerifiedAt: row.web3formsVerifiedAt ? iso(row.web3formsVerifiedAt) : null,
     createdAt: iso(row.createdAt),

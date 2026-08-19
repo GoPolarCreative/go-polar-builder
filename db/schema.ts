@@ -34,7 +34,15 @@ export const jobStatus = pgEnum('job_status', [
   'abandoned',
 ])
 
-export const orderKind = pgEnum('order_kind', ['build', 'hosting', 'domain', 'email', 'edit', 'discharge'])
+export const orderKind = pgEnum('order_kind', [
+  'build',
+  'page',
+  'hosting',
+  'domain',
+  'email',
+  'edit',
+  'discharge',
+])
 export const assetKind = pgEnum('asset_kind', ['logo', 'photo'])
 export const domainBranch = pgEnum('domain_branch', ['own', 'new', 'locked'])
 export const goliveStatus = pgEnum('golive_status', ['selecting', 'awaiting_payment', 'paid', 'queued', 'live'])
@@ -92,6 +100,12 @@ export const jobs = pgTable(
      */
     customerWeb3formsKey: text('customer_web3forms_key'),
     web3formsVerifiedAt: timestamp('web3forms_verified_at', { withTimezone: true }),
+    /**
+     * How many pages this job may build. The build token grants one; every additional-page line
+     * item grants another, honouring quantity. Never generate a page beyond this, and never leave
+     * a paid-for page unbuilt. See DECISIONS.md D42.
+     */
+    pagesAllowed: integer('pages_allowed').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -269,6 +283,41 @@ export const golive = pgTable('golive', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/**
+ * One page of one built version.
+ *
+ * A build is now a page SET: the home page plus a service page for each additional page the
+ * customer bought. Keyed by version so rollback restores the whole set by moving one pointer,
+ * exactly as it did when a build was a single file.
+ *
+ * Every page carries its own verification result, because every one of the 17 checks is per page.
+ * "Exactly one h1" and "page weight within budget" mean nothing at the level of a set.
+ */
+export const buildPages = pgTable(
+  'build_pages',
+  {
+    id: text('id').primaryKey(),
+    jobId: text('job_id')
+      .notNull()
+      .references(() => jobs.id),
+    version: integer('version').notNull(),
+    /** Site-relative path, "index.html" or "services/blocked-drains/index.html". */
+    path: text('path').notNull(),
+    /** Clean URL for canonicals and the sitemap: "/" or "/services/blocked-drains/". */
+    url: text('url').notNull(),
+    /** null for the home page, the service slug otherwise. */
+    serviceSlug: text('service_slug'),
+    title: text('title').notNull(),
+    blobKey: text('blob_key').notNull(),
+    bytes: integer('bytes'),
+    pageWeightBytes: integer('page_weight_bytes'),
+    checks: jsonb('checks'),
+    passed: boolean('passed').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('build_pages_version_path_idx').on(t.jobId, t.version, t.path)],
+)
 
 export const discharges = pgTable(
   'discharges',

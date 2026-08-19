@@ -146,7 +146,12 @@ export const step2Schema = z
       .min(3, 'Pick at least 3')
       .max(8, 'Pick no more than 8'),
     primaryService: z.string().trim().min(2, 'Required'),
-    freeQuotes: z.boolean(),
+    /**
+   * Services the customer has chosen to give a dedicated page. Each one costs an additional page
+   * from their allowance. Empty is the normal case: the build token buys one page.
+   */
+  ownPageServices: z.array(z.string()).max(8).default([]),
+  freeQuotes: z.boolean(),
     emergency: z.boolean(),
   })
   .refine((v) => v.services.includes(v.primaryService), {

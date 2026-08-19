@@ -12,6 +12,7 @@ import {
   kindForRef,
   orderEmail,
   orderJobIdAttribute,
+  type ShopifyLineItem,
   type ShopifyOrder,
 } from './shopify'
 
@@ -85,7 +86,11 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
     return result
   }
 
-  const lineItems = order.line_items ?? []
+  const lineItems = [...(order.line_items ?? [])].sort((a, b) => {
+    // Build token first, everything else after it, order otherwise preserved.
+    const rank = (item: ShopifyLineItem) => (kindForRef(refForLineItem(item) ?? '') === 'build' ? 0 : 1)
+    return rank(a) - rank(b)
+  })
   if (lineItems.length === 0) {
     result.skipped.push({ reason: 'no_line_items' })
     return result
@@ -145,6 +150,14 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
     } else if (kind === 'discharge') {
       await refDischargePayment(jobId, email)
       result.handled.push({ ref, kind, action: 'discharge marked paid, packaging queued' })
+    } else if (kind === 'page') {
+      const granted = Math.max(1, Math.trunc(Number(item.quantity ?? 1)) || 1)
+      const total = await grantPages(jobId, granted)
+      result.handled.push({
+        ref,
+        kind,
+        action: `${granted} additional page(s) granted, ${total} total`,
+      })
     } else if (kind === 'edit') {
       await refEditPayment(jobId, ref)
       result.handled.push({
@@ -207,6 +220,26 @@ async function refBuildToken(
 
   await recordEvent(jobId, 'order.paid.build', { orderId, email })
   return jobId
+}
+
+/**
+ * Add to a job's page allowance.
+ *
+ * An INCREMENT, never a set. Additional pages can be bought at the original checkout or months
+ * later through a generated link, and a later purchase has to top up the job the customer already
+ * has rather than starting again or overwriting what they already paid for.
+ */
+async function grantPages(jobId: string, count: number): Promise<number> {
+  const db = await getDb()
+  const rows = await db
+    .update(schema.jobs)
+    .set({ pagesAllowed: sql`${schema.jobs.pagesAllowed} + ${count}`, updatedAt: new Date() })
+    .where(eq(schema.jobs.id, jobId))
+    .returning()
+
+  const total = rows[0]?.pagesAllowed ?? count + 1
+  await recordEvent(jobId, 'pages.granted', { granted: count, pagesAllowed: total, notify: 'chris' })
+  return total
 }
 
 async function refGoLivePayment(jobId: string, email: string): Promise<void> {

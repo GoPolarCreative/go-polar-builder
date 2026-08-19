@@ -24,6 +24,9 @@ export const SAMPLE_INTAKE: IntakePayload = {
     'Gas fitting',
   ],
   primaryService: 'Blocked drains',
+  // Two additional pages bought, so the committed sample is a real page set rather than a
+  // one-page build with the feature switched off.
+  ownPageServices: ['Blocked drains', 'Hot water systems'],
   freeQuotes: true,
   emergency: true,
 
