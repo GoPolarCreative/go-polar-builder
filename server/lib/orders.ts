@@ -8,8 +8,8 @@ import { buildLinkEmail, sendSafely } from './email'
 import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl'
 import {
   centsFromPrice,
-  handleForLineItem,
-  kindForHandle,
+  refForLineItem,
+  kindForRef,
   orderEmail,
   orderJobIdAttribute,
   type ShopifyOrder,
@@ -22,7 +22,7 @@ import {
  * dropped webhook is repaired by exactly the code path that would have handled it, and the local
  * demo exercises the production logic rather than a parallel imitation.
  *
- * Everything here is idempotent. The unique index on (shopify_order_id, product_handle) means
+ * Everything here is idempotent. The unique index on (shopify_order_id, product_ref) means
  * replaying an order does nothing twice, which matters because Shopify retries and because the
  * sweep deliberately re-examines recent orders.
  */
@@ -30,16 +30,16 @@ import {
 export interface ProcessResult {
   orderId: string
   jobId: string | null
-  handled: Array<{ handle: string; kind: string; action: string }>
+  handled: Array<{ ref: string; kind: string; action: string }>
   skipped: Array<{ reason: string; detail?: string }>
 }
 
-async function alreadyRecorded(orderId: string, handle: string): Promise<boolean> {
+async function alreadyRecorded(orderId: string, ref: string): Promise<boolean> {
   const db = await getDb()
   const rows = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)
-    .where(and(eq(schema.orders.shopifyOrderId, orderId), eq(schema.orders.productHandle, handle)))
+    .where(and(eq(schema.orders.shopifyOrderId, orderId), eq(schema.orders.productHandle, ref)))
     .limit(1)
   return rows.length > 0
 }
@@ -92,37 +92,37 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
   }
 
   for (const item of lineItems) {
-    const handle = handleForLineItem(item)
-    if (!handle) {
+    const ref = refForLineItem(item)
+    if (!ref) {
       result.skipped.push({ reason: 'unknown_product', detail: item.title ?? 'untitled line' })
       await recordEvent(null, 'order.unmatched_line', { orderId, title: item.title ?? null })
       continue
     }
 
-    const kind = kindForHandle(handle)
+    const kind = kindForRef(ref)
     if (!kind) {
-      result.skipped.push({ reason: 'unknown_kind', detail: handle })
+      result.skipped.push({ reason: 'unknown_kind', detail: ref })
       continue
     }
 
-    if (await alreadyRecorded(orderId, handle)) {
-      result.skipped.push({ reason: 'already_processed', detail: handle })
+    if (await alreadyRecorded(orderId, ref)) {
+      result.skipped.push({ reason: 'already_processed', detail: ref })
       continue
     }
 
     const amount = centsFromPrice(item.price)
 
     if (kind === 'build') {
-      const jobId = await handleBuildToken(order, email, orderId, handle, amount)
+      const jobId = await refBuildToken(order, email, orderId, ref, amount)
       result.jobId = jobId
-      result.handled.push({ handle, kind, action: 'job created and build link emailed' })
+      result.handled.push({ ref, kind, action: 'job created and build link emailed' })
       continue
     }
 
     const jobId = await resolveJob(order, email)
     if (!jobId) {
-      result.skipped.push({ reason: 'no_matching_job', detail: handle })
-      await recordEvent(null, 'order.unmatched', { orderId, handle, email, reason: 'no_matching_job' })
+      result.skipped.push({ reason: 'no_matching_job', detail: ref })
+      await recordEvent(null, 'order.unmatched', { orderId, ref, email, reason: 'no_matching_job' })
       continue
     }
     result.jobId = jobId
@@ -132,7 +132,7 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
       jobId,
       shopifyOrderId: orderId,
       shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
-      productHandle: handle,
+      productHandle: ref,
       amountExGst: amount,
       kind,
       status: 'paid',
@@ -140,18 +140,18 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
     })
 
     if (kind === 'hosting' || kind === 'domain' || kind === 'email') {
-      await handleGoLivePayment(jobId, email)
-      result.handled.push({ handle, kind, action: 'go live payment recorded' })
+      await refGoLivePayment(jobId, email)
+      result.handled.push({ ref, kind, action: 'go live payment recorded' })
     } else if (kind === 'discharge') {
-      await handleDischargePayment(jobId, email)
-      result.handled.push({ handle, kind, action: 'discharge marked paid, packaging queued' })
+      await refDischargePayment(jobId, email)
+      result.handled.push({ ref, kind, action: 'discharge marked paid, packaging queued' })
     } else if (kind === 'edit') {
-      await handleEditPayment(jobId, handle)
+      await refEditPayment(jobId, ref)
       result.handled.push({
-        handle,
+        ref,
         kind,
         action:
-          handle === 'extra-edits' ? `${EXTRA_EDITS_QUANTITY} extra edits added` : 'post-live update recorded',
+          ref === 'extra-edits' ? `${EXTRA_EDITS_QUANTITY} extra edits added` : 'post-live update recorded',
       })
     }
   }
@@ -159,11 +159,11 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
   return result
 }
 
-async function handleBuildToken(
+async function refBuildToken(
   order: ShopifyOrder,
   email: string,
   orderId: string,
-  handle: string,
+  ref: string,
   amount: number,
 ): Promise<string> {
   const db = await getDb()
@@ -180,7 +180,7 @@ async function handleBuildToken(
     jobId,
     shopifyOrderId: orderId,
     shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
-    productHandle: handle,
+    productHandle: ref,
     amountExGst: amount,
     kind: 'build',
     status: 'paid',
@@ -209,7 +209,7 @@ async function handleBuildToken(
   return jobId
 }
 
-async function handleGoLivePayment(jobId: string, email: string): Promise<void> {
+async function refGoLivePayment(jobId: string, email: string): Promise<void> {
   const db = await getDb()
   const now = new Date()
 
@@ -233,7 +233,7 @@ async function handleGoLivePayment(jobId: string, email: string): Promise<void> 
   })
 }
 
-async function handleDischargePayment(jobId: string, email: string): Promise<void> {
+async function refDischargePayment(jobId: string, email: string): Promise<void> {
   const db = await getDb()
   const now = new Date()
 
@@ -263,10 +263,10 @@ async function handleDischargePayment(jobId: string, email: string): Promise<voi
   await notifyGhlSafely({ event: 'discharge_requested', contact: { email }, jobId, customValues: {} })
 }
 
-async function handleEditPayment(jobId: string, handle: string): Promise<void> {
+async function refEditPayment(jobId: string, ref: string): Promise<void> {
   const db = await getDb()
 
-  if (handle === 'extra-edits') {
+  if (ref === 'extra-edits') {
     await db
       .update(schema.jobs)
       .set({

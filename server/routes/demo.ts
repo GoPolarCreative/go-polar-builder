@@ -48,10 +48,10 @@ app.post('/demo/checkout/complete', async (c) => {
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => {
-      const [handle, quantity] = part.split(':')
-      return { handle: handle ?? '', quantity: Number(quantity ?? 1) || 1 }
+      const [ref, quantity] = part.split(':')
+      return { ref: ref ?? '', quantity: Number(quantity ?? 1) || 1 }
     })
-    .filter((l) => l.handle)
+    .filter((l) => l.ref)
 
   if (!email || lines.length === 0) {
     return c.json({ error: 'bad_request', detail: 'Need an email and at least one line item.' }, 400)
@@ -66,18 +66,18 @@ app.post('/demo/checkout/complete', async (c) => {
     customer: { id: 'demo_customer', email },
     note_attributes: jobId ? [{ name: 'job_id', value: jobId }] : [],
     line_items: lines.map((l) => ({
-      sku: l.handle,
-      title: l.handle,
+      sku: l.ref,
+      title: l.ref,
       quantity: l.quantity,
       price: '0.00',
     })),
   }
 
-  fakeLog('shopify', 'receive an orders/paid webhook', { jobId, lines: lines.map((l) => l.handle).join(',') })
+  fakeLog('shopify', 'receive an orders/paid webhook', { jobId, lines: lines.map((l) => l.ref).join(',') })
 
   const result = await processPaidOrder(order)
   await recordEvent(result.jobId ?? jobId ?? null, 'demo.checkout.completed', {
-    lines: lines.map((l) => l.handle),
+    lines: lines.map((l) => l.ref),
     handled: result.handled,
   })
 

@@ -313,29 +313,17 @@ function PlanScreen(props: {
         <p className="field-hint mt-2">No maintenance retainer. No lock-in contract. Cancel whenever.</p>
       </div>
 
-      {/* The email price is an open question between the store and the stated decision, so no
-          number is shown and it cannot be added to the cart. Offering a price we are not certain
-          of is worse than offering none: see DECISIONS.md D31. */}
       <div className="rounded-lg border border-ice-200 p-4">
         <span className="field-label">
           Custom email address, like enquiries@yourbusiness.com.au
         </span>
-        {state?.pricing.email?.price ? (
-          <>
-            <p className="field-hint mb-2">{state.pricing.email.price}. Optional.</p>
-            <YesNo
-              value={props.emailAddon}
-              onChange={props.setEmailAddon}
-              yesLabel="Yes please"
-              noLabel="No thanks"
-            />
-          </>
-        ) : (
-          <p className="field-hint">
-            We do these, and we are settling the price. Ask us and we will sort it out with you
-            rather than quote you a number we are not sure of.
-          </p>
-        )}
+        <p className="field-hint mb-2">{state?.pricing.email?.price}. Optional.</p>
+        <YesNo
+          value={props.emailAddon}
+          onChange={props.setEmailAddon}
+          yesLabel="Yes please"
+          noLabel="No thanks"
+        />
       </div>
 
       <div className="rounded-lg border border-ice-200 p-4">

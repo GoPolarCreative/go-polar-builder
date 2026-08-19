@@ -25,16 +25,21 @@ does not work, so gather it first.
 | GoHighLevel inbound webhook URL | GHL → Automation | Optional. Notifications only |
 | DNS access for **itscold.com.au** | wherever the domain lives | To add one CNAME |
 
-**And four Shopify products that do not exist yet.** Create them before you deploy, or customers
-cannot buy anything:
+**And three Shopify products sitting in draft.** They exist and are priced correctly, but a draft
+product cannot be bought by anybody, so publishing them is the last thing standing between the store
+and a working checkout:
 
-- `build-token` — Website build, **$220.00** ($200 + GST, the store is GST-inclusive)
-- `post-live-edit` — Website update after launch, **$110.00**
-- `discharge` — Discharge and file handover, **$330.00**
-- `extra-edits` — **do not create yet**, the price has never been decided
+- **DIY Website Build**, SKU `build-token`, $220.00 — the front door of the entire product
+- **Website Update**, SKU `post-live-edit`, $110.00
+- **Website Discharge**, SKU `discharge`, $330.00
 
-Full instructions, including the one outstanding price question on the email product, are in
-**SHOPIFY-SETUP.md**. Do that document first.
+Read their descriptions before publishing. They were adapted from section 11 of the brief and have
+not been signed off.
+
+`extra-edits` still has no price and has not been created. That path degrades on purpose and blocks
+nothing.
+
+Full instructions are in **SHOPIFY-SETUP.md**. Do that document first.
 
 ---
 
@@ -223,14 +228,15 @@ whole path is exercised rather than a piece of it.
 curl https://build.itscold.com.au/api/health
 ```
 
-Read the `products` block. Every problem listed there is a real gap. It should be empty apart from
-`extra-edits`, and the billing policy check should report all three subscriptions billing every 1
-MONTH. If it says "cannot verify", `SHOPIFY_ADMIN_API_TOKEN` is missing.
+Read the `products` block. Every problem listed there is a real gap. Once the three drafts are
+published it should list only `extra-edits`, and the store check should report all six products
+active with the three subscriptions billing every 1 MONTH. If it says "cannot verify",
+`SHOPIFY_ADMIN_API_TOKEN` is missing.
 
 **Then buy a website.**
 
 1. Set `ENABLE_LIVE_PAYMENTS=1`, `ENABLE_LIVE_EMAIL=1` and redeploy.
-2. Go to the `build-token` product page on itscold.com.au and buy it with a real card. Use an email
+2. Go to the **DIY Website Build** product page on itscold.com.au and buy it with a real card. Use an email
    you can read. It costs $220 and you can refund yourself afterwards.
 3. **Within a minute or so, a build link should arrive in that inbox.** That single email proves the
    whole chain: Shopify took the payment, fired `orders/paid`, the HMAC verified, the user and job

@@ -394,7 +394,7 @@ app.get('/jobs/:jobId/edits/extra', (c) =>
     available: isPriceSet('extraEdits'),
     quantity: EXTRA_EDITS_QUANTITY,
     price: formatPrice('extraEdits'),
-    handle: PRICING.extraEdits.handle,
+    handle: PRICING.extraEdits.ref,
     included: EDITS_INCLUDED,
     detail: isPriceSet('extraEdits')
       ? null

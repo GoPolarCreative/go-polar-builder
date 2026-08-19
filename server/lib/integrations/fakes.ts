@@ -66,11 +66,11 @@ export function fakeCheckoutUrl(req: CheckoutRequest): string {
   const params = new URLSearchParams({
     job: req.jobId,
     email: req.email,
-    lines: req.lines.map((l) => `${l.handle}:${l.quantity}`).join(','),
+    lines: req.lines.map((l) => `${l.ref}:${l.quantity}`).join(','),
   })
   fakeLog('shopify', 'create a checkout', {
     jobId: req.jobId,
-    lines: req.lines.map((l) => l.handle).join(','),
+    lines: req.lines.map((l) => l.ref).join(','),
   })
   return `${base}/demo/checkout?${params.toString()}`
 }

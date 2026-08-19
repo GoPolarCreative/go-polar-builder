@@ -4,14 +4,14 @@ import { formatAuPhone, normaliseAuPhone, phoneKind } from '../shared/phone'
 import {
   PRICING,
   ProductNotOnStoreError,
-  checkoutHandle,
-  PriceUnresolvedError,
+  checkoutRef,
   exGstCents,
   formatPrice,
   isPriceSet,
   productConfigProblems,
   sellingPlanEnvKey,
   variantEnvKey,
+  variantIdFor,
 } from '../shared/pricing'
 import { STEP_SCHEMAS, intakeSchema } from '../shared/intake'
 import { runGapAudit, statedYearsFromText, isUsablePhoto } from '../server/lib/audit'
@@ -89,7 +89,7 @@ describe('pricing', () => {
   it('shows the number the customer is actually charged, labelled inc GST', () => {
     expect(formatPrice('build')).toBe('$220 inc GST')
     expect(formatPrice('hosting')).toBe('$33/month inc GST')
-    expect(formatPrice('email')).toBeNull()
+    expect(formatPrice('email')).toBe('$14.95/month inc GST')
     expect(formatPrice('discharge')).toBe('$330 inc GST')
     expect(formatPrice('domain')).toBe('$5.50/month inc GST')
   })
@@ -120,105 +120,147 @@ describe('pricing', () => {
     expect(exGstCents('hosting')).toBe(3_000)
     expect(exGstCents('domain')).toBe(500)
     expect(exGstCents('build')).toBe(20_000)
-    expect(exGstCents('email')).toBeNull()
+    expect(exGstCents('email')).toBe(1_359)
   })
 
-  it('carries the real handles from the store, not the ones in the brief', () => {
-    expect(PRICING.hosting.handle).toBe('website-hosting-australia')
-    expect(PRICING.domain.handle).toBe('domain-1-year')
-    expect(PRICING.email.handle).toBe('email-hosting')
+  it('carries the real identifiers from the store, not the ones in the brief', () => {
+    expect(PRICING.hosting.ref).toBe('website-hosting-australia')
+    expect(PRICING.domain.ref).toBe('domain-1-year')
+    expect(PRICING.email.ref).toBe('email-hosting')
   })
 })
 
-describe('the email price, which is the one open question', () => {
-  it('shows no price at all rather than guessing which reading is right', () => {
-    expect(PRICING.email.incGstCents).toBeNull()
-    expect(formatPrice('email')).toBeNull()
-    expect(isPriceSet('email')).toBe(false)
+describe('the email price, now decided', () => {
+  it('is $14.95 inc GST, and can be sold', () => {
+    // Decided on shelf price rather than margin: $14.95 inc GST is $13.59 ex. The store already
+    // charges exactly this and needed no change. See DECISIONS.md D34.
+    expect(PRICING.email.incGstCents).toBe(1_495)
+    expect(exGstCents('email')).toBe(1_359)
+    expect(formatPrice('email')).toBe('$14.95/month inc GST')
+    expect(isPriceSet('email')).toBe(true)
+    expect(checkoutRef('email')).toBe('email-hosting')
+  })
+})
+
+describe('how a product is identified', () => {
+  // The three one-off products were created with deliberate SKUs, and Shopify auto-generated their
+  // handles from titles nobody here chose ("DIY Website Build"). Guessing a handle from a title is
+  // how you produce a checkout link that 404s in front of a paying customer.
+  it('uses the SKU for the products whose handles we have never seen', () => {
+    for (const key of ['build', 'postLiveEdit', 'discharge'] as const) {
+      expect(PRICING[key].refKind, key).toBe('sku')
+      expect(PRICING[key].ref, key).toBe(PRICING[key].proposedRef)
+    }
+    expect(checkoutRef('build')).toBe('build-token')
+    expect(checkoutRef('postLiveEdit')).toBe('post-live-edit')
+    expect(checkoutRef('discharge')).toBe('discharge')
   })
 
-  it('refuses to sell it, naming both readings so the question can be asked precisely', () => {
-    expect(() => checkoutHandle('email')).toThrow(PriceUnresolvedError)
-
-    const question = PRICING.email.openQuestion!
-    expect(question.options).toHaveLength(2)
-    expect(question.summary).toContain('$14.95')
-    expect(question.summary).toContain('$13.59')
-    expect(question.options[1]).toContain('$16.45')
+  it('uses the handle for the three subscriptions, which are known', () => {
+    for (const key of ['hosting', 'domain', 'email'] as const) {
+      expect(PRICING[key].refKind, key).toBe('handle')
+    }
+    expect(checkoutRef('hosting')).toBe('website-hosting-australia')
+    expect(checkoutRef('domain')).toBe('domain-1-year')
   })
 
-  it('is on the store and correctly set up in every other respect', () => {
-    // Only the price is in question. The product, the plan and the interval are all right, so the
-    // report must not read as though the whole product is broken.
-    expect(PRICING.email.handle).toBe('email-hosting')
-    expect(PRICING.email.requiresSellingPlan).toBe(true)
-    expect(PRICING.email.store.sellingPlan?.interval).toBe('MONTH')
+  it('carries the verified variant ids, so a checkout works before any env var is pasted in', () => {
+    expect(PRICING.build.variantId).toBe('62852208328863')
+    expect(PRICING.postLiveEdit.variantId).toBe('62852208361631')
+    expect(PRICING.discharge.variantId).toBe('62852208394399')
+    expect(variantIdFor('build-token', {})).toBe('62852208328863')
+  })
+
+  it('still lets the environment override a recorded id', () => {
+    expect(variantIdFor('build-token', { SHOPIFY_VARIANT_BUILD_TOKEN: '999' })).toBe('999')
+  })
+
+  it('knows nothing about the ids for products that do not exist', () => {
+    expect(variantIdFor('extra-edits', {})).toBeNull()
   })
 })
 
 describe('products that do not exist on the store', () => {
-  // The rule this protects: a guessed handle produces a checkout link that 404s in front of a
-  // paying customer, which is far worse than an error we can see.
-  const NOT_CREATED = ['build', 'postLiveEdit', 'extraEdits', 'discharge'] as const
+  // Only one left. The other three were created on 2026-08-19.
+  const NOT_CREATED = ['extraEdits'] as const
 
-  it('have no handle at all, so nothing can quietly use one', () => {
+  it('have no identifier at all, so nothing can quietly use one', () => {
     for (const key of NOT_CREATED) {
-      expect(PRICING[key].handle, key).toBeNull()
+      expect(PRICING[key].ref, key).toBeNull()
       expect(PRICING[key].store.exists, key).toBe(false)
     }
   })
 
   it('throw by name when something tries to buy them', () => {
     for (const key of NOT_CREATED) {
-      expect(() => checkoutHandle(key), key).toThrow(ProductNotOnStoreError)
-    }
-  })
-
-  it('say what to create and what is broken until it exists', () => {
-    try {
-      checkoutHandle('build')
-      expect.unreachable('should have thrown')
-    } catch (err) {
-      const message = (err as Error).message
-      expect(message).toContain('build-token')
-      expect(message).toContain('SHOPIFY_VARIANT_BUILD_TOKEN')
-      expect(message).toContain('$220.00')
-      expect(message).toContain('SHOPIFY-SETUP.md')
-      expect(message).toMatch(/no build token means no job/i)
+      expect(() => checkoutRef(key), key).toThrow(ProductNotOnStoreError)
     }
   })
 
   it('do not quote a price for the one that has no price', () => {
     try {
-      checkoutHandle('extraEdits')
+      checkoutRef('extraEdits')
       expect.unreachable('should have thrown')
     } catch (err) {
       expect((err as Error).message).toMatch(/does not exist on the Shopify store/)
+      expect((err as Error).message).toContain('extra-edits')
       expect((err as Error).message).not.toMatch(/\$\d/)
     }
   })
+})
 
-  it('let the settled products through', () => {
-    expect(checkoutHandle('hosting')).toBe('website-hosting-australia')
-    expect(checkoutHandle('domain')).toBe('domain-1-year')
+describe('the three products created in draft', () => {
+  const DRAFTED = ['build', 'postLiveEdit', 'discharge'] as const
+
+  it('are on the store, priced, and flagged as drafts', () => {
+    for (const key of DRAFTED) {
+      expect(PRICING[key].store.exists, key).toBe(true)
+      expect(PRICING[key].store.draft, key).toBe(true)
+      expect(PRICING[key].incGstCents, key).toBeGreaterThan(0)
+    }
+  })
+
+  it('are reported as blocking, because a draft cannot be bought by anybody', () => {
+    const problems = productConfigProblems({})
+    for (const key of DRAFTED) {
+      const draft = problems.find((p) => p.key === key && /still a draft/.test(p.missing))
+      expect(draft, key).toBeDefined()
+      expect(draft!.needsShopify).toBe(true)
+    }
+  })
+
+  it('are still sellable as far as this file is concerned, because the store decides that', () => {
+    // checkoutRef deliberately does not check the draft flag: the live store check does, so
+    // publishing a product takes effect immediately with no code change.
+    for (const key of DRAFTED) expect(() => checkoutRef(key), key).not.toThrow()
   })
 })
 
 describe('the startup configuration report', () => {
-  it('names every missing product and every missing env var', () => {
+  it('names what is missing, product by product', () => {
     const problems = productConfigProblems({})
     const missing = problems.map((p) => p.missing)
 
-    // The four products that do not exist.
-    for (const handle of ['build-token', 'post-live-edit', 'extra-edits', 'discharge']) {
-      expect(missing.some((m) => m.includes(handle)), handle).toBe(true)
+    // The one product that still does not exist.
+    expect(missing.some((m) => m.includes('extra-edits'))).toBe(true)
+    // The three that exist but are still drafts, which nobody can buy.
+    for (const title of ['DIY Website Build', 'Website Update', 'Website Discharge']) {
+      expect(missing.some((m) => m.includes(title)), title).toBe(true)
     }
-    // And for the three that do, both the variant id and the selling plan, because the store has
-    // no selling plan groups at all yet.
+    // And a selling plan id for each subscription, because Shopify refuses the line without one.
     expect(missing).toContain('SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_EMAIL_HOSTING')
+  })
+
+  it('does not ask for variant ids it already knows from the store', () => {
+    // The three created products carry verified variant ids, so they are not reported as missing
+    // even with an empty environment.
+    const missing = productConfigProblems({}).map((p) => p.missing)
+    expect(missing).not.toContain('SHOPIFY_VARIANT_BUILD_TOKEN')
+    expect(missing).not.toContain('SHOPIFY_VARIANT_POST_LIVE_EDIT')
+    expect(missing).not.toContain('SHOPIFY_VARIANT_DISCHARGE')
   })
 
   it('says what each gap costs, rather than just that it is missing', () => {
@@ -230,7 +272,7 @@ describe('the startup configuration report', () => {
   it('demands a selling plan id for every product the store will not sell without one', () => {
     const env: Record<string, string> = {}
     for (const product of Object.values(PRICING)) {
-      if (product.handle) env[variantEnvKey(product.handle)] = '12345'
+      if (product.ref) env[variantEnvKey(product.ref)] = '12345'
     }
     // Variant ids alone are not enough. requiresSellingPlan means Shopify rejects the line.
     const missing = productConfigProblems(env).map((p) => p.missing)
@@ -245,18 +287,17 @@ describe('the startup configuration report', () => {
   it('reduces to what only Chris can answer once every id is supplied', () => {
     const env: Record<string, string> = {}
     for (const product of Object.values(PRICING)) {
-      if (!product.handle) continue
-      env[variantEnvKey(product.handle)] = '12345'
-      if (product.requiresSellingPlan) env[sellingPlanEnvKey(product.handle)] = '67890'
+      if (!product.ref) continue
+      env[variantEnvKey(product.ref)] = '12345'
+      if (product.requiresSellingPlan) env[sellingPlanEnvKey(product.ref)] = '67890'
     }
 
     const problems = productConfigProblems(env)
-    // Four products that genuinely do not exist, plus two prices only he can settle.
-    expect(problems.filter((p) => p.missing.startsWith('Shopify product'))).toHaveLength(4)
-    expect(problems.filter((p) => p.needsDecision).map((p) => p.key).sort()).toEqual([
-      'email',
-      'extraEdits',
-    ])
+
+    // Everything left is Chris's to do, not ours: publish three drafts, and price extra-edits.
+    expect(problems.every((p) => p.needsShopify || p.needsDecision)).toBe(true)
+    expect(problems.filter((p) => p.needsDecision).map((p) => p.key)).toEqual(['extraEdits'])
+    expect(problems.filter((p) => /still a draft/.test(p.missing))).toHaveLength(3)
   })
 })
 

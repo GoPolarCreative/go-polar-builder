@@ -1,4 +1,11 @@
-import { PRICING, knownHandles, productForHandle, sellingPlanEnvKey, variantEnvKey } from '../../shared/pricing'
+import {
+  PRICING,
+  knownRefs,
+  productForRef,
+  sellingPlanEnvKey,
+  variantEnvKey,
+  variantIdFor,
+} from '../../shared/pricing'
 import { assertLiveEnabled, config, type AppConfig } from '../config'
 import { fakeCheckoutUrl } from './integrations/fakes'
 
@@ -44,7 +51,8 @@ function envValue(key: string): string | undefined {
 }
 
 export interface CheckoutLine {
-  handle: string
+  /** The product's stable identifier: a Shopify handle for some, a SKU for others. */
+  ref: string
   quantity: number
 }
 
@@ -67,18 +75,20 @@ export async function createCheckout(
 
   const missing: string[] = []
   const resolved = req.lines.map((line) => {
-    const variantKey = variantEnvKey(line.handle)
-    const variantId = envValue(variantKey)
-    if (!variantId) missing.push(variantKey)
+    // Env var first, then the variant id verified from the store. Recording the real ids means a
+    // freshly created product works without three env vars being pasted in, while the env var
+    // still wins so a different store can be pointed at without a code change.
+    const variantId = variantIdFor(line.ref, process.env)
+    if (!variantId) missing.push(variantEnvKey(line.ref))
 
-    const sellingPlanId = envValue(sellingPlanEnvKey(line.handle))
+    const sellingPlanId = envValue(sellingPlanEnvKey(line.ref))
     // A product with requiresSellingPlan on the store CANNOT be bought without one. Shopify
     // rejects the line outright rather than falling back to a one-off charge, so a missing plan id
     // is exactly as fatal as a missing variant id and is treated the same way.
-    const product = productForHandle(line.handle)?.product
-    if (product?.requiresSellingPlan && !sellingPlanId) missing.push(sellingPlanEnvKey(line.handle))
+    const product = productForRef(line.ref)?.product
+    if (product?.requiresSellingPlan && !sellingPlanId) missing.push(sellingPlanEnvKey(line.ref))
 
-    return { handle: line.handle, quantity: line.quantity, variantId, sellingPlanId }
+    return { ref: line.ref, quantity: line.quantity, variantId, sellingPlanId }
   })
 
   if (missing.length > 0) {
@@ -95,7 +105,7 @@ export async function createCheckout(
   // What the app believes it is selling has to match what the store will actually bill. The domain
   // product spent a period named "Monthly Subscription" while billing once a year, which is exactly
   // the failure this catches: silent, and expensive in the customer's favour or ours.
-  await assertBillingPoliciesMatch(req.lines.map((l) => l.handle))
+  await assertStoreProductsSellable(req.lines.map((l) => l.ref))
 
   if (cfg.shopify.storefrontToken) {
     return {
@@ -108,7 +118,7 @@ export async function createCheckout(
 }
 
 interface ResolvedLine {
-  handle: string
+  ref: string
   quantity: number
   variantId: string
   sellingPlanId?: string
@@ -211,222 +221,249 @@ async function createCartViaStorefront(
  * A comment would not have caught it, so this reads the real policy out of the Admin API and
  * refuses to build a checkout link for any product whose interval does not match.
  */
-export class BillingPolicyMismatchError extends Error {
-  constructor(readonly mismatches: BillingMismatch[]) {
-    super(
-      [
-        `Refusing to build a checkout: ${mismatches.length} product(s) bill differently to what this app advertises.`,
-        ...mismatches.map(
-          (m) =>
-            `  - "${m.label}" (${m.handle}) is sold as ${m.expected} but its selling plan "${m.planName}" bills every ${m.actualCount} ${m.actual}.`,
-        ),
-        'Fix the billing policy in Appstle, or correct the product in shared/pricing.ts. See SHOPIFY-SETUP.md.',
-      ].join('\n'),
-    )
-    this.name = 'BillingPolicyMismatchError'
-  }
-}
-
-export interface BillingMismatch {
-  handle: string
-  label: string
-  planName: string
-  expected: string
-  actual: string
-  actualCount: number
-}
-
-export interface BillingPolicyCheck {
-  handle: string
-  label: string
-  ok: boolean
-  detail: string
-}
-
-interface CachedPolicies {
-  at: number
-  results: BillingPolicyCheck[]
-  mismatches: BillingMismatch[]
-}
-
-let policyCache: CachedPolicies | null = null
-/** Shopify is not asked on every checkout. A billing policy changes when a human changes it. */
-const POLICY_TTL_MS = 10 * 60 * 1000
-
-export function clearBillingPolicyCache(): void {
-  policyCache = null
-}
-
-const PRODUCT_POLICY_QUERY = `
-  query productPolicies($handle: String!) {
-    productByHandle(handle: $handle) {
-      title
-      requiresSellingPlan
-      sellingPlanGroups(first: 5) {
+/**
+ * A product that cannot be sold the way this app says it can.
+ *
+ * Two things get a product here, and both have already happened on this store:
+ *   - it bills on a different interval to what we advertise. The domain product had a plan NAMED
+ *     "Monthly Subscription" whose policy was interval YEAR. Shopify has no objection to that: the
+ *     name is a label and the policy is the behaviour.
+ *   - it is still a draft. Three products were created in draft for review, and a draft product
+ *     cannot be bought by anybody.
+ */
+const PRODUCT_FIELDS = `
+  title
+  status
+  requiresSellingPlan
+  sellingPlanGroups(first: 5) {
+    nodes {
+      name
+      sellingPlans(first: 5) {
         nodes {
           name
-          sellingPlans(first: 5) {
-            nodes {
-              name
-              billingPolicy {
-                ... on SellingPlanRecurringBillingPolicy { interval intervalCount }
-              }
-            }
+          billingPolicy {
+            ... on SellingPlanRecurringBillingPolicy { interval intervalCount }
           }
         }
       }
     }
   }`
 
+/** Products identified by a Shopify handle are looked up by handle. */
+const BY_HANDLE_QUERY = `
+  query productByHandle($handle: String!) {
+    product: productByHandle(handle: $handle) { ${PRODUCT_FIELDS} }
+  }`
+
 /**
- * Reads every configured product's billing policy. Returns a report rather than throwing, so the
- * health endpoint can show it; `assertBillingPoliciesMatch` is the throwing wrapper used before a
- * checkout is built.
+ * Products identified by SKU are looked up by product id, read off the store when they were
+ * created. Their handles were auto-generated from their titles and are recorded nowhere, so
+ * looking them up by handle would mean inventing one.
  */
-export async function checkBillingPolicies(force = false): Promise<CachedPolicies> {
+const BY_ID_QUERY = `
+  query productById($id: ID!) {
+    product: node(id: $id) { ... on Product { ${PRODUCT_FIELDS} } }
+  }`
+
+export class StoreProductError extends Error {
+  constructor(readonly problems: StoreProductProblem[]) {
+    super(
+      [
+        `Refusing to build a checkout: ${problems.length} product(s) cannot be sold as advertised.`,
+        ...problems.map((p) => `  - "${p.label}" (${p.ref}): ${p.detail}`),
+        'See SHOPIFY-SETUP.md.',
+      ].join('\n'),
+    )
+    this.name = 'StoreProductError'
+  }
+}
+
+export interface StoreProductProblem {
+  ref: string
+  label: string
+  reason: 'draft' | 'billing_interval' | 'missing' | 'no_selling_plan'
+  detail: string
+}
+
+export interface StoreProductCheck {
+  ref: string
+  label: string
+  ok: boolean
+  detail: string
+}
+
+interface CachedChecks {
+  at: number
+  results: StoreProductCheck[]
+  problems: StoreProductProblem[]
+}
+
+let productCache: CachedChecks | null = null
+/** Shopify is not asked on every checkout. These change when a human changes them. */
+const CHECK_TTL_MS = 10 * 60 * 1000
+
+export function clearStoreProductCache(): void {
+  productCache = null
+}
+
+interface ProductNode {
+  title?: string
+  status?: string
+  sellingPlanGroups?: {
+    nodes?: Array<{
+      name?: string
+      sellingPlans?: {
+        nodes?: Array<{ name?: string; billingPolicy?: { interval?: string; intervalCount?: number } }>
+      }
+    }>
+  }
+}
+
+/**
+ * Asks the store what it will actually do with each configured product, rather than trusting what
+ * this repo believes.
+ *
+ * Reading it live matters most for the draft check: Chris publishes a product and it starts selling
+ * immediately, with no code change and nothing for anyone to remember.
+ */
+export async function checkStoreProducts(force = false): Promise<CachedChecks> {
   const cfg = config()
   const now = Date.now()
 
-  if (!force && policyCache && now - policyCache.at < POLICY_TTL_MS) return policyCache
+  if (!force && productCache && now - productCache.at < CHECK_TTL_MS) return productCache
 
-  const results: BillingPolicyCheck[] = []
-  const mismatches: BillingMismatch[] = []
+  const results: StoreProductCheck[] = []
+  const problems: StoreProductProblem[] = []
 
-  // Nothing to ask, and nothing to protect: demo mode never reaches a real checkout.
+  // Nothing to ask and nothing to protect: demo mode never reaches a real checkout.
   if (cfg.demoMode) {
-    policyCache = { at: now, results, mismatches }
-    return policyCache
+    productCache = { at: now, results, problems }
+    return productCache
   }
 
   const token = cfg.shopify.adminApiToken
   if (!token) {
-    // Not a mismatch, but not a pass either. Reported as unknown so it cannot read as verified.
+    // Not a pass. Reported as unverifiable so it can never read as verified.
     for (const product of Object.values(PRICING)) {
-      if (!product.handle || !product.requiresSellingPlan) continue
+      if (!product.ref) continue
       results.push({
-        handle: product.handle,
+        ref: product.ref,
         label: product.label,
         ok: false,
-        detail:
-          'Cannot verify: SHOPIFY_ADMIN_API_TOKEN is not set, so the billing policy on the store cannot be read.',
+        detail: 'Cannot verify: SHOPIFY_ADMIN_API_TOKEN is not set, so the store cannot be read.',
       })
     }
-    policyCache = { at: now, results, mismatches }
-    return policyCache
+    productCache = { at: now, results, problems }
+    return productCache
   }
 
   for (const product of Object.values(PRICING)) {
-    if (!product.handle || !product.requiresSellingPlan) continue
+    if (!product.ref) continue
+    const ref = product.ref
 
     try {
+      // By id where the identifier is a SKU, because those products' handles were auto-generated
+      // from their titles and are not recorded anywhere. By handle for the three that have one.
+      const byId = product.refKind === 'sku' && product.productId
       const res = await fetch(`https://${storeDomain(cfg)}/admin/api/2025-01/graphql.json`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-Shopify-Access-Token': token },
-        body: JSON.stringify({ query: PRODUCT_POLICY_QUERY, variables: { handle: product.handle } }),
+        body: JSON.stringify({
+          query: byId ? BY_ID_QUERY : BY_HANDLE_QUERY,
+          variables: byId ? { id: `gid://shopify/Product/${product.productId}` } : { handle: ref },
+        }),
       })
 
       if (!res.ok) {
-        results.push({
-          handle: product.handle,
-          label: product.label,
-          ok: false,
-          detail: `Shopify Admin API returned ${res.status} reading this product.`,
-        })
+        results.push({ ref, label: product.label, ok: false, detail: `Shopify Admin API returned ${res.status} reading this product.` })
         continue
       }
 
-      const json = (await res.json()) as {
-        data?: {
-          productByHandle?: {
-            title?: string
-            sellingPlanGroups?: {
-              nodes?: Array<{
-                name?: string
-                sellingPlans?: {
-                  nodes?: Array<{ name?: string; billingPolicy?: { interval?: string; intervalCount?: number } }>
-                }
-              }>
-            }
-          } | null
-        }
-      }
+      const json = (await res.json()) as { data?: { product?: ProductNode | null } }
+      const node = json.data?.product
 
-      const node = json.data?.productByHandle
       if (!node) {
-        results.push({
-          handle: product.handle,
+        const problem: StoreProductProblem = {
+          ref,
           label: product.label,
-          ok: false,
-          detail: 'No product with this handle exists on the store.',
+          reason: 'missing',
+          detail: 'no such product on the store.',
+        }
+        problems.push(problem)
+        results.push({ ref, label: product.label, ok: false, detail: problem.detail })
+        continue
+      }
+
+      if (node.status && node.status.toUpperCase() !== 'ACTIVE') {
+        const problem: StoreProductProblem = {
+          ref,
+          label: product.label,
+          reason: 'draft',
+          detail: `"${node.title ?? product.label}" is ${node.status.toLowerCase()} on the store, so nobody can buy it. Publish it in Shopify.`,
+        }
+        problems.push(problem)
+        results.push({ ref, label: product.label, ok: false, detail: problem.detail })
+        continue
+      }
+
+      if (product.requiresSellingPlan) {
+        const plans = (node.sellingPlanGroups?.nodes ?? []).flatMap((g) =>
+          (g.sellingPlans?.nodes ?? []).map((sp) => ({ group: g.name ?? '', ...sp })),
+        )
+
+        if (plans.length === 0) {
+          const problem: StoreProductProblem = {
+            ref,
+            label: product.label,
+            reason: 'no_selling_plan',
+            detail: 'requires a selling plan but has no selling plan groups attached.',
+          }
+          problems.push(problem)
+          results.push({ ref, label: product.label, ok: false, detail: problem.detail })
+          continue
+        }
+
+        const bad = plans.filter(
+          (sp) => sp.billingPolicy?.interval !== 'MONTH' || (sp.billingPolicy?.intervalCount ?? 1) !== 1,
+        )
+
+        if (bad.length > 0) {
+          const first = bad[0]!
+          const problem: StoreProductProblem = {
+            ref,
+            label: product.label,
+            reason: 'billing_interval',
+            detail: `sold as every 1 MONTH, but the plan "${first.name}" bills every ${first.billingPolicy?.intervalCount ?? '?'} ${first.billingPolicy?.interval ?? 'unknown'}.`,
+          }
+          problems.push(problem)
+          results.push({ ref, label: product.label, ok: false, detail: problem.detail })
+          continue
+        }
+
+        results.push({
+          ref,
+          label: product.label,
+          ok: true,
+          detail: 'Active, and bills every 1 MONTH as advertised.',
         })
         continue
       }
 
-      const plans = (node.sellingPlanGroups?.nodes ?? []).flatMap((g) =>
-        (g.sellingPlans?.nodes ?? []).map((p) => ({ group: g.name ?? '', ...p })),
-      )
-
-      if (plans.length === 0) {
-        results.push({
-          handle: product.handle,
-          label: product.label,
-          ok: false,
-          detail: 'The product requires a selling plan but has no selling plan groups attached.',
-        })
-        continue
-      }
-
-      const expected = product.recurrence === 'monthly' ? 'MONTH' : 'ONE-OFF'
-      const bad = plans.filter(
-        (p) => p.billingPolicy?.interval !== expected || (p.billingPolicy?.intervalCount ?? 1) !== 1,
-      )
-
-      if (bad.length > 0) {
-        const first = bad[0]!
-        mismatches.push({
-          handle: product.handle,
-          label: product.label,
-          planName: first.name ?? 'unnamed plan',
-          expected: `every 1 ${expected}`,
-          actual: first.billingPolicy?.interval ?? 'unknown',
-          actualCount: first.billingPolicy?.intervalCount ?? 0,
-        })
-        results.push({
-          handle: product.handle,
-          label: product.label,
-          ok: false,
-          detail: `Sold as every 1 ${expected}, but "${first.name}" bills every ${
-            first.billingPolicy?.intervalCount ?? '?'
-          } ${first.billingPolicy?.interval ?? 'unknown'}.`,
-        })
-        continue
-      }
-
-      results.push({
-        handle: product.handle,
-        label: product.label,
-        ok: true,
-        detail: `Bills every 1 ${expected}, as advertised.`,
-      })
+      results.push({ ref, label: product.label, ok: true, detail: 'Active, one-off, as advertised.' })
     } catch (err) {
-      results.push({
-        handle: product.handle,
-        label: product.label,
-        ok: false,
-        detail: `Could not read the billing policy: ${err instanceof Error ? err.message : String(err)}`,
-      })
+      results.push({ ref, label: product.label, ok: false, detail: `Could not read this product: ${err instanceof Error ? err.message : String(err)}` })
     }
   }
 
-  policyCache = { at: now, results, mismatches }
-  return policyCache
+  productCache = { at: now, results, problems }
+  return productCache
 }
 
-/** Throws before a checkout is built if any of these products bills differently to what we say. */
-export async function assertBillingPoliciesMatch(handles: string[]): Promise<void> {
-  const { mismatches } = await checkBillingPolicies()
-  const relevant = mismatches.filter((m) => handles.includes(m.handle))
-  if (relevant.length > 0) throw new BillingPolicyMismatchError(relevant)
+/** Throws before a checkout is built if any of these products cannot be sold as advertised. */
+export async function assertStoreProductsSellable(refs: string[]): Promise<void> {
+  const { problems } = await checkStoreProducts()
+  const relevant = problems.filter((p) => refs.includes(p.ref))
+  if (relevant.length > 0) throw new StoreProductError(relevant)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -478,33 +515,51 @@ export function orderJobIdAttribute(order: ShopifyOrder): string | null {
  * first, then SKU (set the SKU to the handle in Shopify and this always works), then the product
  * title as a last resort. An unmatched line is reported, never guessed at.
  */
-export function handleForLineItem(item: ShopifyLineItem): string | null {
+/**
+ * Which product is this order line?
+ *
+ * `orders/paid` carries no product handle, so matching goes by what is actually dependable, in
+ * descending order of trust:
+ *
+ *   1. VARIANT ID. Exact, numeric, and now known for the three one-off products because they were
+ *      read off the store when they were created. Cannot be confused with anything else.
+ *   2. SKU. Set deliberately to `build-token`, `post-live-edit` and `discharge`, so for those three
+ *      it is the identifier rather than an incidental field.
+ *   3. TITLE. Last resort and genuinely fragile: the titles on the store are "DIY Website Build",
+ *      "Website Update" and "Website Discharge", none of which anybody here chose, and every one of
+ *      them contains the word "website". Matched on the distinguishing word only, most specific
+ *      first, and it returns null rather than guessing when nothing fits.
+ *
+ * The product HANDLE is deliberately not used for the one-off products. Shopify generated those
+ * from the titles and this code has never seen them, so assuming one would be exactly the kind of
+ * invention that produces a checkout link that 404s.
+ */
+export function refForLineItem(item: ShopifyLineItem): string | null {
   const variantId = item.variant_id != null ? String(item.variant_id) : null
   if (variantId) {
-    for (const handle of knownHandles()) {
-      if (envValue(variantEnvKey(handle)) === variantId) return handle
+    for (const ref of knownRefs()) {
+      if (variantIdFor(ref, process.env) === variantId) return ref
     }
   }
 
   const sku = item.sku?.trim().toLowerCase()
-  if (sku && knownHandles().includes(sku)) return sku
+  if (sku && knownRefs().includes(sku)) return sku
 
-  // Last resort, and matched against the titles actually on the store: "Website Hosting",
-  // "Email Hosting", "Domain (1 Year)". Order matters, because "Email Hosting" contains the word
-  // hosting and would otherwise be read as the hosting product.
+  // Order matters twice over here. "Email Hosting" contains "hosting" and would otherwise be read
+  // as the hosting subscription, and all three one-off products contain "website".
   const title = (item.title ?? item.name ?? '').toLowerCase()
-  if (title.includes('email')) return PRICING.email.handle
-  if (title.includes('hosting')) return PRICING.hosting.handle
-  if (title.includes('domain')) return PRICING.domain.handle
-  if (title.includes('build')) return PRICING.build.proposedHandle
-  if (title.includes('discharge')) return PRICING.discharge.proposedHandle
-  if (title.includes('update')) return PRICING.postLiveEdit.proposedHandle
-  if (title.includes('edits')) return PRICING.extraEdits.proposedHandle
+  if (title.includes('email')) return PRICING.email.ref
+  if (title.includes('domain')) return PRICING.domain.ref
+  if (title.includes('discharge')) return PRICING.discharge.ref
+  if (title.includes('update')) return PRICING.postLiveEdit.ref
+  if (title.includes('build')) return PRICING.build.ref
+  if (title.includes('edits')) return PRICING.extraEdits.proposedRef
+  if (title.includes('hosting')) return PRICING.hosting.ref
 
   return null
 }
 
-export { kindForHandle } from '../../shared/pricing'
+export { kindForRef } from '../../shared/pricing'
 
 export function centsFromPrice(price: string | undefined): number {
   const value = Number(price ?? '0')

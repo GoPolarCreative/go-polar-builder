@@ -30,7 +30,7 @@ export default function DemoCheckout() {
 
   const describe = (line: string) => {
     const handle = line.split(':')[0] ?? ''
-    const key = (Object.keys(PRICING) as PriceKey[]).find((k) => PRICING[k].handle === handle)
+    const key = (Object.keys(PRICING) as PriceKey[]).find((k) => PRICING[k].ref === handle)
     if (!key) return { label: handle, price: null }
     return { label: PRICING[key].label, price: formatPrice(key) }
   }

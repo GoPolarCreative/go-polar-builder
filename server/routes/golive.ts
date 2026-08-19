@@ -9,7 +9,7 @@ import { config, web3formsKey } from '../config'
 import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db'
 import { id } from '../lib/ids'
 import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify'
-import { handleForCheckout } from '../lib/products'
+import { refForCheckout } from '../lib/products'
 import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains'
 import { buildFacts } from '../lib/facts'
 import { storage } from '../lib/storage'
@@ -305,9 +305,9 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
   try {
     // checkoutHandle throws by name for a product that is not on the store, rather than putting a
     // guessed handle into a cart link that would 404 in front of a paying customer.
-    const lines: CheckoutLine[] = [{ handle: handleForCheckout('hosting'), quantity: 1 }]
-    if (body.emailAddon) lines.push({ handle: handleForCheckout('email'), quantity: 1 })
-    if (body.domainAddon) lines.push({ handle: handleForCheckout('domain'), quantity: 1 })
+    const lines: CheckoutLine[] = [{ ref: refForCheckout('hosting'), quantity: 1 }]
+    if (body.emailAddon) lines.push({ ref: refForCheckout('email'), quantity: 1 })
+    if (body.domainAddon) lines.push({ ref: refForCheckout('domain'), quantity: 1 })
 
     const checkout = await createCheckout({
       jobId,
@@ -322,7 +322,7 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
       // link cannot be built is handed back so it shows in the UI.
       configError = { detail: err.message, missing: err.missing }
     } else if (err instanceof ProductNotOnStoreError) {
-      configError = { detail: err.message, missing: [`Shopify product "${err.proposedHandle}"`] }
+      configError = { detail: err.message, missing: [`Shopify product "${err.proposedRef}"`] }
     } else if (err instanceof Error && err.name === 'LiveActionBlockedError') {
       configError = { detail: err.message, missing: ['ENABLE_LIVE_PAYMENTS'] }
     } else {

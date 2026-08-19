@@ -1,7 +1,7 @@
 import {
   PRICING,
   STORE,
-  checkoutHandle,
+  checkoutRef,
   productConfigProblems,
   type PriceKey,
   type ProductConfigProblem,
@@ -81,7 +81,7 @@ export function assertProductConfig(env: Record<string, string | undefined> = pr
 /**
  * The handle to put on a checkout line.
  *
- * Strict everywhere that matters: outside demo mode this is `checkoutHandle`, which throws by name
+ * Strict everywhere that matters: outside demo mode this is `checkoutRef`, which throws by name
  * for a product that is not on the store rather than building a cart link that 404s in front of a
  * paying customer.
  *
@@ -91,9 +91,9 @@ export function assertProductConfig(env: Record<string, string | undefined> = pr
  * yet, which is the opposite of what demo mode is for. The startup report still names every
  * missing product on the way past.
  */
-export function handleForCheckout(key: PriceKey): string {
-  if (config().demoMode) return PRICING[key].handle ?? PRICING[key].proposedHandle
-  return checkoutHandle(key)
+export function refForCheckout(key: PriceKey): string {
+  if (config().demoMode) return PRICING[key].ref ?? PRICING[key].proposedRef
+  return checkoutRef(key)
 }
 
 /** For the health endpoint and for Chris, without needing the logs. */

@@ -11,7 +11,7 @@ import { buildFacts } from '../lib/facts'
 import { buildDischargePackage } from '../lib/discharge'
 import { classifyWeb3FormsKey, maskKey, verifyWeb3FormsKey } from '../lib/web3forms'
 import { ShopifyConfigError, createCheckout } from '../lib/shopify'
-import { handleForCheckout } from '../lib/products'
+import { refForCheckout } from '../lib/products'
 import { readClaims, signClaims } from '../lib/signing'
 import { requireAdmin } from '../lib/auth'
 import { dischargeReadyEmail, sendSafely } from '../lib/email'
@@ -133,14 +133,14 @@ app.post('/jobs/:jobId/discharge/request', async (c) => {
     const checkout = await createCheckout({
       jobId,
       email: user?.email ?? '',
-      lines: [{ handle: handleForCheckout('discharge'), quantity: 1 }],
+      lines: [{ ref: refForCheckout('discharge'), quantity: 1 }],
       returnTo: `${config().publicAppUrl}/discharge/${jobId}?paid=1`,
     })
     checkoutUrl = checkout.url
   } catch (err) {
     if (err instanceof ShopifyConfigError) configError = { detail: err.message, missing: err.missing }
     else if (err instanceof ProductNotOnStoreError) {
-      configError = { detail: err.message, missing: [`Shopify product "${err.proposedHandle}"`] }
+      configError = { detail: err.message, missing: [`Shopify product "${err.proposedRef}"`] }
     }
     else if (err instanceof Error && err.name === 'LiveActionBlockedError') {
       configError = { detail: err.message, missing: ['ENABLE_LIVE_PAYMENTS'] }

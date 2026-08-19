@@ -6,8 +6,8 @@ import {
   ShopifyConfigError,
   centsFromPrice,
   createCheckout,
-  handleForLineItem,
-  kindForHandle,
+  refForLineItem,
+  kindForRef,
   orderEmail,
   orderJobIdAttribute,
 } from '../server/lib/shopify'
@@ -153,7 +153,7 @@ describe('checkout', () => {
     const result = await createCheckout({
       jobId: 'job_1',
       email: 'a@b.com',
-      lines: [{ handle: 'hosting-monthly', quantity: 1 }],
+      lines: [{ ref: 'hosting-monthly', quantity: 1 }],
     })
     expect(result.method).toBe('demo')
     expect(result.url).toContain('/demo/checkout')
@@ -163,7 +163,7 @@ describe('checkout', () => {
   it('refuses to build a real checkout unless live payments are switched on', async () => {
     testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
     await expect(
-      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'discharge', quantity: 1 }] }),
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ ref: 'discharge', quantity: 1 }] }),
     ).rejects.toThrow(/ENABLE_LIVE_PAYMENTS/)
     testConfig()
   })
@@ -175,7 +175,7 @@ describe('checkout', () => {
       shopify: { storeDomain: 'itscold.myshopify.com' },
     })
     await expect(
-      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'hosting-monthly', quantity: 1 }] }),
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ ref: 'hosting-monthly', quantity: 1 }] }),
     ).rejects.toThrow(/SHOPIFY_VARIANT_HOSTING_MONTHLY/)
     testConfig()
   })
@@ -192,7 +192,7 @@ describe('checkout', () => {
     const result = await createCheckout({
       jobId: 'job_abc',
       email: 'jobs@coldfront.com.au',
-      lines: [{ handle: 'hosting-monthly', quantity: 1 }],
+      lines: [{ ref: 'hosting-monthly', quantity: 1 }],
     })
 
     expect(result.method).toBe('permalink')
@@ -221,8 +221,8 @@ describe('checkout', () => {
         jobId: 'job_abc',
         email: 'a@b.com',
         lines: [
-          { handle: 'hosting-monthly', quantity: 1 },
-          { handle: 'email-monthly', quantity: 1 },
+          { ref: 'hosting-monthly', quantity: 1 },
+          { ref: 'email-monthly', quantity: 1 },
         ],
       }),
     ).rejects.toThrow(/SHOPIFY_STOREFRONT_TOKEN/)
@@ -241,7 +241,7 @@ describe('checkout', () => {
   it('config errors are a named type, so the UI can tell them from an outage', async () => {
     testConfig({ demoMode: false, live: { payments: true, email: false, crm: false, domains: false } })
     await expect(
-      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ handle: 'discharge', quantity: 1 }] }),
+      createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ ref: 'discharge', quantity: 1 }] }),
     ).rejects.toBeInstanceOf(ShopifyConfigError)
     testConfig()
   })
@@ -250,37 +250,37 @@ describe('checkout', () => {
 describe('order parsing', () => {
   it('matches a line item by configured variant id first', () => {
     process.env.SHOPIFY_VARIANT_BUILD_TOKEN = '999'
-    expect(handleForLineItem({ variant_id: 999, title: 'Something else' })).toBe('build-token')
+    expect(refForLineItem({ variant_id: 999, title: 'Something else' })).toBe('build-token')
     delete process.env.SHOPIFY_VARIANT_BUILD_TOKEN
   })
 
   it('falls back to the SKU', () => {
-    expect(handleForLineItem({ sku: 'website-hosting-australia', title: 'Whatever' })).toBe(
+    expect(refForLineItem({ sku: 'website-hosting-australia', title: 'Whatever' })).toBe(
       'website-hosting-australia',
     )
   })
 
   it('falls back to the titles that are actually on the store', () => {
-    expect(handleForLineItem({ title: 'Website Hosting' })).toBe('website-hosting-australia')
-    expect(handleForLineItem({ title: 'Domain (1 Year)' })).toBe('domain-1-year')
-    expect(handleForLineItem({ title: 'Website Build Token' })).toBe('build-token')
+    expect(refForLineItem({ title: 'Website Hosting' })).toBe('website-hosting-australia')
+    expect(refForLineItem({ title: 'Domain (1 Year)' })).toBe('domain-1-year')
+    expect(refForLineItem({ title: 'Website Build Token' })).toBe('build-token')
   })
 
   it('does not read "Email Hosting" as the hosting product', () => {
     // Both titles contain "hosting", and getting this backwards would bill a $14.95 email add-on
     // as a hosting subscription and start the wrong thing.
-    expect(handleForLineItem({ title: 'Email Hosting' })).toBe('email-hosting')
+    expect(refForLineItem({ title: 'Email Hosting' })).toBe('email-hosting')
   })
 
   it('reports nothing rather than guessing wrong', () => {
-    expect(handleForLineItem({ title: 'A tin of paint' })).toBeNull()
+    expect(refForLineItem({ title: 'A tin of paint' })).toBeNull()
   })
 
   it('maps handles to order kinds', () => {
-    expect(kindForHandle('build-token')).toBe('build')
-    expect(kindForHandle('post-live-edit')).toBe('edit')
-    expect(kindForHandle('extra-edits')).toBe('edit')
-    expect(kindForHandle('nonsense')).toBeNull()
+    expect(kindForRef('build-token')).toBe('build')
+    expect(kindForRef('post-live-edit')).toBe('edit')
+    expect(kindForRef('extra-edits')).toBe('edit')
+    expect(kindForRef('nonsense')).toBeNull()
   })
 
   it('reads the email from wherever Shopify put it', () => {
