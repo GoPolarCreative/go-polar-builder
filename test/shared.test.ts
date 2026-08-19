@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { formatAbn, isValidAbn, normaliseAbn } from '../shared/abn'
 import { formatAuPhone, normaliseAuPhone, phoneKind } from '../shared/phone'
-import { PRICING, formatPrice, isPriceSet } from '../shared/pricing'
+import {
+  PRICING,
+  ProductNotOnStoreError,
+  checkoutHandle,
+  formatPrice,
+  isPriceSet,
+  productConfigProblems,
+  sellingPlanEnvKey,
+  variantEnvKey,
+} from '../shared/pricing'
 import { STEP_SCHEMAS, intakeSchema } from '../shared/intake'
 import { runGapAudit, statedYearsFromText, isUsablePhoto } from '../server/lib/audit'
 import { hoursLines, openingHoursSpec } from '../server/lib/facts'
@@ -80,13 +89,111 @@ describe('pricing', () => {
     expect(formatPrice('hosting')).toBe('$30/month + GST')
     expect(formatPrice('email')).toBe('$14.95/month + GST')
     expect(formatPrice('discharge')).toBe('$300 + GST')
-    expect(formatPrice('domain', { approx: true })).toBe('around $5/month + GST')
+    expect(formatPrice('domain')).toBe('$5/month + GST')
   })
 
   it('refuses to show a price that has not been set', () => {
     expect(PRICING.extraEdits.exGstCents).toBeNull()
     expect(isPriceSet('extraEdits')).toBe(false)
     expect(formatPrice('extraEdits')).toBeNull()
+  })
+
+  it('prices the three recurring products monthly, as decided', () => {
+    for (const key of ['hosting', 'domain', 'email'] as const) {
+      expect(PRICING[key].recurrence, key).toBe('monthly')
+      expect(formatPrice(key)).toMatch(/\/month \+ GST$/)
+    }
+  })
+
+  it('carries the real handles from the store, not the ones in the brief', () => {
+    expect(PRICING.hosting.handle).toBe('website-hosting-australia')
+    expect(PRICING.domain.handle).toBe('domain-1-year')
+    expect(PRICING.email.handle).toBe('email-hosting')
+  })
+})
+
+describe('products that do not exist on the store', () => {
+  // The rule this protects: a guessed handle produces a checkout link that 404s in front of a
+  // paying customer, which is far worse than an error we can see.
+  const NOT_CREATED = ['build', 'postLiveEdit', 'extraEdits', 'discharge'] as const
+
+  it('have no handle at all, so nothing can quietly use one', () => {
+    for (const key of NOT_CREATED) {
+      expect(PRICING[key].handle, key).toBeNull()
+      expect(PRICING[key].store.exists, key).toBe(false)
+    }
+  })
+
+  it('throw by name when something tries to buy them', () => {
+    for (const key of NOT_CREATED) {
+      expect(() => checkoutHandle(key), key).toThrow(ProductNotOnStoreError)
+    }
+  })
+
+  it('say what to create and what is broken until it exists', () => {
+    try {
+      checkoutHandle('build')
+      expect.unreachable('should have thrown')
+    } catch (err) {
+      const message = (err as Error).message
+      expect(message).toContain('build-token')
+      expect(message).toContain('SHOPIFY_VARIANT_BUILD_TOKEN')
+      expect(message).toContain('SHOPIFY-SETUP.md')
+      expect(message).toMatch(/no build token means no job/i)
+    }
+  })
+
+  it('do not quote a price for the one that has no price', () => {
+    try {
+      checkoutHandle('extraEdits')
+      expect.unreachable('should have thrown')
+    } catch (err) {
+      expect((err as Error).message).toMatch(/once its price has been decided/)
+      expect((err as Error).message).not.toMatch(/\$\d/)
+    }
+  })
+
+  it('let the three real products through', () => {
+    expect(checkoutHandle('hosting')).toBe('website-hosting-australia')
+    expect(checkoutHandle('domain')).toBe('domain-1-year')
+    expect(checkoutHandle('email')).toBe('email-hosting')
+  })
+})
+
+describe('the startup configuration report', () => {
+  it('names every missing product and every missing env var', () => {
+    const problems = productConfigProblems({})
+    const missing = problems.map((p) => p.missing)
+
+    // The four products that do not exist.
+    for (const handle of ['build-token', 'post-live-edit', 'extra-edits', 'discharge']) {
+      expect(missing.some((m) => m.includes(handle)), handle).toBe(true)
+    }
+    // And for the three that do, both the variant id and the selling plan, because the store has
+    // no selling plan groups at all yet.
+    expect(missing).toContain('SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_EMAIL_HOSTING')
+  })
+
+  it('says what each gap costs, rather than just that it is missing', () => {
+    for (const problem of productConfigProblems({})) {
+      expect(problem.breaks.length, problem.missing).toBeGreaterThan(20)
+    }
+  })
+
+  it('clears once everything is supplied', () => {
+    const env: Record<string, string> = {}
+    for (const product of Object.values(PRICING)) {
+      if (!product.handle) continue
+      env[variantEnvKey(product.handle)] = '12345'
+      if (product.recurrence === 'monthly') env[sellingPlanEnvKey(product.handle)] = '67890'
+    }
+    // The four uncreated products still show, because they genuinely do not exist.
+    const problems = productConfigProblems(env)
+    expect(problems).toHaveLength(4)
+    expect(problems.every((p) => p.missing.startsWith('Shopify product'))).toBe(true)
   })
 })
 

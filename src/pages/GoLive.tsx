@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiCallError, api } from '../lib/api'
+import { ApiCallError, api, type FormsKeyState } from '../lib/api'
 import { Banner, Field, Spinner, TextInput, YesNo } from '../components/ui'
 
 /**
@@ -11,7 +11,7 @@ import { Banner, Field, Spinner, TextInput, YesNo } from '../components/ui'
  * uncooperative third parties are outside Go Polar's control.
  */
 
-type Screen = 'plan' | 'domain' | 'confirmation'
+type Screen = 'inbox' | 'plan' | 'domain' | 'confirmation'
 type Branch = 'own' | 'new' | 'locked'
 
 interface GoLiveState {
@@ -27,6 +27,7 @@ interface GoLiveState {
   } | null
   domain: { name: string; branch: string; status: string; report: unknown } | null
   pricing: Record<string, { label: string; price: string | null; required: boolean }>
+  formsKey: FormsKeyState
   promise: string
 }
 
@@ -60,6 +61,9 @@ export default function GoLive() {
         setNeedsDomain(s.selection?.domainAddon ?? false)
         if (s.domain) setScreen('confirmation')
         else if (s.selection?.paidAt) setScreen('domain')
+        // The enquiry inbox comes first and cannot be skipped. Anyone already past it goes
+        // straight to the plan, so it is a step rather than a wall.
+        else if (!s.formsKey.verified) setScreen('inbox')
       } catch (err) {
         setError(err instanceof ApiCallError ? (err.detail ?? err.message) : 'Could not load this page')
       } finally {
@@ -87,6 +91,19 @@ export default function GoLive() {
         <div className="mb-6">
           <Banner tone="error">{error}</Banner>
         </div>
+      ) : null}
+
+      {screen === 'inbox' && state ? (
+        <InboxScreen
+          jobId={jobId}
+          formsKey={state.formsKey}
+          busy={busy}
+          setBusy={setBusy}
+          onVerified={(next) => {
+            setState({ ...state, formsKey: next })
+            setScreen('plan')
+          }}
+        />
       ) : null}
 
       {screen === 'plan' ? (
@@ -121,6 +138,115 @@ export default function GoLive() {
         <Link className="text-ice-700 underline" to={`/preview/${jobId}`}>
           Back to my website
         </Link>
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Screen 0. Where the customer's enquiries will actually go.
+ *
+ * This used to sit in the intake, where 59 submissions produced almost nothing usable, because at
+ * that point there is no site and no reason to care. Here there is a website on the other side of
+ * the button and something concrete to protect, and the step explains itself rather than asking
+ * a tradie to know what an access key is. See DECISIONS.md D29.
+ */
+function InboxScreen(props: {
+  jobId: string
+  formsKey: FormsKeyState
+  busy: boolean
+  setBusy: (v: boolean) => void
+  onVerified: (next: FormsKeyState) => void
+}) {
+  const [key, setKey] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  const submit = async () => {
+    props.setBusy(true)
+    setProblem(null)
+    setDone(null)
+    try {
+      const res = await api.goLiveFormsKey(props.jobId, key)
+      setDone(res.detail)
+      // Held for a moment so they can read that the test enquiry went through, then on to the
+      // plan. Nothing about their site changed except where the forms send.
+      setTimeout(
+        () =>
+          props.onVerified({
+            ...props.formsKey,
+            verified: true,
+            keyMasked: res.keyMasked,
+            blocksGoLive: false,
+          }),
+        2500,
+      )
+    } catch (err) {
+      // Every rejection has a reason worth reading: the shape was wrong, or Web3Forms tested the
+      // key and refused it. Both come back as plain sentences from the server.
+      setProblem(
+        err instanceof ApiCallError
+          ? (err.detail ?? err.message)
+          : 'Something went wrong checking that key. Nothing has been saved.',
+      )
+    } finally {
+      props.setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card space-y-5">
+      <div>
+        <h2 className="text-xl">Where should your enquiries go?</h2>
+        <p className="mt-2 text-sm text-ice-600">{props.formsKey.why}</p>
+      </div>
+
+      <div className="rounded-lg border border-ice-200 bg-ice-50 p-4">
+        <p className="text-sm font-semibold">What you need to do, once</p>
+        <ol className="mt-2 space-y-1.5 text-sm text-ice-700">
+          {props.formsKey.whatToExpect.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="font-semibold text-ice-500">{i + 1}.</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ol>
+        <a
+          className="btn-ghost mt-3 inline-flex"
+          href={props.formsKey.signUpUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          Open web3forms.com in a new tab
+        </a>
+      </div>
+
+      <Field
+        label="Your Web3Forms access key"
+        hint="It looks like 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809. Paste the whole thing."
+      >
+        <TextInput
+          value={key}
+          onChange={(v) => {
+            setKey(v)
+            setProblem(null)
+          }}
+          disabled={props.busy || Boolean(done)}
+          placeholder="Paste your access key here"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </Field>
+
+      {problem ? <Banner tone="error" title="That key was not accepted">{problem}</Banner> : null}
+      {done ? <Banner tone="ok" title="Your forms are working">{done}</Banner> : null}
+
+      <button className="btn-accent" onClick={submit} disabled={props.busy || !key.trim() || Boolean(done)}>
+        {props.busy ? 'Sending a test enquiry' : 'Check my key and switch my forms over'}
+      </button>
+      <p className="field-hint">
+        We send one test enquiry through your account to be certain it reaches you. It arrives in
+        the inbox you gave Web3Forms, and you do not need to reply to it.
       </p>
     </div>
   )

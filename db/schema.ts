@@ -68,7 +68,7 @@ export const users = pgTable(
   ],
 )
 
-/** One job = one website = one $200 build token. */
+/** One job = one website = one $200 + GST build token. */
 export const jobs = pgTable(
   'jobs',
   {
@@ -85,6 +85,13 @@ export const jobs = pgTable(
     // Set when verification fails twice and Chris has to look at it (brief s6).
     held: boolean('held').notNull().default(false),
     heldReason: text('held_reason'),
+    /**
+     * The customer's own Web3Forms access key, collected in the go-live flow. Only ever written
+     * after a real test submission through Web3Forms came back successful, so a value here means
+     * the key is known to work, not merely known to be a UUID. See DECISIONS.md D29.
+     */
+    customerWeb3formsKey: text('customer_web3forms_key'),
+    web3formsVerifiedAt: timestamp('web3forms_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

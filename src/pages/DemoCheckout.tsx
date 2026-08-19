@@ -32,7 +32,7 @@ export default function DemoCheckout() {
     const handle = line.split(':')[0] ?? ''
     const key = (Object.keys(PRICING) as PriceKey[]).find((k) => PRICING[k].handle === handle)
     if (!key) return { label: handle, price: null }
-    return { label: PRICING[key].label, price: formatPrice(key, { approx: key === 'domain' }) }
+    return { label: PRICING[key].label, price: formatPrice(key) }
   }
 
   const confirm = async () => {

@@ -167,7 +167,7 @@ function DevStart({ health }: { health: Awaited<ReturnType<typeof api.health>> }
         <Banner tone="warn" title="Development entry point">
           <p>
             No payment is wired up on this install. In production this page is reached from the emailed build link
-            after the $200 build token is paid on Shopify.
+            after the $200 + GST build token is paid on Shopify.
           </p>
         </Banner>
 

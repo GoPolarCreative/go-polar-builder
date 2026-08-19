@@ -3,13 +3,15 @@ import { and, desc, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client'
 import type { ContentPlan } from '../../shared/plan'
 import { intakeSchema, type IntakePayload } from '../../shared/intake'
-import { PRICING, formatPrice } from '../../shared/pricing'
+import { ProductNotOnStoreError, formatPrice } from '../../shared/pricing'
 import { config } from '../config'
-import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db'
+import { getIntake, getJob, getUserForJob, getVerifiedFormsKey, listAssets, recordEvent, setJobStatus } from '../lib/db'
 import { id } from '../lib/ids'
 import { buildFacts } from '../lib/facts'
-import { buildDischargePackage, isValidWeb3FormsKey } from '../lib/discharge'
+import { buildDischargePackage } from '../lib/discharge'
+import { classifyWeb3FormsKey, maskKey, verifyWeb3FormsKey } from '../lib/web3forms'
 import { ShopifyConfigError, createCheckout } from '../lib/shopify'
+import { handleForCheckout } from '../lib/products'
 import { readClaims, signClaims } from '../lib/signing'
 import { requireAdmin } from '../lib/auth'
 import { dischargeReadyEmail, sendSafely } from '../lib/email'
@@ -82,17 +84,45 @@ app.post('/jobs/:jobId/discharge/request', async (c) => {
 
   const body = await c.req.json<{ web3formsKey?: string }>().catch(() => ({}) as { web3formsKey?: string })
 
-  const rawKey = (body.web3formsKey ?? '').trim()
-  if (rawKey && !isValidWeb3FormsKey(rawKey)) {
-    return c.json(
-      {
-        error: 'invalid_key',
-        detail:
-          'That does not look like a Web3Forms access key. It is a UUID, like 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809. Copy it from your Web3Forms dashboard, or leave it blank and we will put a placeholder in.',
-        field: 'web3formsKey',
-      },
-      422,
+  // One validated path, shared with go-live (DECISIONS.md D29). A customer who already went
+  // through go-live has a key on the job that is known to work, so they are not asked twice.
+  let rawKey = (body.web3formsKey ?? '').trim()
+  let keyAlreadyVerified = false
+
+  if (!rawKey && job.web3formsKeyMasked && job.web3formsVerifiedAt) {
+    rawKey = (await getVerifiedFormsKey(jobId)) ?? ''
+    keyAlreadyVerified = true
+  }
+
+  if (rawKey && !keyAlreadyVerified) {
+    const shape = classifyWeb3FormsKey(rawKey)
+    if (!shape.ok || !shape.key) {
+      return c.json({ error: 'invalid_key', reason: shape.reason, detail: shape.message, field: 'web3formsKey' }, 422)
+    }
+
+    // Same rule as go-live: a key is not accepted on the strength of its shape. A wrong key here
+    // means a handed-over site whose forms silently go nowhere, and by then the customer has left
+    // and there is nobody watching it.
+    const verification = await verifyWeb3FormsKey(
+      shape.key,
+      { businessName: job.businessName ?? 'your business', jobId },
+      config(),
     )
+    if (!verification.ok) {
+      await recordEvent(jobId, 'discharge.forms_key_rejected', {
+        key: maskKey(shape.key),
+        detail: verification.detail,
+      })
+      return c.json({ error: 'key_rejected', detail: verification.message, field: 'web3formsKey', tested: true }, 422)
+    }
+
+    rawKey = shape.key
+    // Worth keeping on the job: it has now been tested, and the go-live flow should not ask again.
+    const db = await getDb()
+    await db
+      .update(schema.jobs)
+      .set({ customerWeb3formsKey: shape.key, web3formsVerifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.jobs.id, jobId))
   }
 
   const user = await getUserForJob(jobId)
@@ -103,12 +133,15 @@ app.post('/jobs/:jobId/discharge/request', async (c) => {
     const checkout = await createCheckout({
       jobId,
       email: user?.email ?? '',
-      lines: [{ handle: PRICING.discharge.handle, quantity: 1 }],
+      lines: [{ handle: handleForCheckout('discharge'), quantity: 1 }],
       returnTo: `${config().publicAppUrl}/discharge/${jobId}?paid=1`,
     })
     checkoutUrl = checkout.url
   } catch (err) {
     if (err instanceof ShopifyConfigError) configError = { detail: err.message, missing: err.missing }
+    else if (err instanceof ProductNotOnStoreError) {
+      configError = { detail: err.message, missing: [`Shopify product "${err.proposedHandle}"`] }
+    }
     else if (err instanceof Error && err.name === 'LiveActionBlockedError') {
       configError = { detail: err.message, missing: ['ENABLE_LIVE_PAYMENTS'] }
     } else throw err

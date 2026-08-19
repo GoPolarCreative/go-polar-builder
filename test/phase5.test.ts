@@ -255,11 +255,24 @@ describe('order parsing', () => {
   })
 
   it('falls back to the SKU', () => {
-    expect(handleForLineItem({ sku: 'hosting-monthly', title: 'Whatever' })).toBe('hosting-monthly')
+    expect(handleForLineItem({ sku: 'website-hosting-australia', title: 'Whatever' })).toBe(
+      'website-hosting-australia',
+    )
   })
 
-  it('falls back to the title, and reports nothing rather than guessing wrong', () => {
+  it('falls back to the titles that are actually on the store', () => {
+    expect(handleForLineItem({ title: 'Website Hosting' })).toBe('website-hosting-australia')
+    expect(handleForLineItem({ title: 'Domain (1 Year)' })).toBe('domain-1-year')
     expect(handleForLineItem({ title: 'Website Build Token' })).toBe('build-token')
+  })
+
+  it('does not read "Email Hosting" as the hosting product', () => {
+    // Both titles contain "hosting", and getting this backwards would bill a $14.95 email add-on
+    // as a hosting subscription and start the wrong thing.
+    expect(handleForLineItem({ title: 'Email Hosting' })).toBe('email-hosting')
+  })
+
+  it('reports nothing rather than guessing wrong', () => {
     expect(handleForLineItem({ title: 'A tin of paint' })).toBeNull()
   })
 

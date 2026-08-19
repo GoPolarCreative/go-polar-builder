@@ -17,11 +17,10 @@ import { storage } from './storage'
 
 export const PLACEHOLDER_KEY = 'YOUR-WEB3FORMS-ACCESS-KEY-GOES-HERE'
 
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-export function isValidWeb3FormsKey(value: string): boolean {
-  return UUID_RE.test(value.trim())
-}
+// Validation lives in one place, shared with the go-live flow, so the two paths cannot drift into
+// one strict and one lenient version of the same rule. See DECISIONS.md D29.
+export { UUID_RE, isValidWeb3FormsKey } from './web3forms'
+import { applyFormsKey, isValidWeb3FormsKey } from './web3forms'
 
 export interface DischargePackage {
   zip: Uint8Array
@@ -43,7 +42,9 @@ export function swapWeb3FormsKey(
   const replacement = customerKey && isValidWeb3FormsKey(customerKey) ? customerKey.trim() : PLACEHOLDER_KEY
   const usedPlaceholder = replacement === PLACEHOLDER_KEY
 
-  let out = html.split(goPolarKey).join(replacement)
+  // Same swap the go-live path uses, so a discharged file and a live site get their forms
+  // switched over by identical code.
+  let out = applyFormsKey(html, goPolarKey, replacement).html
 
   if (usedPlaceholder) {
     // A comment above every form, so whoever picks this up next cannot miss it.

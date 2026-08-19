@@ -1,13 +1,25 @@
 import { Hono } from 'hono'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client'
-import { PRICING, formatPrice } from '../../shared/pricing'
+import { PRICING, ProductNotOnStoreError, formatPrice } from '../../shared/pricing'
+import { intakeSchema, type IntakePayload } from '../../shared/intake'
 import { isValidAbn } from '../../shared/abn'
-import { config } from '../config'
-import { getJob, getUserForJob, recordEvent, setJobStatus } from '../lib/db'
+import type { Job } from '../../shared/types'
+import { config, web3formsKey } from '../config'
+import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db'
 import { id } from '../lib/ids'
 import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify'
+import { handleForCheckout } from '../lib/products'
 import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains'
+import { buildFacts } from '../lib/facts'
+import { storage } from '../lib/storage'
+import { verify } from '../lib/verify'
+import {
+  applyFormsKey,
+  classifyWeb3FormsKey,
+  maskKey,
+  verifyWeb3FormsKey,
+} from '../lib/web3forms'
 
 const app = new Hono()
 
@@ -28,6 +40,35 @@ async function getGoLive(jobId: string) {
   const db = await getDb()
   const rows = await db.select().from(schema.golive).where(eq(schema.golive.jobId, jobId)).limit(1)
   return rows[0] ?? null
+}
+
+/**
+ * Where this job stands on the enquiry inbox.
+ *
+ * A key here means a real test submission through Web3Forms came back successful, because that is
+ * the only way one gets written. Until then the site cannot go live: it would carry Go Polar's
+ * key, and the tradie would never see a single enquiry from the website they just paid for.
+ */
+function formsKeyState(job: Job) {
+  const verified = Boolean(job.web3formsKeyMasked && job.web3formsVerifiedAt)
+  return {
+    required: true,
+    verified,
+    keyMasked: job.web3formsKeyMasked,
+    verifiedAt: job.web3formsVerifiedAt,
+    blocksGoLive: !verified,
+    // The screen is written from this, so the reason lives with the rule rather than in the UI.
+    why: verified
+      ? 'Your enquiry forms send to your own Web3Forms account, so enquiries come straight to you.'
+      : 'Right now the enquiry forms on your website send to our account, which is fine while you are still working on it but not once it is live. Before we can put it online we need your own free Web3Forms account, so every enquiry goes straight to your inbox and nowhere else.',
+    signUpUrl: 'https://web3forms.com/',
+    whatToExpect: [
+      'Open web3forms.com and put in the email address you want your enquiries to go to.',
+      'They email you an access key straight away. It is free, and there is nothing to install.',
+      'Copy that key back into the box below.',
+      'We send a test enquiry through it to make sure it reaches you, then put your website live.',
+    ],
+  }
 }
 
 async function latestDomain(jobId: string) {
@@ -68,11 +109,154 @@ app.get('/jobs/:jobId/golive', async (c) => {
     // Prices come from one place and always carry the GST label.
     pricing: {
       hosting: { label: PRICING.hosting.label, price: formatPrice('hosting'), required: true },
-      domain: { label: PRICING.domain.label, price: formatPrice('domain', { approx: true }), required: false },
+      domain: { label: PRICING.domain.label, price: formatPrice('domain'), required: false },
       email: { label: PRICING.email.label, price: formatPrice('email'), required: false },
     },
+    formsKey: formsKeyState(job),
     promise: CONTACT_PROMISE,
     demoMode: config().demoMode,
+  })
+})
+
+/**
+ * The enquiry inbox step. Required before anything else in this flow.
+ *
+ * Three gates, in order, and none of them is skippable:
+ *   1. the shape, with the mistake named rather than a generic rejection
+ *   2. a real test submission through Web3Forms, because a valid-looking wrong key produces a
+ *      site whose forms silently go nowhere, which is the worst outcome for someone paying for
+ *      lead generation
+ *   3. the rebuild, which must actually put their key in both forms and leave none of ours
+ *
+ * Nothing is written to the job until all three pass.
+ */
+app.post('/jobs/:jobId/golive/forms-key', async (c) => {
+  const jobId = c.req.param('jobId')
+  const job = await getJob(jobId)
+  if (!job) return c.json({ error: 'not_found' }, 404)
+  if (job.currentVersion < 1) {
+    return c.json({ error: 'not_ready', detail: 'There is no website built yet.' }, 409)
+  }
+
+  const body = await c.req.json<{ key?: string }>().catch(() => ({}) as { key?: string })
+  const raw = body.key ?? ''
+
+  const shape = classifyWeb3FormsKey(raw)
+  if (!shape.ok || !shape.key) {
+    return c.json({ error: 'invalid_key', reason: shape.reason, detail: shape.message, saved: false }, 422)
+  }
+
+  // Gate 2. Nothing is stored yet, deliberately: an unverified key in the database is a key
+  // somebody will later assume was checked.
+  const verification = await verifyWeb3FormsKey(
+    shape.key,
+    { businessName: job.businessName ?? 'your business', jobId },
+    config(),
+  )
+
+  if (!verification.ok) {
+    await recordEvent(jobId, 'golive.forms_key_rejected', {
+      key: maskKey(shape.key),
+      detail: verification.detail,
+    })
+    return c.json(
+      { error: 'key_rejected', detail: verification.message, saved: false, tested: true },
+      422,
+    )
+  }
+
+  // Gate 3. Rebuild the current version with their key in place of ours. This is a deterministic
+  // swap of the access_key values and nothing else, so not a word of their copy can move.
+  const goPolar = web3formsKey()
+  const db = await getDb()
+  const current = await db
+    .select()
+    .from(schema.builds)
+    .where(and(eq(schema.builds.jobId, jobId), eq(schema.builds.version, job.currentVersion)))
+    .limit(1)
+
+  const build = current[0]
+  if (!build) return c.json({ error: 'not_found', detail: 'The current build is missing.' }, 404)
+
+  const html = await storage().getText(build.blobKey)
+  if (html === null) return c.json({ error: 'not_found', detail: 'The current build is missing.' }, 404)
+
+  const swap = applyFormsKey(html, goPolar, shape.key)
+  if (swap.replaced < 1 || !swap.clean) {
+    // Better to refuse than to hand back a site that says its forms were switched over when one
+    // of them still is not.
+    return c.json(
+      {
+        error: 'rebuild_failed',
+        detail: `Your key tested fine, but we could not switch it into the website cleanly, so nothing has been changed. This is our problem to fix, not yours. (${swap.replaced} of the forms were updated.)`,
+        saved: false,
+      },
+      500,
+    )
+  }
+
+  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
+  const parsedIntake = intakeSchema.safeParse(stored?.payload)
+  const facts = parsedIntake.success ? buildFacts(parsedIntake.data as IntakePayload, assets) : null
+  const report = facts ? await verify(swap.html, facts, { runRender: false }) : null
+
+  const version = job.currentVersion + 1
+  const blobKey = `jobs/${jobId}/builds/v${version}/index.html`
+  await storage().put(blobKey, swap.html, 'text/html; charset=utf-8')
+
+  await db.insert(schema.builds).values({
+    id: id('bld'),
+    jobId,
+    version,
+    blobKey,
+    bytes: swap.html.length,
+    pageWeightBytes: report?.pageWeightBytes ?? build.pageWeightBytes,
+    checks: report ?? build.checks,
+    passed: report ? report.passed : build.passed,
+  })
+
+  // Every version needs its plan alongside it. The plan is the source of truth that rollback and
+  // the discharge package both read by version, and a build with no plan beside it is a version
+  // that cannot be handed over. Nothing in the plan changes here: only where the forms post.
+  const currentPlan = await db
+    .select({ plan: schema.plans.plan })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, job.currentVersion)))
+    .limit(1)
+
+  if (currentPlan[0]) {
+    await db.insert(schema.plans).values({ id: id('pln'), jobId, version, plan: currentPlan[0].plan })
+  }
+
+  await db
+    .update(schema.jobs)
+    // Not an edit. The customer did not ask for a change to their website, they completed a step
+    // we require, so `edits_used` is untouched.
+    .set({
+      customerWeb3formsKey: shape.key,
+      web3formsVerifiedAt: new Date(),
+      currentVersion: version,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.jobs.id, jobId))
+
+  await recordEvent(jobId, 'golive.forms_key_verified', {
+    key: maskKey(shape.key),
+    version,
+    formsUpdated: swap.replaced,
+    testEnquirySent: verification.live,
+    notify: 'chris',
+  })
+
+  return c.json({
+    ok: true,
+    version,
+    formsUpdated: swap.replaced,
+    keyMasked: maskKey(shape.key),
+    testEnquirySent: verification.live,
+    detail: verification.live
+      ? `Done. We sent a test enquiry through your Web3Forms account, and it went through. Both forms on your website now come to your inbox. Check your email and you should see it there.`
+      : `Done. Your key is saved and both forms on your website now point at your Web3Forms account. No test enquiry was actually sent, because this install is in demo mode.`,
   })
 })
 
@@ -90,6 +274,21 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
     return c.json({ error: 'not_ready', detail: 'There is no website built yet.' }, 409)
   }
 
+  // Go-live is blocked until the enquiry inbox is sorted. Checked here as well as on the screen,
+  // because the screen is a courtesy and this is the rule. Taking payment for a live site whose
+  // enquiry forms deliver to us would be the worst possible order to do this in.
+  if (!job.web3formsKeyMasked || !job.web3formsVerifiedAt) {
+    return c.json(
+      {
+        error: 'forms_key_required',
+        detail:
+          'Before your website can go live we need your own Web3Forms access key, so enquiries come to you rather than to us. It is free and takes a minute. Nothing has been charged.',
+        formsKey: formsKeyState(job),
+      },
+      409,
+    )
+  }
+
   const body = await c.req
     .json<{ emailAddon?: boolean; domainAddon?: boolean; email?: string }>()
     .catch(() => ({}) as { emailAddon?: boolean; domainAddon?: boolean; email?: string })
@@ -98,16 +297,18 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
   const email = (body.email ?? user?.email ?? '').trim().toLowerCase()
   if (!email) return c.json({ error: 'bad_request', detail: 'No email address on this job.' }, 400)
 
-  const lines: CheckoutLine[] = [{ handle: PRICING.hosting.handle, quantity: 1 }]
-  if (body.emailAddon) lines.push({ handle: PRICING.email.handle, quantity: 1 })
-  if (body.domainAddon) lines.push({ handle: PRICING.domain.handle, quantity: 1 })
-
   const db = await getDb()
   const now = new Date()
   let checkoutUrl: string | null = null
   let configError: { detail: string; missing: string[] } | null = null
 
   try {
+    // checkoutHandle throws by name for a product that is not on the store, rather than putting a
+    // guessed handle into a cart link that would 404 in front of a paying customer.
+    const lines: CheckoutLine[] = [{ handle: handleForCheckout('hosting'), quantity: 1 }]
+    if (body.emailAddon) lines.push({ handle: handleForCheckout('email'), quantity: 1 })
+    if (body.domainAddon) lines.push({ handle: handleForCheckout('domain'), quantity: 1 })
+
     const checkout = await createCheckout({
       jobId,
       email,
@@ -120,6 +321,8 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
       // Not a stub and not a silent failure: the selection is saved, and the real reason the
       // link cannot be built is handed back so it shows in the UI.
       configError = { detail: err.message, missing: err.missing }
+    } else if (err instanceof ProductNotOnStoreError) {
+      configError = { detail: err.message, missing: [`Shopify product "${err.proposedHandle}"`] }
     } else if (err instanceof Error && err.name === 'LiveActionBlockedError') {
       configError = { detail: err.message, missing: ['ENABLE_LIVE_PAYMENTS'] }
     } else {
@@ -316,7 +519,7 @@ app.get('/jobs/:jobId/golive/confirmation', async (c) => {
     { label: PRICING.hosting.label, price: formatPrice('hosting') },
   ]
   if (golive?.domainAddon) {
-    monthly.push({ label: PRICING.domain.label, price: formatPrice('domain', { approx: true }) })
+    monthly.push({ label: PRICING.domain.label, price: formatPrice('domain') })
   }
   if (golive?.emailAddon) monthly.push({ label: PRICING.email.label, price: formatPrice('email') })
 

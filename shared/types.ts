@@ -26,6 +26,13 @@ export interface Job {
   currentVersion: number
   held: boolean
   heldReason: string | null
+  /**
+   * The customer's own Web3Forms key, masked. Set only once a real test submission through
+   * Web3Forms succeeded, so a value here means the enquiry forms are known to reach them. The
+   * full key is never put on this object: server code that needs it reads the row. D29.
+   */
+  web3formsKeyMasked: string | null
+  web3formsVerifiedAt: string | null
   createdAt: string
   updatedAt: string
 }

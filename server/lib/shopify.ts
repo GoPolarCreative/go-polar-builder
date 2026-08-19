@@ -1,4 +1,4 @@
-import { HANDLE_TO_KIND, sellingPlanEnvKey, variantEnvKey } from '../../shared/pricing'
+import { PRICING, knownHandles, sellingPlanEnvKey, variantEnvKey } from '../../shared/pricing'
 import { assertLiveEnabled, config, type AppConfig } from '../config'
 import { fakeCheckoutUrl } from './integrations/fakes'
 
@@ -235,31 +235,30 @@ export function orderJobIdAttribute(order: ShopifyOrder): string | null {
 export function handleForLineItem(item: ShopifyLineItem): string | null {
   const variantId = item.variant_id != null ? String(item.variant_id) : null
   if (variantId) {
-    for (const handle of Object.keys(HANDLE_TO_KIND)) {
+    for (const handle of knownHandles()) {
       if (envValue(variantEnvKey(handle)) === variantId) return handle
     }
   }
 
   const sku = item.sku?.trim().toLowerCase()
-  if (sku && sku in HANDLE_TO_KIND) return sku
+  if (sku && knownHandles().includes(sku)) return sku
 
+  // Last resort, and matched against the titles actually on the store: "Website Hosting",
+  // "Email Hosting", "Domain (1 Year)". Order matters, because "Email Hosting" contains the word
+  // hosting and would otherwise be read as the hosting product.
   const title = (item.title ?? item.name ?? '').toLowerCase()
-  if (title.includes('build')) return 'build-token'
-  if (title.includes('hosting')) return 'hosting-monthly'
-  if (title.includes('domain')) return 'domain-monthly'
-  if (title.includes('email')) return 'email-monthly'
-  if (title.includes('discharge')) return 'discharge'
-  if (title.includes('update')) return 'post-live-edit'
-  if (title.includes('edits')) return 'extra-edits'
+  if (title.includes('email')) return PRICING.email.handle
+  if (title.includes('hosting')) return PRICING.hosting.handle
+  if (title.includes('domain')) return PRICING.domain.handle
+  if (title.includes('build')) return PRICING.build.proposedHandle
+  if (title.includes('discharge')) return PRICING.discharge.proposedHandle
+  if (title.includes('update')) return PRICING.postLiveEdit.proposedHandle
+  if (title.includes('edits')) return PRICING.extraEdits.proposedHandle
 
   return null
 }
 
-export function kindForHandle(
-  handle: string,
-): 'build' | 'hosting' | 'domain' | 'email' | 'edit' | 'discharge' | null {
-  return HANDLE_TO_KIND[handle] ?? null
-}
+export { kindForHandle } from '../../shared/pricing'
 
 export function centsFromPrice(price: string | undefined): number {
   const value = Number(price ?? '0')

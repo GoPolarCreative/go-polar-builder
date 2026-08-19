@@ -4,6 +4,7 @@ import type { AssetRecord, AssetStats, AssetVariant, AuditFlag, Job, JobStatus }
 import type { IntakePayload } from '../../shared/intake'
 import type { Trade } from '../../shared/trades'
 import { id } from './ids'
+import { maskKey } from './web3forms'
 
 /**
  * Data access. Drizzle over Postgres, replacing the raw D1 prepare/bind calls.
@@ -29,9 +30,27 @@ function toJob(row: typeof schema.jobs.$inferSelect): Job {
     currentVersion: row.currentVersion,
     held: row.held,
     heldReason: row.heldReason,
+    web3formsKeyMasked: row.customerWeb3formsKey ? maskKey(row.customerWeb3formsKey) : null,
+    web3formsVerifiedAt: row.web3formsVerifiedAt ? iso(row.web3formsVerifiedAt) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   }
+}
+
+/**
+ * The customer's real Web3Forms key, for the two places that have to put it into a document.
+ * Deliberately not on the `Job` object, which travels to the browser: this is read at the point
+ * of use and nowhere else.
+ */
+export async function getVerifiedFormsKey(jobId: string): Promise<string | null> {
+  const db = await getDb()
+  const rows = await db
+    .select({ key: schema.jobs.customerWeb3formsKey, at: schema.jobs.web3formsVerifiedAt })
+    .from(schema.jobs)
+    .where(eq(schema.jobs.id, jobId))
+    .limit(1)
+  const row = rows[0]
+  return row?.key && row.at ? row.key : null
 }
 
 function toAsset(row: typeof schema.assets.$inferSelect): AssetRecord {

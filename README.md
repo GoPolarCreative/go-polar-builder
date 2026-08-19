@@ -1,6 +1,6 @@
 # Go Polar Website Builder
 
-A self-serve web app where Australian trade businesses pay $200, answer a guided set of
+A self-serve web app where Australian trade businesses pay $200 + GST, answer a guided set of
 questions, and watch a complete single-page website get generated in front of them. They get 10
 rounds of changes, then choose to go live on Go Polar hosting or take the files elsewhere.
 
@@ -79,7 +79,9 @@ verification checks run, then the finished site appear in an iframe. From there:
 
 - **Looks good, let me make changes** opens the preview and edit screen. The changes counter, the
   version history and rollback all work.
-- **I am ready to go live** walks the three go-live screens. The checkout is a local pretend
+- **I am ready to go live** starts with the enquiry inbox step: a Web3Forms key is required before
+  anything can go live, and the key is tested with a real submission before it is accepted (faked
+  in demo mode, and it says so). Then the three go-live screens. The checkout is a local pretend
   checkout: confirming it runs the same code a real Shopify webhook would.
 - **Take your files elsewhere** packages a real zip you can download and unzip.
 
@@ -88,13 +90,13 @@ Watch the terminal while you do it. Every integration that would have fired prin
 ```
 FAKE RESEND: would send "Your website build is ready to start" to jobs@coldfrontplumbing.com.au
 FAKE GHL: would fire "build_complete" into the CRM  [contact=... preview_link=...]
-FAKE SHOPIFY: would create a checkout  [jobId=job_... lines=hosting-monthly]
+FAKE SHOPIFY: would create a checkout  [jobId=job_... lines=website-hosting-australia]
 ```
 
 ## 4. Run the checks yourself
 
 ```bash
-npm test              # 158 unit tests
+npm test              # 245 unit tests
 npm run sample:verify # all 17 checks against sample/index.html, using a real browser
 ```
 
@@ -120,7 +122,7 @@ Nothing deploys. Nothing bills. No email leaves the machine. No DNS record chang
 | 5 | Go live, three domain branches, RDAP and DNS lookups, discharge | done |
 | 6 | Auth, Shopify, Resend, GHL, cron, demo mode, deploy-ready config | done, not deployed |
 
-**158 unit tests.** Plus a 34-check end-to-end script and a verification self-test.
+**245 unit tests.** Plus a 45-check end-to-end script and a verification self-test.
 
 ### What needs real credentials
 
@@ -130,7 +132,7 @@ it is stubbed or silently skipped.
 | Needs | For | Without it |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | real generation and edits | Clear error, or `DEV_OFFLINE_GENERATION=1` for the fixture |
-| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable |
+| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable. **Four products still have to be created on the store: SHOPIFY-SETUP.md** |
 | `RESEND_API_KEY` | build links, receipts, handover | Printed to the terminal in demo mode; recorded as `email.failed` and retried otherwise |
 | `GHL_INBOUND_WEBHOOK_URL` | CRM notifications | Printed in demo mode; recorded as `ghl.failed`, never blocks a payment |
 | `DATABASE_URL` | Neon in production | Embedded PGlite locally |

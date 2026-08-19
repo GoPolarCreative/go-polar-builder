@@ -29,7 +29,8 @@ there. `orders` rows store `shopify_order_id` and `product_handle`, which would 
 **Question.** The pricing table lists "Additional 5 edits before launch, TBC, confirm with Chris".
 
 **Chosen.** `PRICING.extraEdits.exGstCents` in `shared/pricing.ts`, set to `null`. Every other
-price in that file is a real number from the brief, in cents, ex GST.
+price in that file is a decided number, in cents, ex GST. As of 2026-08-18 this is the only price
+still open: hosting, domain and email were settled at $30, $5 and $14.95 per month ex GST. See D30.
 
 While it is null the UI does not show a price or a buy button for extra edits. It offers to put
 the customer in touch instead, and the "you have used all 10" screen still offers going live,
@@ -37,7 +38,7 @@ which is the other real option. Setting the constant to a number turns the whole
 other change.
 
 **If Chris disagrees.** Set the number. Also create the `extra-edits` product in Shopify with
-that handle and set `SHOPIFY_VARIANT_EXTRA_EDITS` in the Worker environment. Nothing else
+that handle and set `SHOPIFY_VARIANT_EXTRA_EDITS` in the Vercel project environment. Nothing else
 changes: the offer, the checkout and the webhook handling that adds the 5 edits are all built.
 
 ---
@@ -590,3 +591,104 @@ header, not an invitation to restyle their site.
 **If Chris disagrees.** Dropping a style is deleting its entry from `STYLE_SPECS`,
 `DESIGN_STYLE_OPTIONS` and the trade mapping. Adding one is adding the same three. The renderer,
 the prompt directive and the tests all iterate `NAMED_STYLES`, so nothing else needs touching.
+
+---
+
+## D29. The Web3Forms key is collected at go-live, and tested before it is believed
+
+**A reversal, and the original reasoning is worth keeping.** Section 4 of the brief explicitly
+removed this field from the intake, and it was right to: of 59 submissions, nearly every one came
+back with an email address or a phone number instead of a UUID. A tradie filling in an intake form
+has no website yet, no motivation, and no idea what an access key is. The field produced garbage.
+
+**What changed.** Removing the field did not remove the problem, it moved it. Every generated site
+posts its enquiry forms to Go Polar's Web3Forms account. A site that goes live still carrying that
+key sends every enquiry the tradie ever receives to us instead of them. That is a lost lead for the
+person paying for lead generation, and someone else's customer data in our account. Chris is right
+about the consequence, so the field comes back.
+
+**Where it went instead.** The go-live flow, as a required step before the site can be published,
+and not in the intake. At go-live the customer has a finished website in front of them and
+something concrete to protect, which is the difference between the 59 bad submissions and a
+motivated one. It is guided rather than a bare text box: what Web3Forms is, why they need it, a
+link that opens in a new tab, and exactly what will happen (they enter their email, the key arrives
+in their inbox, they paste it back).
+
+**Naming the mistake.** "Invalid key" tells someone who pasted their email address nothing, and
+they will paste it again. So an email address, a phone number, the web3forms.com URL and the
+example text each get their own message saying what we can see they pasted. The three things that
+actually came back in the 59 submissions each have their own branch.
+
+**The part that matters most: shape proves nothing.** A syntactically valid but wrong key is worse
+than no key at all. The forms look fine, they submit, the success message appears, and every
+enquiry goes nowhere. A tradie would find out when they wondered why the phone stopped ringing. So
+a key is never accepted for being a UUID. A real test submission is sent through Web3Forms with it,
+and only a genuine success response gets it saved. Nothing is written to the job until it passes,
+because an unverified key in the database is a key somebody will later assume was checked.
+
+**Three gates, in order:** the shape, the live test, then the rebuild. The rebuild is a
+deterministic swap of the `access_key` values and nothing else, deliberately not a model call, so
+not a word of their copy can move. If it cannot switch both forms cleanly it refuses and saves
+nothing rather than reporting a success it did not achieve.
+
+**Blocked until it is done.** Go-live is refused at the checkout with a plain-English reason, and
+`publishSite` refuses outright to publish a document still containing the Go Polar key. Two gates
+rather than one, because the second one is the one that actually protects the customer's leads no
+matter which route got there.
+
+**Not an edit.** The rebuild writes a new version but does not touch `edits_used`. The customer did
+not ask for a change to their website, they completed a step we require of them.
+
+**One code path, shared with section 9.** Discharge already forced a key swap and had its own
+copy of the validation. Two copies drift, and one of them ends up being the lenient one. Both now
+come through `server/lib/web3forms.ts`, and a customer who supplied a key at go-live is not asked
+for it again at discharge.
+
+**In demo mode** the submission is faked and says so, and `live: false` travels with the result so
+nothing downstream can claim a test enquiry was delivered when none was. A key of all zeroes is
+treated as rejected so the failure path can be walked locally, which is also the placeholder the
+config falls back to and therefore the one key that must never be accepted.
+
+---
+
+## D30. Shopify products come from the store, and nothing is invented to fill the gaps
+
+**What the store actually has**, read on 2026-08-18: Go Polar Creative, itscold.com.au, Basic plan,
+AUD, AWST, and **zero selling plan groups**. Three of the seven products the app needs exist:
+`website-hosting-australia` ("Website Hosting", $33.00, two variants), `email-hosting` ($14.95) and
+`domain-1-year` ("Domain (1 Year)", $5.00 one-off). The handles in the brief were fiction.
+
+**Four products do not exist at all:** `build-token`, `post-live-edit`, `discharge` and
+`extra-edits`.
+
+**Chosen.** `shared/pricing.ts` is the single configuration module, and a product that is not on the
+store has `handle: null`. There is no fallback and no guess. `checkoutHandle()` is the only way a
+handle reaches a checkout, and for a missing product it throws by name saying what to create, what
+to price it, which env var to set, and what is broken until then.
+
+**Why null rather than the proposed handle.** A guessed handle produces a cart permalink that 404s
+in front of a customer who has decided to buy. An error we can see is far cheaper. The proposed
+handle is still recorded, as documentation for SHOPIFY-SETUP.md and so that an order for a product
+Chris creates before this file is updated is still understood rather than dropped.
+
+**Fail loudly at startup.** `assertProductConfig()` runs at boot and reports every gap and what each
+one costs. With `ENABLE_LIVE_PAYMENTS=1` it refuses to start at all, because an install that intends
+to take money must not run in a state where a customer can reach a broken checkout. With payments
+off it warns instead and stays runnable, because a preview install is expected to be half configured.
+`/api/health` carries the same report.
+
+**Prices are now decided and final**, all ex GST, all monthly for the three recurring ones: hosting
+$30/month, domain $5/month, email $14.95/month. This supersedes anything earlier that recorded them
+as open. `extra-edits` is still the one undecided price and stays null, so no customer ever sees a
+number for it. See D2.
+
+**The store does not match these decisions yet**, and that is recorded rather than smoothed over:
+hosting is $33.00 which is $30 GST-inclusive, the domain is a one-off year rather than a monthly
+subscription, and nothing has a selling plan because there are no selling plan groups. Every
+mismatch is in the `store` field of each product with what it breaks, and SHOPIFY-SETUP.md is the
+ordered checklist for fixing it. **Nothing was changed on the store.**
+
+**Title matching order matters.** The `orders/paid` webhook does not carry product handles, so a
+line item is matched by configured variant id, then SKU, then title. "Email Hosting" and "Website
+Hosting" both contain the word hosting, and getting that backwards would read a $14.95 email add-on
+as a hosting subscription. Email is checked first, and there is a test for it.

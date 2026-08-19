@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { config } from './config'
 import { recordEvent } from './lib/db'
+import { assertProductConfig, productConfigReport } from './lib/products'
 import { requireSession } from './lib/auth'
 import auth from './routes/auth'
 import jobs from './routes/jobs'
@@ -27,9 +28,15 @@ import dev from './routes/dev'
  */
 export const api = new Hono().basePath('/api')
 
+// Says at boot exactly which Shopify products are missing and what each gap breaks, and refuses
+// to start at all if this install intends to take payments while something is unconfigured. See
+// server/lib/products.ts and SHOPIFY-SETUP.md.
+assertProductConfig()
+
 api.get('/health', (c) => {
   const cfg = config()
   return c.json({
+    products: productConfigReport(),
     ok: true,
     // Presence only, never values.
     demoMode: cfg.demoMode,

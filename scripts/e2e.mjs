@@ -224,6 +224,49 @@ async function main() {
     golive.body?.promise?.includes('one business day') && !/24 hours/i.test(golive.body.promise),
   )
 
+  // --- the enquiry inbox, which blocks everything after it ---------------------------------------
+  check('go live says the enquiry inbox is still outstanding', golive.body?.formsKey?.blocksGoLive === true)
+
+  const blocked = await call(`/api/jobs/${jobId}/golive/plan`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ emailAddon: true }),
+  })
+  check('no checkout while enquiries would come to us', blocked.status === 409, blocked.body?.error)
+  check('and it says nothing has been charged', /nothing has been charged/i.test(blocked.body?.detail ?? ''))
+
+  const pastedEmail = await call(`/api/jobs/${jobId}/golive/forms-key`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: 'jobs@coldfrontplumbing.com.au' }),
+  })
+  check('an email address is named as an email address', pastedEmail.body?.reason === 'email')
+
+  // Demo mode fakes the test submission and says so. A key of all zeroes is the demo failure case.
+  const rejected = await call(`/api/jobs/${jobId}/golive/forms-key`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: '00000000-1111-2222-3333-444444444444' }),
+  })
+  check('a key the service refuses is not saved', rejected.status === 422 && rejected.body?.saved === false)
+
+  const accepted = await call(`/api/jobs/${jobId}/golive/forms-key`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: 'a1b2c3d4-e5f6-7081-92a3-b4c5d6e7f809' }),
+  })
+  check('a working key switches both forms over', accepted.body?.formsUpdated === 2, accepted.body?.detail)
+
+  const switched = await call(`/api/jobs/${jobId}/builds/${accepted.body?.version}/html`)
+  check(
+    'the live document no longer posts to Go Polar',
+    switched.text.includes('a1b2c3d4-e5f6-7081-92a3-b4c5d6e7f809') &&
+      !switched.text.includes('00000000-0000-0000-0000-000000000000'),
+  )
+
+  const chargedForKey = await call(`/api/jobs/${jobId}/versions`)
+  check('sorting the inbox out costs no edit', chargedForKey.body.editsUsed === afterRollback.body.editsUsed)
+
   const plan = await call(`/api/jobs/${jobId}/golive/plan`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

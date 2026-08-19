@@ -1,8 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client'
 import type { BuildFacts } from '../../shared/plan'
-import { config } from '../config'
+import { config, web3formsKey } from '../config'
 import { storage } from './storage'
+import { assertNoGoPolarKey } from './web3forms'
 import { id } from './ids'
 import { recordEvent } from './db'
 import { fakeDomainAttach } from './integrations/fakes'
@@ -61,6 +62,11 @@ export async function publishSite(args: {
   const cfg = config()
   const store = storage()
   const db = await getDb()
+
+  // The last line of defence for the customer's leads. Whatever route got us here, a document
+  // that still posts to Go Polar's Web3Forms account does not go on the public internet. See
+  // DECISIONS.md D29.
+  assertNoGoPolarKey(args.html, web3formsKey(cfg))
 
   const base = cfg.publicAppUrl.replace(/\/$/, '')
   // With Vercel Blob the stored object has its own public URL. Locally there is no CDN, so the

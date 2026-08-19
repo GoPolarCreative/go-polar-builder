@@ -60,6 +60,21 @@ export interface JobResponse {
   builds: Array<{ version: number; passed: number; bytes: number; created_at: string }>
 }
 
+/**
+ * The enquiry-inbox state for a job. `verified` is only ever true once a real test submission
+ * through Web3Forms succeeded, so the screen can state that plainly rather than hedging.
+ */
+export interface FormsKeyState {
+  required: boolean
+  verified: boolean
+  keyMasked: string | null
+  verifiedAt: string | null
+  blocksGoLive: boolean
+  why: string
+  signUpUrl: string
+  whatToExpect: string[]
+}
+
 export const api = {
   health: () =>
     request<{
@@ -216,6 +231,7 @@ export const api = {
       } | null
       domain: { name: string; branch: string; status: string; report: unknown } | null
       pricing: Record<string, { label: string; price: string | null; required: boolean }>
+      formsKey: FormsKeyState
       promise: string
     }>(`/api/jobs/${jobId}/golive`),
 
@@ -224,6 +240,24 @@ export const api = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+    }),
+
+  /**
+   * Submit the customer's own Web3Forms key. The server tests it with a real submission before
+   * saving, so this call is slow by design and can come back rejected with a reason.
+   */
+  goLiveFormsKey: (jobId: string, key: string) =>
+    request<{
+      ok: boolean
+      version: number
+      formsUpdated: number
+      keyMasked: string
+      testEnquirySent: boolean
+      detail: string
+    }>(`/api/jobs/${jobId}/golive/forms-key`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key }),
     }),
 
   inspectDomain: (jobId: string, domain: string) =>

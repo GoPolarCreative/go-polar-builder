@@ -44,7 +44,14 @@ export interface AppConfig {
   browserlessUrl?: string
 
   // --- Go Polar infrastructure -----------------------------------------------------------------
+  /**
+   * Go Polar's own Web3Forms key. Used for preview and editing ONLY, so a customer's forms work
+   * before they have an account of their own. A live site must never carry it: see
+   * server/lib/web3forms.ts and DECISIONS.md D29.
+   */
   web3formsAccessKey?: string
+  /** Override for tests, which point this at a local stub rather than the real endpoint. */
+  web3formsApiUrl?: string
 
   // --- integrations ----------------------------------------------------------------------------
   shopify: {
@@ -121,6 +128,7 @@ export function loadConfig(): AppConfig {
     browserlessUrl: env('BROWSERLESS_URL'),
 
     web3formsAccessKey: env('WEB3FORMS_ACCESS_KEY'),
+    web3formsApiUrl: env('WEB3FORMS_API_URL'),
 
     shopify: {
       storeDomain: env('SHOPIFY_STORE_DOMAIN'),
@@ -198,15 +206,22 @@ export function assertLiveEnabled(capability: LiveCapability, cfg: AppConfig = c
  * loads, and a refusal is loud. See DECISIONS.md D27.
  */
 export function editCapability(cfg: AppConfig = config()): { available: boolean; reason: string | null } {
-  if (cfg.anthropicApiKey) return { available: true, reason: null }
-
+  // Offline is checked FIRST, and deliberately outranks a key being present.
+  //
+  // DEV_OFFLINE_GENERATION=1 alongside a real key is a normal way to work: build from the fixture,
+  // spend nothing. Asking about the key first made that install claim edits worked, then send the
+  // customer's words to the live API while their site had been built by the fixture. The end to
+  // end run found it as a bare 404. If this install generates offline, it cannot honestly apply an
+  // edit, whatever else is configured.
   if (cfg.offlineGeneration) {
     return {
       available: false,
       reason:
-        'Changes need the AI model, and this install is running the offline sample generator instead. It can rebuild the same site, but it cannot apply what you asked for. Set ANTHROPIC_API_KEY and restart, and the edit panel will work.',
+        'Changes need the AI model, and this install is running the offline sample generator instead. It can rebuild the same site, but it cannot apply what you asked for. Unset DEV_OFFLINE_GENERATION, set ANTHROPIC_API_KEY, and restart, and the edit panel will work.',
     }
   }
+
+  if (cfg.anthropicApiKey) return { available: true, reason: null }
 
   return {
     available: false,
