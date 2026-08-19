@@ -1,5 +1,67 @@
 import type { ReactNode } from 'react'
 
+/**
+ * Go Polar brand furniture.
+ *
+ * These three carry most of the identity: the wordmark with its full stop, the ALL CAPS eyebrow
+ * above a heading, and a big figure over a small label. They come from itscold.com.au and the
+ * values behind them live in index.css, not here.
+ */
+
+/** "Go Polar." The full stop is part of the mark and is always the brand blue. */
+export function Wordmark({ className = '' }: { className?: string }) {
+  return (
+    <span className={`wordmark ${className}`}>
+      Go Polar<span className="wordmark-dot">.</span>
+    </span>
+  )
+}
+
+/** Short, ALL CAPS, above a heading. "START HERE". "WHAT HAPPENS NEXT". */
+export function Eyebrow({ children }: { children: ReactNode }) {
+  return <span className="eyebrow">{children}</span>
+}
+
+export function Stat({ figure, label, tone = 'ink' }: { figure: string; label: string; tone?: 'ink' | 'accent' }) {
+  return (
+    <div>
+      <p className={`stat-figure ${tone === 'accent' ? 'text-polar-accent' : ''}`}>{figure}</p>
+      <p className="stat-label">{label}</p>
+    </div>
+  )
+}
+
+/** The page header used on every customer-facing screen. */
+export function BrandHeader({ children }: { children?: ReactNode }) {
+  return (
+    <header className="mb-8 flex items-center justify-between gap-4 border-b border-ice-200 pb-5">
+      <Wordmark />
+      {children}
+    </header>
+  )
+}
+
+/**
+ * Contact reality, from the live site. Every screen ends with this, because a tradie halfway
+ * through paying for something wants to know a human exists.
+ */
+export function BrandFooter() {
+  return (
+    <footer className="mt-12 border-t border-ice-200 pt-5 text-[13px] text-ice-500">
+      <p className="mb-1">
+        <a className="font-semibold text-ice-700" href="mailto:hello@itscold.com.au">
+          hello@itscold.com.au
+        </a>
+        <span className="px-2 text-ice-300">·</span>
+        <a className="font-semibold text-ice-700" href="tel:+61435031044">
+          +61 435 031 044
+        </a>
+      </p>
+      <p>Perth, WA &amp; Sunshine Coast, QLD. Mon–Fri, 8am–5pm.</p>
+    </footer>
+  )
+}
+
 export function Field({
   label,
   hint,

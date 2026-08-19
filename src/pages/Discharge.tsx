@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiCallError, api } from '../lib/api'
-import { Banner, Field, Spinner, TextInput } from '../components/ui'
+import { Banner, Field, Spinner, TextInput, BrandFooter, BrandHeader, Eyebrow } from '../components/ui'
 
 /**
  * Phase 5, brief s9. Discharge.
@@ -76,8 +76,9 @@ export default function Discharge() {
   return (
     <div className="mx-auto max-w-2xl px-5 py-10">
       <header className="mb-8">
-        <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">Go Polar Creative</p>
-        <h1 className="text-3xl">Taking your website elsewhere</h1>
+        <BrandHeader />
+        <Eyebrow>Your files</Eyebrow>
+        <h1 className="text-4xl">Take it with you.</h1>
         <p className="mt-1 text-ice-700">
           You are welcome to. Here is exactly what that involves, {data.price} one off.
         </p>
@@ -169,11 +170,13 @@ export default function Discharge() {
         <p className="field-hint">The Go Polar credit stays in the footer of the exported files.</p>
       </div>
 
-      <p className="mt-10 text-sm">
-        <Link className="text-ice-700 underline" to={`/preview/${jobId}`}>
+      <p className="mt-8 text-sm">
+        <Link className="link-arrow" to={`/preview/${jobId}`}>
           Actually, take me back to my website
         </Link>
       </p>
+
+      <BrandFooter />
     </div>
   )
 }

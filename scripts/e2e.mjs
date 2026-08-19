@@ -218,7 +218,7 @@ async function main() {
 
   // --- go live -----------------------------------------------------------------------------------
   const golive = await call(`/api/jobs/${jobId}/golive`)
-  check('go live restates the monthly cost with GST', golive.body?.pricing?.hosting?.price === '$30/month + GST')
+  check('go live shows the price the customer is actually charged', golive.body?.pricing?.hosting?.price === '$33/month inc GST')
   check(
     'go live never promises a connection time',
     golive.body?.promise?.includes('one business day') && !/24 hours/i.test(golive.body.promise),

@@ -83,28 +83,35 @@ export async function sendSafely(
 // ---------------------------------------------------------------------------------------------
 // The messages. Plain text on purpose: it lands in the inbox, renders on every phone, and a
 // tradie reads it in ten seconds.
+//
+// The voice is the one on itscold.com.au. Short declarative sentences, no marketing language,
+// nothing promised that we cannot control. Every message signs off the same way, with a real
+// phone number, because the person reading it has just paid money to somebody on the internet.
 // ---------------------------------------------------------------------------------------------
+
+const SIGN_OFF = `Go Polar.
+hello@itscold.com.au
++61 435 031 044
+Perth, WA & Sunshine Coast, QLD. Mon-Fri, 8am-5pm.
+https://www.itscold.com.au`
 
 export function buildLinkEmail(args: { link: string }): EmailMessage {
   return {
     to: '',
     subject: 'Your website build is ready to start',
-    text: `Thanks for that, your payment has come through.
-
-Here is your link to get started:
+    text: `Payment came through. Here is your link:
 
 ${args.link}
 
-You will be asked a handful of questions about your business, then your website gets built in front of you. Set aside about fifteen minutes and have your logo and a few job photos handy if you have them.
+A handful of questions about your business, then the site gets built in front of you. Give it fifteen minutes. Have your logo and a few job photos ready if you have them.
 
-The link works for 90 days, so there is no rush. Start it tonight or start it next Sunday, it will be waiting.
+The link works for 90 days. Tonight or next Sunday, it will be waiting.
 
-You get 10 rounds of changes before you go live.
+Ten rounds of changes are included before you go live.
 
-Any questions, just reply to this email.
+Anything at all, reply to this email.
 
-Go Polar Creative
-https://www.itscold.com.au
+${SIGN_OFF}
 `,
   }
 }
@@ -119,8 +126,7 @@ ${args.link}
 
 It works for 90 days from now.
 
-Go Polar Creative
-https://www.itscold.com.au
+${SIGN_OFF}
 `,
   }
 }
@@ -129,16 +135,15 @@ export function buildCompleteEmail(args: { businessName: string; previewLink: st
   return {
     to: '',
     subject: `${args.businessName}, your website is built`,
-    text: `Your website is done and waiting for you to look at.
+    text: `Your website is built. Go and have a look.
 
 ${args.previewLink}
 
-Have a proper look through it on your phone as well as on a computer. If anything needs changing, just say so in the box on that page. You have 10 rounds of changes included, and you can put as many changes as you like into each one.
+Look at it on your phone as well as on a computer. Anything you want changed, type it in the box on that page in your own words. Ten rounds are included, and one round can carry as many changes as you like.
 
-When you are happy with it, there is a button to go live.
+When it is right, there is a button to put it live.
 
-Go Polar Creative
-https://www.itscold.com.au
+${SIGN_OFF}
 `,
   }
 }
@@ -151,19 +156,22 @@ export function goLiveReceiptEmail(args: {
   return {
     to: '',
     subject: `${args.businessName}, we are getting your site live`,
-    text: `Payment received, thanks.
+    text: `Payment received.
 
 One of our team will be in touch within one business day to get${args.domain ? ` ${args.domain}` : ' your domain'} connected.
 
 What you pay each month from here:
 ${args.monthly.map((m) => `  ${m}`).join('\n')}
 
-That is it. No mandatory maintenance fees and no lock-in contract.
+That is the lot. No maintenance retainer, no lock-in contract.
 
-Changes after you are live are ${formatPrice('postLiveEdit')} per update, handled by our team.
+${
+  formatPrice('postLiveEdit')
+    ? `Changes after you are live are ${formatPrice('postLiveEdit')} per update, handled by our team.`
+    : 'Changes after you are live are handled by our team. Ask us and we will quote it.'
+}
 
-Go Polar Creative
-https://www.itscold.com.au
+${SIGN_OFF}
 `,
   }
 }
@@ -177,7 +185,7 @@ export function dischargeReadyEmail(args: {
   return {
     to: '',
     subject: `${args.businessName} website files`,
-    text: `Your website files are ready.
+    text: `Your files are ready.
 
 ${args.downloadLink}
 
@@ -195,8 +203,7 @@ Your enquiry forms are already pointed at your own Web3Forms account, so enquiri
 }
 All the best with it.
 
-Go Polar Creative
-https://www.itscold.com.au
+${SIGN_OFF}
 `,
   }
 }

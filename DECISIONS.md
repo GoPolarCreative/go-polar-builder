@@ -692,3 +692,105 @@ ordered checklist for fixing it. **Nothing was changed on the store.**
 line item is matched by configured variant id, then SKU, then title. "Email Hosting" and "Website
 Hosting" both contain the word hosting, and getting that backwards would read a $14.95 email add-on
 as a hosting subscription. Email is checked first, and there is a test for it.
+
+---
+
+## D31. Prices are shown GST-inclusive, because that is what the store charges
+
+**Supersedes the ex-GST display rule in D30 and in the brief.** The brief said every displayed price
+carries a "+ GST" label, and that was right for a store configured with tax-exclusive prices. This
+store is not. `taxesIncluded: true` was verified on 2026-08-19: prices are entered with GST already
+inside them.
+
+**Chosen.** The app displays the number the customer is actually charged, labelled "inc GST".
+Hosting reads $33/month inc GST, not $30/month + GST.
+
+**Why.** Advertising "$30 + GST" and then landing a tradie on a Shopify checkout that says $33.00 is
+a mismatch they are entitled to read as a bait and switch. They are the same amount of money, but one
+of those numbers is the one that leaves their account and the other is an accounting convention.
+One number, the real one, everywhere.
+
+**This is customer-facing copy and needs Chris's sign-off.** It changes every price on every screen
+and in the emails.
+
+**The ex-GST figure did not disappear.** `exGstCents()` derives it, `orders.amount_ex_gst` still
+stores it, and it is how Chris states prices internally. It is simply never what a customer reads.
+
+**Two prices are unresolved and therefore invisible.**
+
+`extra-edits` has never been priced. That was already true.
+
+`email` is new: the store charges $14.95 inc GST, which is $13.59 + GST, while the stated decision
+was $14.95 + GST, which would be $16.45 on the store. Hosting and the domain were both grossed up
+correctly, so this looks like an oversight, but "looks like" is not good enough to price something
+with. Both readings are recorded in `PRICING.email.openQuestion` so the question can be asked
+precisely rather than as "check the email price". Until it is answered the add-on shows no price and
+cannot be bought, and the screen says we do them and to ask rather than quoting a number.
+
+---
+
+## D32. Selling plans are load-bearing, and the store is asked what it will actually bill
+
+**Two corrections to what was recorded in D30**, both from reading the store properly.
+
+**There are selling plans.** The earlier reading of "zero selling plan groups" came from a shop-level
+query, and app-owned groups are not exposed at that level to another app's token. Per product they
+are there: Appstle is installed, and hosting, domain and email each have a monthly plan.
+
+**They are not optional.** All three carry `requiresSellingPlan: true`, which means Shopify rejects a
+checkout line for them that has no selling plan id. Not a downgrade to a one-off charge, a refusal.
+So the selling plan id is now exactly as load-bearing as the variant id: first-class in the config
+module, and a missing one fails the checkout loudly by name instead of producing a cart that Shopify
+will not accept.
+
+**And the store is asked what it will really do.** The domain product was configured with a plan
+*named* "Monthly Subscription" whose billing policy was interval YEAR, count 1. Shopify has no
+objection to that: the name is a label and the policy is the behaviour. The app would have advertised
+$5.50 a month while the store charged $5.50 a year, and the only way anyone finds out is by reading
+a billing policy or noticing the revenue is missing twelve months later.
+
+**Chosen.** Before any checkout link is built, the real billing policy is read from the Admin API and
+compared against what the app believes it is selling. A monthly product whose plan does not bill
+every 1 MONTH gets no checkout link, and the operator error names the product, the plan and the
+actual interval. `/api/health` carries the same report. Results are cached for ten minutes, because
+a billing policy changes when a human changes it.
+
+**Without `SHOPIFY_ADMIN_API_TOKEN` the check reports "cannot verify", never "pass".** A check that
+quietly passes when it did not run is worse than no check, and this class of error has already
+happened once on this store.
+
+**If Chris disagrees:** the guard is `checkBillingPolicies` in `server/lib/shopify.ts`. Loosening it
+to a warning is a one-line change, and a bad idea.
+
+---
+
+## D33. The builder wears the Go Polar brand, taken from the live site rather than invented
+
+**Question.** The builder looked templatey and did not feel like Go Polar. It was a generic blue-grey
+palette with an orange accent that appears nowhere in the business.
+
+**Chosen.** The design tokens were read off itscold.com.au on 2026-08-19 with a browser, not guessed
+at, and the whole builder UI is driven from them: `--color-accent #38b6ff` and its `#1da7f5` hover,
+`#0a0a0a` text, `#4a4a4a` secondary, `#e8edf3` hairline borders, `#f5f9fc` tinted surface, `#070b12`
+for dark panels. Poppins, headings at 800 with negative tracking that tightens as they grow, body at
+17px on 1.6. Buttons at 8px radius that lift 1px on hover with a blue shadow. They live in
+`src/index.css` as Tailwind theme tokens, the same one-place discipline the generated client sites
+use with `:root`.
+
+**The patterns matter as much as the palette**, and they came from the same read: ALL CAPS eyebrows
+in accent blue above headings, the wordmark as "Go Polar" with the full stop always in brand blue,
+large figure over small label for stats, and CTAs written as a phrase with a right arrow that moves
+on hover rather than the text moving.
+
+**The copy was rewritten at the same time**, because templatey wording was half the problem. "Tell us
+about the business" became "Who are you?". "Building your website" became "Writing your website."
+The generation screen leads with "Everything is in. Build it." and the stream is labelled "This is
+the actual page being built. Nothing here is a template."
+
+**Poppins 800 is now actually loaded.** The live site asks Google Fonts for 400 to 700 and then sets
+headings to 800, so every heading on itscold.com.au is currently faux-bold. The builder requests 800
+properly. Worth mentioning to Chris as a one-line fix on the main site.
+
+**Scope.** Builder UI and Go Polar's own transactional emails only. **The house rules for generated
+client sites were not touched.** Those sites carry the client's brand, sampled from the client's own
+logo, and nothing about Go Polar's palette or voice belongs in them.

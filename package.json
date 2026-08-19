@@ -21,7 +21,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:reset": "tsx scripts/migrate.ts --reset",
     "db:studio": "drizzle-kit studio",
-    "vercel:build": "vite build",
+    "vercel:build": "tsc -b && vite build && node scripts/check-bundle.mjs",
     "predeploy": "node -e \"console.error('Deploying is a deliberate act. Run: npx vercel --prod. See README.');process.exit(1)\"",
     "sample:verify": "tsx scripts/check-sample.ts"
   },

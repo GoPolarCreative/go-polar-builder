@@ -139,7 +139,8 @@ describe('emails', () => {
     const message = buildLinkEmail({ link: 'https://build.itscold.com.au/start?t=xyz' })
     expect(message.text).toContain('https://build.itscold.com.au/start?t=xyz')
     expect(message.text).toContain('90 days')
-    expect(message.text).toContain('10 rounds of changes')
+    // Wording is Chris's to change; the promise is not. Either form of the number is fine.
+    expect(message.text).toMatch(/(ten|10) rounds/i)
   })
 
   it('the go live receipt restates the monthly cost and never promises a connection time', () => {

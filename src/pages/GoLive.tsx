@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiCallError, api, type FormsKeyState } from '../lib/api'
-import { Banner, Field, Spinner, TextInput, YesNo } from '../components/ui'
+import { Banner, BrandFooter, BrandHeader, Eyebrow, Field, Spinner, TextInput, YesNo } from '../components/ui'
 
 /**
  * Phase 5, brief s8. Going live, in three screens.
@@ -82,10 +82,11 @@ export default function GoLive() {
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-10">
-      <header className="mb-8">
-        <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">Go Polar Creative</p>
-        <h1 className="text-3xl">Going live</h1>
-      </header>
+      <BrandHeader />
+      <div className="mb-7">
+        <Eyebrow>Nearly there</Eyebrow>
+        <h1 className="text-4xl">Let's get it online.</h1>
+      </div>
 
       {error ? (
         <div className="mb-6">
@@ -134,11 +135,13 @@ export default function GoLive() {
 
       {screen === 'confirmation' ? <ConfirmationScreen jobId={jobId} /> : null}
 
-      <p className="mt-10 text-sm">
-        <Link className="text-ice-700 underline" to={`/preview/${jobId}`}>
+      <p className="mt-8 text-sm">
+        <Link className="link-arrow" to={`/preview/${jobId}`}>
           Back to my website
         </Link>
       </p>
+
+      <BrandFooter />
     </div>
   )
 }
@@ -197,6 +200,7 @@ function InboxScreen(props: {
   return (
     <div className="card space-y-5">
       <div>
+        <Eyebrow>Before it goes live</Eyebrow>
         <h2 className="text-xl">Where should your enquiries go?</h2>
         <p className="mt-2 text-sm text-ice-600">{props.formsKey.why}</p>
       </div>
@@ -294,7 +298,8 @@ function PlanScreen(props: {
   return (
     <div className="card space-y-5">
       <div>
-        <h2 className="text-xl">What it costs to keep your website online</h2>
+        <Eyebrow>The ongoing bit</Eyebrow>
+        <h2 className="text-xl">What it costs to keep it online.</h2>
         <ul className="mt-3 space-y-2 text-sm">
           <li className="flex justify-between border-b border-ice-100 pb-2">
             <span>{state?.pricing.hosting?.label}</span>
@@ -305,20 +310,32 @@ function PlanScreen(props: {
             <span className="font-semibold">{state?.pricing.domain?.price}</span>
           </li>
         </ul>
-        <p className="field-hint mt-2">No mandatory ongoing maintenance fees. No lock-in contracts.</p>
+        <p className="field-hint mt-2">No maintenance retainer. No lock-in contract. Cancel whenever.</p>
       </div>
 
+      {/* The email price is an open question between the store and the stated decision, so no
+          number is shown and it cannot be added to the cart. Offering a price we are not certain
+          of is worse than offering none: see DECISIONS.md D31. */}
       <div className="rounded-lg border border-ice-200 p-4">
         <span className="field-label">
           Custom email address, like enquiries@yourbusiness.com.au
         </span>
-        <p className="field-hint mb-2">{state?.pricing.email?.price}. Optional.</p>
-        <YesNo
-          value={props.emailAddon}
-          onChange={props.setEmailAddon}
-          yesLabel="Yes please"
-          noLabel="No thanks"
-        />
+        {state?.pricing.email?.price ? (
+          <>
+            <p className="field-hint mb-2">{state.pricing.email.price}. Optional.</p>
+            <YesNo
+              value={props.emailAddon}
+              onChange={props.setEmailAddon}
+              yesLabel="Yes please"
+              noLabel="No thanks"
+            />
+          </>
+        ) : (
+          <p className="field-hint">
+            We do these, and we are settling the price. Ask us and we will sort it out with you
+            rather than quote you a number we are not sure of.
+          </p>
+        )}
       </div>
 
       <div className="rounded-lg border border-ice-200 p-4">
@@ -353,7 +370,7 @@ function PlanScreen(props: {
       ) : null}
 
       <button className="btn-accent" onClick={start} disabled={props.busy}>
-        {props.busy ? 'Setting it up' : 'Continue to payment'}
+        {props.busy ? 'Setting it up' : 'Continue to payment →'}
       </button>
       <p className="field-hint">
         Hosting only starts billing now, at go live. It has not been charged up to this point.

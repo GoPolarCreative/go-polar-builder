@@ -13,7 +13,19 @@ import { SERVICE_PRESETS, TRADES, TRADE_LABELS, type Trade } from '../../shared/
 import type { AssetRecord, AuditFlag } from '../../shared/types'
 import { suburbKey } from '../../shared/suburbs'
 import { ApiCallError, api } from '../lib/api'
-import { Banner, CharCounter, Field, Select, Spinner, TextArea, TextInput, YesNo } from '../components/ui'
+import {
+  Banner,
+  BrandFooter,
+  BrandHeader,
+  CharCounter,
+  Eyebrow,
+  Field,
+  Select,
+  Spinner,
+  TextArea,
+  TextInput,
+  YesNo,
+} from '../components/ui'
 import { SuburbChips, SuburbSearch } from '../components/SuburbPicker'
 import { LogoUploader, PhotoUploader } from '../components/Uploader'
 import { StylePicker } from '../components/StylePicker'
@@ -165,9 +177,10 @@ export default function Intake() {
   if (auditFlags) {
     return (
       <Shell>
-        <h1 className="mb-2 text-3xl">That is everything we need</h1>
-        <p className="mb-6 text-ice-700">
-          Here is what we noticed while going through your answers. None of it stops the build.
+        <Eyebrow>All in</Eyebrow>
+        <h1 className="mb-2 text-4xl">That is everything we need.</h1>
+        <p className="mb-6 text-[17px]">
+          Here is what we noticed reading your answers. None of it stops the build.
         </p>
         <div className="space-y-4">
           <AuditFlagList flags={auditFlags} />
@@ -263,13 +276,11 @@ export default function Intake() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl px-5 py-10">
-      <header className="mb-8">
-        <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">
-          Go Polar Creative
-        </p>
-        <p className="text-sm text-ice-700">Website builder</p>
-      </header>
+      <BrandHeader>
+        <span className="text-[13px] font-semibold text-ice-500">Website builder</span>
+      </BrandHeader>
       {children}
+      <BrandFooter />
     </div>
   )
 }
@@ -282,10 +293,10 @@ function Progress({ step }: { step: number }) {
           key={title}
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
             i === step
-              ? 'bg-ice-700 text-white'
+              ? 'bg-polar-accent text-white'
               : i < step
-                ? 'bg-ice-200 text-ice-700'
-                : 'bg-white text-ice-300'
+                ? 'bg-ice-100 text-ice-700'
+                : 'border border-ice-200 bg-white text-ice-300'
           }`}
         >
           {i + 1}. {title}
@@ -308,7 +319,10 @@ function StepBusiness({ data, patch, errors }: StepProps) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl">Tell us about the business</h1>
+      <div>
+        <Eyebrow>Step one</Eyebrow>
+        <h1 className="text-3xl">Who are you?</h1>
+      </div>
 
       <Field label="Business name" required error={errors.businessName}>
         <TextInput
@@ -469,7 +483,10 @@ function StepServices({ data, patch, errors }: StepProps) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl">What do you do?</h1>
+      <div>
+        <Eyebrow>Step two</Eyebrow>
+        <h1 className="text-3xl">What do you actually do?</h1>
+      </div>
       <p className="text-sm text-ice-700">
         Pick between 3 and 8. These become the services section, and the first one drives your headline.
       </p>
@@ -565,7 +582,10 @@ function StepArea({ data, patch, errors }: StepProps) {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl">Where do you work?</h1>
+      <div>
+        <Eyebrow>Step three</Eyebrow>
+        <h1 className="text-3xl">Where do you work?</h1>
+      </div>
 
       <Field
         label="Your base suburb"
@@ -624,7 +644,10 @@ function StepArea({ data, patch, errors }: StepProps) {
 function StepStory({ data, patch, errors }: StepProps) {
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl">Your story</h1>
+      <div>
+        <Eyebrow>Step four</Eyebrow>
+        <h1 className="text-3xl">Why should they call you?</h1>
+      </div>
 
       <Field
         label="Tell us about your business"
@@ -724,7 +747,10 @@ function StepBrand({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl">Your logo and photos</h1>
+      <div>
+        <Eyebrow>Step five</Eyebrow>
+        <h1 className="text-3xl">What does it look like?</h1>
+      </div>
 
       <div>
         <span className="field-label">Logo</span>

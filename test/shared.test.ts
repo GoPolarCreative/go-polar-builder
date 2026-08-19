@@ -5,6 +5,8 @@ import {
   PRICING,
   ProductNotOnStoreError,
   checkoutHandle,
+  PriceUnresolvedError,
+  exGstCents,
   formatPrice,
   isPriceSet,
   productConfigProblems,
@@ -84,31 +86,73 @@ describe('AU phone numbers', () => {
 })
 
 describe('pricing', () => {
-  it('carries the GST label on every displayed price, because it must', () => {
-    expect(formatPrice('build')).toBe('$200 + GST')
-    expect(formatPrice('hosting')).toBe('$30/month + GST')
-    expect(formatPrice('email')).toBe('$14.95/month + GST')
-    expect(formatPrice('discharge')).toBe('$300 + GST')
-    expect(formatPrice('domain')).toBe('$5/month + GST')
+  it('shows the number the customer is actually charged, labelled inc GST', () => {
+    expect(formatPrice('build')).toBe('$220 inc GST')
+    expect(formatPrice('hosting')).toBe('$33/month inc GST')
+    expect(formatPrice('email')).toBeNull()
+    expect(formatPrice('discharge')).toBe('$330 inc GST')
+    expect(formatPrice('domain')).toBe('$5.50/month inc GST')
   })
 
   it('refuses to show a price that has not been set', () => {
-    expect(PRICING.extraEdits.exGstCents).toBeNull()
+    expect(PRICING.extraEdits.incGstCents).toBeNull()
     expect(isPriceSet('extraEdits')).toBe(false)
     expect(formatPrice('extraEdits')).toBeNull()
   })
 
-  it('prices the three recurring products monthly, as decided', () => {
-    for (const key of ['hosting', 'domain', 'email'] as const) {
+  it('prices the recurring products monthly, as decided', () => {
+    for (const key of ['hosting', 'domain'] as const) {
       expect(PRICING[key].recurrence, key).toBe('monthly')
-      expect(formatPrice(key)).toMatch(/\/month \+ GST$/)
+      expect(formatPrice(key)).toMatch(/\/month inc GST$/)
     }
+  })
+
+  it('never shows a "+ GST" price, because the store does not charge that way', () => {
+    // Advertising "$30 + GST" and then charging $33.00 at the Shopify checkout is the mismatch a
+    // tradie reads as a bait and switch. One number, the real one.
+    for (const key of Object.keys(PRICING) as Array<keyof typeof PRICING>) {
+      const price = formatPrice(key)
+      if (price) expect(price, key).not.toMatch(/\+ GST/)
+    }
+  })
+
+  it('keeps the ex-GST figure for the order records without ever showing it', () => {
+    expect(exGstCents('hosting')).toBe(3_000)
+    expect(exGstCents('domain')).toBe(500)
+    expect(exGstCents('build')).toBe(20_000)
+    expect(exGstCents('email')).toBeNull()
   })
 
   it('carries the real handles from the store, not the ones in the brief', () => {
     expect(PRICING.hosting.handle).toBe('website-hosting-australia')
     expect(PRICING.domain.handle).toBe('domain-1-year')
     expect(PRICING.email.handle).toBe('email-hosting')
+  })
+})
+
+describe('the email price, which is the one open question', () => {
+  it('shows no price at all rather than guessing which reading is right', () => {
+    expect(PRICING.email.incGstCents).toBeNull()
+    expect(formatPrice('email')).toBeNull()
+    expect(isPriceSet('email')).toBe(false)
+  })
+
+  it('refuses to sell it, naming both readings so the question can be asked precisely', () => {
+    expect(() => checkoutHandle('email')).toThrow(PriceUnresolvedError)
+
+    const question = PRICING.email.openQuestion!
+    expect(question.options).toHaveLength(2)
+    expect(question.summary).toContain('$14.95')
+    expect(question.summary).toContain('$13.59')
+    expect(question.options[1]).toContain('$16.45')
+  })
+
+  it('is on the store and correctly set up in every other respect', () => {
+    // Only the price is in question. The product, the plan and the interval are all right, so the
+    // report must not read as though the whole product is broken.
+    expect(PRICING.email.handle).toBe('email-hosting')
+    expect(PRICING.email.requiresSellingPlan).toBe(true)
+    expect(PRICING.email.store.sellingPlan?.interval).toBe('MONTH')
   })
 })
 
@@ -138,6 +182,7 @@ describe('products that do not exist on the store', () => {
       const message = (err as Error).message
       expect(message).toContain('build-token')
       expect(message).toContain('SHOPIFY_VARIANT_BUILD_TOKEN')
+      expect(message).toContain('$220.00')
       expect(message).toContain('SHOPIFY-SETUP.md')
       expect(message).toMatch(/no build token means no job/i)
     }
@@ -148,15 +193,14 @@ describe('products that do not exist on the store', () => {
       checkoutHandle('extraEdits')
       expect.unreachable('should have thrown')
     } catch (err) {
-      expect((err as Error).message).toMatch(/once its price has been decided/)
+      expect((err as Error).message).toMatch(/does not exist on the Shopify store/)
       expect((err as Error).message).not.toMatch(/\$\d/)
     }
   })
 
-  it('let the three real products through', () => {
+  it('let the settled products through', () => {
     expect(checkoutHandle('hosting')).toBe('website-hosting-australia')
     expect(checkoutHandle('domain')).toBe('domain-1-year')
-    expect(checkoutHandle('email')).toBe('email-hosting')
   })
 })
 
@@ -183,17 +227,36 @@ describe('the startup configuration report', () => {
     }
   })
 
-  it('clears once everything is supplied', () => {
+  it('demands a selling plan id for every product the store will not sell without one', () => {
+    const env: Record<string, string> = {}
+    for (const product of Object.values(PRICING)) {
+      if (product.handle) env[variantEnvKey(product.handle)] = '12345'
+    }
+    // Variant ids alone are not enough. requiresSellingPlan means Shopify rejects the line.
+    const missing = productConfigProblems(env).map((p) => p.missing)
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_EMAIL_HOSTING')
+
+    const plan = productConfigProblems(env).find((p) => p.missing.startsWith('SHOPIFY_SELLING_PLAN'))!
+    expect(plan.breaks).toMatch(/rejected outright/i)
+  })
+
+  it('reduces to what only Chris can answer once every id is supplied', () => {
     const env: Record<string, string> = {}
     for (const product of Object.values(PRICING)) {
       if (!product.handle) continue
       env[variantEnvKey(product.handle)] = '12345'
-      if (product.recurrence === 'monthly') env[sellingPlanEnvKey(product.handle)] = '67890'
+      if (product.requiresSellingPlan) env[sellingPlanEnvKey(product.handle)] = '67890'
     }
-    // The four uncreated products still show, because they genuinely do not exist.
+
     const problems = productConfigProblems(env)
-    expect(problems).toHaveLength(4)
-    expect(problems.every((p) => p.missing.startsWith('Shopify product'))).toBe(true)
+    // Four products that genuinely do not exist, plus two prices only he can settle.
+    expect(problems.filter((p) => p.missing.startsWith('Shopify product'))).toHaveLength(4)
+    expect(problems.filter((p) => p.needsDecision).map((p) => p.key).sort()).toEqual([
+      'email',
+      'extraEdits',
+    ])
   })
 })
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiCallError, api } from '../lib/api'
-import { Banner, Field, Spinner, TextInput } from '../components/ui'
+import { Banner, BrandFooter, BrandHeader, Eyebrow, Field, Spinner, Stat, TextInput } from '../components/ui'
 
 /**
  * The front door. Brief s3a.
@@ -62,12 +62,21 @@ export default function Start() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-5 py-16">
-      <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">Go Polar Creative</p>
-      <h1 className="mt-1 mb-2 text-3xl">Website builder</h1>
-      <p className="mb-8 text-ice-700">
-        Answer a few questions and watch your website get built in front of you.
+    <div className="mx-auto max-w-xl px-5 py-12">
+      <BrandHeader />
+
+      <Eyebrow>Start here</Eyebrow>
+      <h1 className="mb-3 text-4xl">Your website, built while you watch.</h1>
+      <p className="mb-6 text-[17px]">
+        Answer the questions. Upload your logo and some job photos. The site gets written and built
+        in front of you, and you get ten rounds of changes to get it right.
       </p>
+
+      <div className="mb-8 grid grid-cols-3 gap-4 border-y border-ice-200 py-5">
+        <Stat figure="10" label="Rounds of changes" tone="accent" />
+        <Stat figure="1" label="Page, done properly" />
+        <Stat figure="0" label="Lock-in contracts" />
+      </div>
 
       {tokenError ? (
         <div className="mb-6">
@@ -80,6 +89,8 @@ export default function Start() {
       <ResendLink />
 
       {health && !health.shopifyConfigured ? <DevStart health={health} /> : null}
+
+      <BrandFooter />
     </div>
   )
 }
@@ -119,7 +130,7 @@ function ResendLink() {
       <div>
         <h2 className="text-xl">Lost your link?</h2>
         <p className="field-hint">
-          Put in the email address you used when you paid and we will send it again.
+          Put in the email you paid with. We will send it again.
         </p>
       </div>
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { GenerationEvent, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamEdit } from '../lib/api'
-import { Banner, Spinner } from '../components/ui'
+import { Banner, Spinner, Wordmark } from '../components/ui'
 
 /**
  * Preview and the edit loop.
@@ -262,8 +262,8 @@ export default function Preview() {
       {/* Chat and history */}
       <aside className="flex w-full flex-col border-t border-ice-200 bg-white lg:h-full lg:w-[420px] lg:border-t-0 lg:border-l">
         <header className="border-b border-ice-100 px-5 py-4">
-          <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">Go Polar Creative</p>
-          <h1 className="text-xl">Your website</h1>
+          <Wordmark />
+          <p className="mt-1 text-[13px] text-ice-500">Your website</p>
           <p className="mt-1 text-sm font-semibold text-ice-700">
             {remaining} of {versions?.editsAllowed} changes remaining
           </p>
@@ -385,7 +385,7 @@ export default function Preview() {
 
         <footer className="border-t border-ice-100 px-5 py-4">
           <label className="field-label" htmlFor="editRequest">
-            What would you like changed?
+            What needs changing?
           </label>
           <textarea
             id="editRequest"
@@ -416,7 +416,7 @@ export default function Preview() {
               onClick={submitEdit}
               disabled={running || !canEdit || request.trim().length < 3}
             >
-              {running ? 'Working' : 'Make this change'}
+              {running ? 'Working' : 'Make this change →'}
             </button>
           </div>
         </footer>

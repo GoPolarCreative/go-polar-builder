@@ -1,17 +1,45 @@
 @import 'tailwindcss';
 
-/* Builder chrome only. Nothing here touches the sites we generate: those are single-file
-   vanilla HTML with their own :root tokens and never import anything from this app. */
+/**
+ * GO POLAR DESIGN TOKENS.
+ *
+ * Read off itscold.com.au on 2026-08-19 rather than invented: the colours, the type scale, the
+ * tracking, the button shape and the hover treatment below are the values the live site computes.
+ * The site publishes its own :root (--color-accent #38b6ff, --color-text #0a0a0a and the rest),
+ * and this is that palette expressed as Tailwind theme tokens so the whole builder is driven from
+ * one place, the same discipline the generated client sites use.
+ *
+ * BUILDER CHROME ONLY. Nothing here reaches the websites we generate. Those carry the client's
+ * brand, not Go Polar's, and they are single-file vanilla HTML that imports nothing from this app.
+ */
 @theme {
-  --color-ice-50: #f5f8fb;
-  --color-ice-100: #e8eef5;
-  --color-ice-200: #cfdce8;
-  --color-ice-300: #a6bed3;
-  --color-ice-500: #4d7ba6;
-  --color-ice-700: #1f4468;
-  --color-ice-900: #0e2438;
-  --color-polar-accent: #ff6b35;
-  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+  /* Neutrals. Near-black text, one grey for secondary copy, one hairline border, one tinted
+     surface. The live site uses exactly these four and nothing between them. */
+  --color-ice-50: #f5f9fc; /* --color-bg-alt */
+  --color-ice-100: #eef3f8; /* between alt and border, for hovers */
+  --color-ice-200: #e8edf3; /* --color-border */
+  --color-ice-300: #b4c0cc; /* placeholders only */
+  --color-ice-500: #4a4a4a; /* --color-text-muted */
+  --color-ice-700: #0a0a0a; /* --color-text */
+  --color-ice-900: #070b12; /* the dark section ground */
+
+  /* The brand blue, and the hover it darkens to. */
+  --color-polar-accent: #38b6ff;
+  --color-polar-accent-hover: #1da7f5;
+
+  --font-display: Poppins, system-ui, sans-serif;
+  --font-sans: Poppins, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Headings are 800 with negative tracking that tightens as they get bigger. */
+  --tracking-tight-1: -0.02em;
+  --tracking-tight-2: -0.025em;
+  --tracking-eyebrow: 0.16em;
+
+  --radius-btn: 8px;
+  --radius-card: 12px;
+
+  --shadow-accent: 0 4px 14px 0 rgb(56 182 255 / 0.25);
+  --shadow-accent-lift: 0 8px 24px 0 rgb(56 182 255 / 0.35);
 }
 
 @layer base {
@@ -19,70 +47,154 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-ice-50 text-ice-900 antialiased;
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      'Segoe UI',
-      sans-serif;
+    @apply bg-white text-ice-700 antialiased;
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.6;
   }
   h1,
   h2,
-  h3 {
+  h3,
+  h4 {
     font-family: var(--font-display);
-    letter-spacing: 0.01em;
+    font-weight: 800;
+    letter-spacing: var(--tracking-tight-1);
+    line-height: 1.08;
+    color: var(--color-ice-700);
+  }
+  h1 {
+    letter-spacing: var(--tracking-tight-2);
+    line-height: 1.02;
+  }
+  p {
+    color: var(--color-ice-500);
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-polar-accent;
   }
 }
 
-/* Tailwind v4 only lets @apply reach real utilities, so the two classes that other component
-   classes build on are declared with @utility rather than inside @layer components. */
 @utility btn {
-  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-5 py-2.5
-    text-[15px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 text-[15px] font-bold
+    transition disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0
+    disabled:hover:shadow-none;
+  border-radius: var(--radius-btn);
+  padding: 0.75rem 1.375rem;
 }
 
 @utility chip {
   @apply inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm
-    font-medium transition;
+    font-semibold transition;
 }
 
 @layer components {
+  /* Short ALL CAPS label above a heading. The most recognisable thing on his site:
+     "START HERE", "WHO YOU'RE ACTUALLY DEALING WITH". */
+  .eyebrow {
+    @apply mb-2 block text-[11px] font-bold text-polar-accent uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+  }
+
+  /* A large figure over a small label. */
+  .stat-figure {
+    font-family: var(--font-display);
+    @apply text-3xl font-extrabold;
+    letter-spacing: var(--tracking-tight-1);
+  }
+  .stat-label {
+    @apply mt-0.5 text-[11px] font-semibold text-ice-500 uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    @apply text-[23px] font-extrabold text-ice-700;
+    letter-spacing: -0.045em;
+  }
+  .wordmark-dot {
+    @apply text-polar-accent;
+  }
+
   .field-label {
-    @apply mb-1.5 block text-sm font-semibold text-ice-900;
+    @apply mb-1.5 block text-sm font-semibold text-ice-700;
   }
   .field-hint {
-    @apply mt-1 text-xs text-ice-500;
+    @apply mt-1.5 text-[13px] text-ice-500;
   }
   .field-error {
-    @apply mt-1 text-xs font-medium text-red-600;
+    @apply mt-1.5 text-[13px] font-semibold text-red-600;
   }
   .input {
-    @apply w-full rounded-lg border border-ice-200 bg-white px-3.5 py-2.5 text-[15px] transition
-      placeholder:text-ice-300 focus:border-ice-500 focus:ring-2 focus:ring-ice-200 focus:outline-none;
+    @apply w-full border border-ice-200 bg-white px-3.5 py-2.5 text-[16px] transition
+      placeholder:text-ice-300 focus:border-polar-accent focus:ring-2 focus:ring-polar-accent/20
+      focus:outline-none;
+    border-radius: var(--radius-btn);
   }
   .input-invalid {
     @apply border-red-400 focus:border-red-500 focus:ring-red-100;
   }
-  .btn-primary {
-    @apply btn bg-ice-700 text-white hover:bg-ice-900;
-  }
+
+  /* Primary action: brand blue, lifts on hover. Straight off .gp-btn. */
   .btn-accent {
-    @apply btn bg-polar-accent text-white hover:brightness-95;
+    @apply btn bg-polar-accent text-white;
+    box-shadow: var(--shadow-accent);
   }
+  .btn-accent:hover:not(:disabled) {
+    @apply bg-polar-accent-hover -translate-y-px;
+    box-shadow: var(--shadow-accent-lift);
+  }
+
+  /* Secondary: near-black. Used where blue would compete with the thing being looked at. */
+  .btn-primary {
+    @apply btn bg-ice-700 text-white;
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply -translate-y-px bg-black;
+  }
+
+  /* Quiet: hairline border on white, fills with the tinted surface. From .gp-btn-outline. */
   .btn-ghost {
-    @apply btn border border-ice-200 bg-white text-ice-700 hover:bg-ice-100;
+    @apply btn border border-ice-200 bg-white text-ice-700;
   }
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-ice-50;
+  }
+
   .card {
-    @apply rounded-xl border border-ice-200 bg-white p-6 shadow-sm;
+    @apply border border-ice-200 bg-white p-6;
+    border-radius: var(--radius-card);
   }
+  /* Dark panel, for the moments that should feel like the product rather than a form. */
+  .panel-dark {
+    @apply bg-ice-900 p-6 text-white;
+    border-radius: var(--radius-card);
+  }
+  .panel-dark h1,
+  .panel-dark h2,
+  .panel-dark h3 {
+    @apply text-white;
+  }
+  .panel-dark p {
+    @apply text-white/70;
+  }
+
   .chip-off {
-    @apply chip border-ice-200 bg-white text-ice-700 hover:border-ice-300;
+    @apply chip border-ice-200 bg-white text-ice-700 hover:border-polar-accent hover:text-polar-accent;
   }
   .chip-on {
-    @apply chip border-ice-700 bg-ice-700 text-white;
+    @apply chip border-polar-accent bg-polar-accent text-white;
+  }
+
+  /* Text link written as a phrase with an arrow: "See the work →". The arrow moves, not the text,
+     so nothing reflows on hover. */
+  .link-arrow {
+    @apply inline-flex items-center gap-1.5 font-bold text-polar-accent transition;
+  }
+  .link-arrow::after {
+    content: '→';
+    @apply transition-transform;
+  }
+  .link-arrow:hover::after {
+    @apply translate-x-1;
   }
 }

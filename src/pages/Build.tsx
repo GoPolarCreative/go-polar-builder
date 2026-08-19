@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { CheckResult, GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamGeneration } from '../lib/api'
-import { Banner, Spinner } from '../components/ui'
+import { Banner, Spinner, BrandFooter, BrandHeader, Eyebrow } from '../components/ui'
 
 /**
  * The generation screen. Brief s5: the customer watches the site assemble, and that moment is
@@ -12,13 +12,13 @@ import { Banner, Spinner } from '../components/ui'
  */
 
 const STAGE_COPY: Record<GenerationStage, string> = {
-  planning: 'Planning your content',
+  planning: 'Working out what goes on the page',
   building: 'Writing your website',
-  assembling: 'Assembling it section by section',
-  verifying: 'Checking every line',
+  assembling: 'Putting it together section by section',
+  verifying: 'Checking every line of it',
   repairing: 'Fixing what did not pass',
   complete: 'Done',
-  held: 'Held for review',
+  held: 'Held. A human is looking at it.',
 }
 
 export default function Build() {
@@ -96,12 +96,23 @@ export default function Build() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-10">
-      <header className="mb-6">
-        <p className="text-xs font-semibold tracking-[0.18em] text-ice-500 uppercase">
-          Go Polar Creative
+      <BrandHeader>
+        <Link className="text-[13px] font-semibold text-ice-500 hover:text-ice-700" to={`/intake/${jobId}`}>
+          Back to your answers
+        </Link>
+      </BrandHeader>
+
+      <div className="mb-7">
+        <Eyebrow>{version ? 'Built' : running ? 'Building now' : 'Ready to build'}</Eyebrow>
+        <h1 className="text-4xl">
+          {version ? 'Here it is.' : running ? 'Writing your website.' : 'Everything is in. Build it.'}
+        </h1>
+        <p className="mt-2 max-w-2xl text-[17px]">
+          {version
+            ? 'Every check below ran against the real page. Have a look on your phone as well as on a computer.'
+            : 'It writes the copy, builds the page and then checks its own work. Takes a minute or two. Watch it happen.'}
         </p>
-        <h1 className="text-3xl">Building your website</h1>
-      </header>
+      </div>
 
       {health && !health.anthropicKeyPresent && !health.offlineGeneration ? (
         <div className="mb-6">
@@ -116,10 +127,10 @@ export default function Build() {
 
       {health?.offlineGeneration ? (
         <div className="mb-6">
-          <Banner tone="info" title="Offline fixture mode">
+          <Banner tone="info" title="Offline fixture, not the real thing">
             <p>
-              Generation is running the deterministic local fixture, not the Anthropic API. It exercises the whole
-              pipeline including verification, but it is not the real output and not the quality bar.
+              This build is coming from the local fixture rather than the model. It runs the whole
+              pipeline including every check, but it is not the real output and not the quality bar.
             </p>
           </Banner>
         </div>
@@ -151,15 +162,23 @@ export default function Build() {
 
       {html ? (
         <section className="mb-8">
-          <h2 className="mb-2 text-lg">Your site, as it is written</h2>
+          <div className="mb-2 flex items-end justify-between gap-4">
+            <div>
+              <Eyebrow>Live</Eyebrow>
+              <h2 className="text-xl">Your website, being written</h2>
+            </div>
+            <p className="text-[13px] whitespace-nowrap text-ice-500">
+              {html.length.toLocaleString()} characters
+            </p>
+          </div>
           <pre
             ref={streamRef}
-            className="max-h-96 overflow-auto rounded-xl border border-ice-200 bg-ice-900 p-4 text-[11px] leading-relaxed text-ice-100"
+            className="max-h-96 overflow-auto rounded-xl border border-ice-900 bg-ice-900 p-4 text-[11px] leading-relaxed text-white/70"
           >
             <code>{html.slice(-40000)}</code>
           </pre>
           <p className="field-hint">
-            {html.length.toLocaleString()} characters so far. Showing the tail of the stream.
+            This is the actual page being built. Nothing here is a template.
           </p>
         </section>
       ) : null}
@@ -168,7 +187,8 @@ export default function Build() {
 
       {version ? (
         <section className="mt-8">
-          <h2 className="mb-3 text-lg">The finished site</h2>
+          <Eyebrow>The finished site</Eyebrow>
+          <h2 className="mb-3 text-xl">This is yours.</h2>
           <div className="overflow-hidden rounded-xl border border-ice-200 bg-white">
             <iframe
               title="Generated website preview"
@@ -179,7 +199,7 @@ export default function Build() {
           </div>
           <div className="mt-3 flex flex-wrap gap-3">
             <Link className="btn-accent" to={`/preview/${jobId}`}>
-              Looks good, let me make changes
+              Change something →
             </Link>
             <a className="btn-ghost" href={previewUrl(jobId, version)} target="_blank" rel="noreferrer">
               Open in a new tab
@@ -190,7 +210,7 @@ export default function Build() {
               target="_blank"
               rel="noreferrer"
             >
-              View the raw index.html
+              See the code
             </a>
             <button
               className="btn-ghost"
@@ -209,7 +229,9 @@ export default function Build() {
         </section>
       ) : null}
 
-      <p className="mt-10 text-sm">
+      <BrandFooter />
+
+      <p className="hidden">
         <Link className="text-ice-700 underline" to={`/intake/${jobId}`}>
           Back to your answers
         </Link>
@@ -225,14 +247,15 @@ function ReportPanel({ report }: { report: VerificationReport }) {
 
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-lg">Verification</h2>
+      <Eyebrow>What we checked</Eyebrow>
+      <h2 className="mb-3 text-xl">It checks its own work.</h2>
       <div className="mb-4">
         {report.passed ? (
           <Banner tone="ok" title="Everything passed">
             <p>
               {all.length - skipped.length} of {all.length} checks passed
-              {skipped.length > 0 ? `, ${skipped.length} could not run in this environment` : ''}.
-              {report.repairPasses > 0 ? ` Took ${report.repairPasses} repair pass(es).` : ''}
+              {skipped.length > 0 ? `, ${skipped.length} could not run on this machine` : ''}.
+              {report.repairPasses > 0 ? ` It fixed its own work ${report.repairPasses} time(s) to get there.` : ''}
             </p>
           </Banner>
         ) : (

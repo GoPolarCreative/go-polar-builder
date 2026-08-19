@@ -1,4 +1,4 @@
-import { PRICING, knownHandles, sellingPlanEnvKey, variantEnvKey } from '../../shared/pricing'
+import { PRICING, knownHandles, productForHandle, sellingPlanEnvKey, variantEnvKey } from '../../shared/pricing'
 import { assertLiveEnabled, config, type AppConfig } from '../config'
 import { fakeCheckoutUrl } from './integrations/fakes'
 
@@ -70,20 +70,32 @@ export async function createCheckout(
     const variantKey = variantEnvKey(line.handle)
     const variantId = envValue(variantKey)
     if (!variantId) missing.push(variantKey)
-    return {
-      handle: line.handle,
-      quantity: line.quantity,
-      variantId,
-      sellingPlanId: envValue(sellingPlanEnvKey(line.handle)),
-    }
+
+    const sellingPlanId = envValue(sellingPlanEnvKey(line.handle))
+    // A product with requiresSellingPlan on the store CANNOT be bought without one. Shopify
+    // rejects the line outright rather than falling back to a one-off charge, so a missing plan id
+    // is exactly as fatal as a missing variant id and is treated the same way.
+    const product = productForHandle(line.handle)?.product
+    if (product?.requiresSellingPlan && !sellingPlanId) missing.push(sellingPlanEnvKey(line.handle))
+
+    return { handle: line.handle, quantity: line.quantity, variantId, sellingPlanId }
   })
 
   if (missing.length > 0) {
     throw new ShopifyConfigError(
-      `Cannot build a checkout link: ${missing.join(', ')} not set. Create the product in Shopify, copy the variant id, and add it to the Vercel project environment variables.`,
+      `Cannot build a checkout link: ${missing.join(', ')} not set. ${
+        missing.some((m) => m.startsWith('SHOPIFY_SELLING_PLAN'))
+          ? 'The subscription products cannot be bought without their selling plan id: Shopify rejects the line. '
+          : ''
+      }Copy the ids out of Shopify and add them to the Vercel project environment variables. See SHOPIFY-SETUP.md.`,
       missing,
     )
   }
+
+  // What the app believes it is selling has to match what the store will actually bill. The domain
+  // product spent a period named "Monthly Subscription" while billing once a year, which is exactly
+  // the failure this catches: silent, and expensive in the customer's favour or ours.
+  await assertBillingPoliciesMatch(req.lines.map((l) => l.handle))
 
   if (cfg.shopify.storefrontToken) {
     return {
@@ -181,6 +193,240 @@ async function createCartViaStorefront(
   const url = json.data?.cartCreate?.cart?.checkoutUrl
   if (!url) throw new Error('Shopify returned a cart with no checkout URL')
   return url
+}
+
+// ---------------------------------------------------------------------------------------------
+// Billing policy verification
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Does the store bill this product the way the app says it does?
+ *
+ * The domain product was configured with a selling plan called "Monthly Subscription" whose
+ * billing policy was interval YEAR, count 1. Nothing in Shopify objects to that: the name is a
+ * label and the policy is the behaviour. The app would have advertised $5.50 a month and the store
+ * would have charged $5.50 a year, and the only way anybody finds out is by reading a billing
+ * policy or by noticing the revenue is missing twelve months later.
+ *
+ * A comment would not have caught it, so this reads the real policy out of the Admin API and
+ * refuses to build a checkout link for any product whose interval does not match.
+ */
+export class BillingPolicyMismatchError extends Error {
+  constructor(readonly mismatches: BillingMismatch[]) {
+    super(
+      [
+        `Refusing to build a checkout: ${mismatches.length} product(s) bill differently to what this app advertises.`,
+        ...mismatches.map(
+          (m) =>
+            `  - "${m.label}" (${m.handle}) is sold as ${m.expected} but its selling plan "${m.planName}" bills every ${m.actualCount} ${m.actual}.`,
+        ),
+        'Fix the billing policy in Appstle, or correct the product in shared/pricing.ts. See SHOPIFY-SETUP.md.',
+      ].join('\n'),
+    )
+    this.name = 'BillingPolicyMismatchError'
+  }
+}
+
+export interface BillingMismatch {
+  handle: string
+  label: string
+  planName: string
+  expected: string
+  actual: string
+  actualCount: number
+}
+
+export interface BillingPolicyCheck {
+  handle: string
+  label: string
+  ok: boolean
+  detail: string
+}
+
+interface CachedPolicies {
+  at: number
+  results: BillingPolicyCheck[]
+  mismatches: BillingMismatch[]
+}
+
+let policyCache: CachedPolicies | null = null
+/** Shopify is not asked on every checkout. A billing policy changes when a human changes it. */
+const POLICY_TTL_MS = 10 * 60 * 1000
+
+export function clearBillingPolicyCache(): void {
+  policyCache = null
+}
+
+const PRODUCT_POLICY_QUERY = `
+  query productPolicies($handle: String!) {
+    productByHandle(handle: $handle) {
+      title
+      requiresSellingPlan
+      sellingPlanGroups(first: 5) {
+        nodes {
+          name
+          sellingPlans(first: 5) {
+            nodes {
+              name
+              billingPolicy {
+                ... on SellingPlanRecurringBillingPolicy { interval intervalCount }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`
+
+/**
+ * Reads every configured product's billing policy. Returns a report rather than throwing, so the
+ * health endpoint can show it; `assertBillingPoliciesMatch` is the throwing wrapper used before a
+ * checkout is built.
+ */
+export async function checkBillingPolicies(force = false): Promise<CachedPolicies> {
+  const cfg = config()
+  const now = Date.now()
+
+  if (!force && policyCache && now - policyCache.at < POLICY_TTL_MS) return policyCache
+
+  const results: BillingPolicyCheck[] = []
+  const mismatches: BillingMismatch[] = []
+
+  // Nothing to ask, and nothing to protect: demo mode never reaches a real checkout.
+  if (cfg.demoMode) {
+    policyCache = { at: now, results, mismatches }
+    return policyCache
+  }
+
+  const token = cfg.shopify.adminApiToken
+  if (!token) {
+    // Not a mismatch, but not a pass either. Reported as unknown so it cannot read as verified.
+    for (const product of Object.values(PRICING)) {
+      if (!product.handle || !product.requiresSellingPlan) continue
+      results.push({
+        handle: product.handle,
+        label: product.label,
+        ok: false,
+        detail:
+          'Cannot verify: SHOPIFY_ADMIN_API_TOKEN is not set, so the billing policy on the store cannot be read.',
+      })
+    }
+    policyCache = { at: now, results, mismatches }
+    return policyCache
+  }
+
+  for (const product of Object.values(PRICING)) {
+    if (!product.handle || !product.requiresSellingPlan) continue
+
+    try {
+      const res = await fetch(`https://${storeDomain(cfg)}/admin/api/2025-01/graphql.json`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-Shopify-Access-Token': token },
+        body: JSON.stringify({ query: PRODUCT_POLICY_QUERY, variables: { handle: product.handle } }),
+      })
+
+      if (!res.ok) {
+        results.push({
+          handle: product.handle,
+          label: product.label,
+          ok: false,
+          detail: `Shopify Admin API returned ${res.status} reading this product.`,
+        })
+        continue
+      }
+
+      const json = (await res.json()) as {
+        data?: {
+          productByHandle?: {
+            title?: string
+            sellingPlanGroups?: {
+              nodes?: Array<{
+                name?: string
+                sellingPlans?: {
+                  nodes?: Array<{ name?: string; billingPolicy?: { interval?: string; intervalCount?: number } }>
+                }
+              }>
+            }
+          } | null
+        }
+      }
+
+      const node = json.data?.productByHandle
+      if (!node) {
+        results.push({
+          handle: product.handle,
+          label: product.label,
+          ok: false,
+          detail: 'No product with this handle exists on the store.',
+        })
+        continue
+      }
+
+      const plans = (node.sellingPlanGroups?.nodes ?? []).flatMap((g) =>
+        (g.sellingPlans?.nodes ?? []).map((p) => ({ group: g.name ?? '', ...p })),
+      )
+
+      if (plans.length === 0) {
+        results.push({
+          handle: product.handle,
+          label: product.label,
+          ok: false,
+          detail: 'The product requires a selling plan but has no selling plan groups attached.',
+        })
+        continue
+      }
+
+      const expected = product.recurrence === 'monthly' ? 'MONTH' : 'ONE-OFF'
+      const bad = plans.filter(
+        (p) => p.billingPolicy?.interval !== expected || (p.billingPolicy?.intervalCount ?? 1) !== 1,
+      )
+
+      if (bad.length > 0) {
+        const first = bad[0]!
+        mismatches.push({
+          handle: product.handle,
+          label: product.label,
+          planName: first.name ?? 'unnamed plan',
+          expected: `every 1 ${expected}`,
+          actual: first.billingPolicy?.interval ?? 'unknown',
+          actualCount: first.billingPolicy?.intervalCount ?? 0,
+        })
+        results.push({
+          handle: product.handle,
+          label: product.label,
+          ok: false,
+          detail: `Sold as every 1 ${expected}, but "${first.name}" bills every ${
+            first.billingPolicy?.intervalCount ?? '?'
+          } ${first.billingPolicy?.interval ?? 'unknown'}.`,
+        })
+        continue
+      }
+
+      results.push({
+        handle: product.handle,
+        label: product.label,
+        ok: true,
+        detail: `Bills every 1 ${expected}, as advertised.`,
+      })
+    } catch (err) {
+      results.push({
+        handle: product.handle,
+        label: product.label,
+        ok: false,
+        detail: `Could not read the billing policy: ${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
+  policyCache = { at: now, results, mismatches }
+  return policyCache
+}
+
+/** Throws before a checkout is built if any of these products bills differently to what we say. */
+export async function assertBillingPoliciesMatch(handles: string[]): Promise<void> {
+  const { mismatches } = await checkBillingPolicies()
+  const relevant = mismatches.filter((m) => handles.includes(m.handle))
+  if (relevant.length > 0) throw new BillingPolicyMismatchError(relevant)
 }
 
 // ---------------------------------------------------------------------------------------------
