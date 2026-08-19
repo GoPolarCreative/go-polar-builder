@@ -58,17 +58,17 @@ const BREAKAGES: Array<{ id: CheckId; name: string; mutate: (html: string) => st
   {
     id: 'hex_outside_root',
     name: 'a literal hex in a rule outside :root',
-    mutate: (h) => h.replace('.card__link{font-weight:600', '.card__link{color:#c0392b;font-weight:600'),
+    mutate: (h) => h.replace('.link-arrow{display:inline-flex', '.link-arrow{color:#c0392b;display:inline-flex'),
   },
   {
     id: 'hex_outside_root',
     name: 'an rgba() outside :root',
-    mutate: (h) => h.replace('.quote__who{font-weight:600', '.quote__who{background:rgba(0,0,0,0.2);font-weight:600'),
+    mutate: (h) => h.replace('.quote__who{margin-top:auto', '.quote__who{background:rgba(0,0,0,0.2);margin-top:auto'),
   },
   {
     id: 'hex_outside_root',
     name: 'a named colour outside :root',
-    mutate: (h) => h.replace('.form-note{font-size:0.85rem', '.form-note{color:white;font-size:0.85rem'),
+    mutate: (h) => h.replace('.form-note{font-size:0.78rem', '.form-note{color:white;font-size:0.78rem'),
   },
   {
     id: 'hex_outside_root',
@@ -78,7 +78,7 @@ const BREAKAGES: Array<{ id: CheckId; name: string; mutate: (html: string) => st
   {
     id: 'no_em_dash',
     name: 'an em dash in body copy',
-    mutate: (h) => h.replace('<p class="lead">', '<p class="lead">Fast, fair — and local. '),
+    mutate: (h) => h.replace('<p class="hero__sub">', '<p class="hero__sub">Fast, fair — and local. '),
   },
   {
     id: 'no_em_dash',
@@ -88,17 +88,17 @@ const BREAKAGES: Array<{ id: CheckId; name: string; mutate: (html: string) => st
   {
     id: 'no_emoji',
     name: 'an emoji in a heading',
-    mutate: (h) => h.replace('<h2>Our services</h2>', '<h2>Our services \u{1F527}</h2>'),
+    mutate: (h) => h.replace('<h2>Get in touch</h2>', '<h2>Get in touch \u{1F527}</h2>'),
   },
   {
     id: 'single_h1',
     name: 'a second h1',
-    mutate: (h) => h.replace('<h2>Our services</h2>', '<h1>Our services</h1>'),
+    mutate: (h) => h.replace('<h2>Get in touch</h2>', '<h1>Get in touch</h1>'),
   },
   {
     id: 'heading_hierarchy',
     name: 'an h4 where an h3 belongs',
-    mutate: (h) => h.replace('<h2>Get in touch</h2>', '<h4>Get in touch</h4>'),
+    mutate: (h) => h.replace('<h3>Blocked drains</h3>', '<h5>Blocked drains</h5>'),
   },
   {
     id: 'footer_credit',

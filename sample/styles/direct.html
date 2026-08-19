@@ -19,7 +19,7 @@
 <meta name="theme-color" content="#0d3b66">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,38 +219,38 @@
 --on-dark:var(--white);
 --dark-block:var(--primary);
 --scrim-1:rgba(0,0,0,0.82);
---scrim-2:rgba(0,0,0,0.6);
---scrim-3:rgba(0,0,0,0.4);
+--scrim-2:rgba(0,0,0,0.74);
+--scrim-3:rgba(0,0,0,0.6);
 --page-bg:var(--surface);
 --page-fg:var(--ink);
 --page-muted:var(--ink-muted);
 --alt-bg:var(--surface-alt);
 --card-fg:var(--ink);
 --hairline:var(--line);
---font-head:Poppins, system-ui, -apple-system, "Segoe UI", sans-serif;
+--font-head:Oswald, "Arial Narrow", sans-serif;
 --font-body:Poppins, system-ui, -apple-system, "Segoe UI", sans-serif;
 --weight-head:700;
---track-head:-0.005em;
---track-btn:0.01em;
---track-eyebrow:0.12em;
---eyebrow-size:0.75rem;
---h1:clamp(2rem, 1.4rem + 3vw, 3.25rem);
---h2:clamp(1.6rem, 1.25rem + 1.9vw, 2.5rem);
---h3:1.05rem;
+--track-head:0.01em;
+--track-btn:0.04em;
+--track-eyebrow:0.18em;
+--eyebrow-size:0.7rem;
+--h1:clamp(2.6rem, 1.7rem + 4.4vw, 4.6rem);
+--h2:clamp(2rem, 1.5rem + 2.4vw, 3.1rem);
+--h3:1.15rem;
 --step-body:1rem;
---step-lead:1.05rem;
---section-pad:3.5rem;
---section-pad-lg:5rem;
---gap:1.5rem;
+--step-lead:1.1rem;
+--section-pad:4rem;
+--section-pad-lg:5.5rem;
+--gap:1.25rem;
 --measure:64ch;
---radius:6px;
+--radius:10px;
 --radius-btn:6px;
 --radius-input:6px;
---shadow-card:0 4px 24px var(--shadow-soft);
---shadow-raised:0 12px 48px var(--shadow-medium);
---shadow-hover:0 12px 48px var(--shadow-medium);
+--shadow-card:0 2px 10px var(--shadow-soft);
+--shadow-raised:0 10px 30px var(--shadow-medium);
+--shadow-hover:0 16px 38px var(--shadow-medium);
 --border-hairline:1px;
---border-strong:1px;
+--border-strong:2px;
 --header-h:76px;
 --wrap:1200px;
 }
@@ -260,7 +260,7 @@ html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;}
 body{margin:0;font-family:var(--font-body);font-size:var(--step-body);line-height:1.65;color:var(--page-fg);background:var(--page-bg);-webkit-font-smoothing:antialiased;}
 img{max-width:100%;display:block;}
 a{color:inherit;}
-h1,h2,h3,h4{font-family:var(--font-head);font-weight:var(--weight-head);line-height:1.08;letter-spacing:var(--track-head);margin:0 0 1rem;}
+h1,h2,h3,h4{font-family:var(--font-head);font-weight:var(--weight-head);line-height:1.08;letter-spacing:var(--track-head);margin:0 0 1rem;text-transform:uppercase;}
 h1{font-size:var(--h1);}
 h2{font-size:var(--h2);}
 h3{font-size:var(--h3);line-height:1.25;}
@@ -275,12 +275,12 @@ em{font-style:normal;color:var(--accent);}
 .section--dark h2,.section--dark h3{color:var(--on-dark);}
 .section--dark p{color:var(--on-dark-72);}
 .eyebrow{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}
-.section-head{margin-bottom:2.5rem;}
-.section-head p{color:var(--page-muted);max-width:var(--measure);font-size:var(--step-lead);}
+.section-head{margin-bottom:2.5rem;text-align:center;}
+.section-head p{color:var(--page-muted);max-width:var(--measure);font-size:var(--step-lead);margin-left:auto;margin-right:auto;}
 .section--dark .section-head p{color:var(--on-dark-70);}
 .icon{width:22px;height:22px;flex:0 0 auto;}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:var(--border-hairline) solid transparent;border-radius:var(--radius-btn);padding:14px 26px;font-family:var(--font-body);font-size:0.95rem;font-weight:700;letter-spacing:var(--track-btn);text-decoration:none;cursor:pointer;transition:transform .2s ease,background-color .2s ease,box-shadow .2s ease,color .2s ease;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:var(--border-hairline) solid transparent;border-radius:var(--radius-btn);padding:14px 26px;font-family:var(--font-body);font-size:0.95rem;font-weight:700;letter-spacing:var(--track-btn);text-transform:uppercase;text-decoration:none;cursor:pointer;transition:transform .2s ease,background-color .2s ease,box-shadow .2s ease,color .2s ease;}
 .btn--primary{background:var(--accent);color:var(--on-primary);border-color:var(--accent);}
 .btn--primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-raised);}
 .btn--dark{background:var(--dark-block);color:var(--on-dark);border-color:var(--dark-block);}
@@ -295,13 +295,13 @@ em{font-style:normal;color:var(--accent);}
 .link-arrow .icon{width:15px;height:15px;color:var(--accent);transition:transform .2s ease;}
 .link-arrow:hover .icon{transform:translateX(4px);}
 .section--dark .link-arrow{color:var(--on-dark);}
-.site-header{position:fixed;top:0;left:0;right:0;z-index:60;height:var(--header-h);display:flex;align-items:center;transition:background-color .3s ease,box-shadow .3s ease;}
+.site-header{position:fixed;top:0;left:0;right:0;z-index:60;height:var(--header-h);display:flex;align-items:center;transition:background-color .3s ease,box-shadow .3s ease;background:var(--dark-block);}
 .site-header--solid{background:var(--dark-block);box-shadow:var(--shadow-raised);}
 .site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}
 .brand__mark{width:40px;height:40px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.15rem;}
 .brand__logo{max-height:42px;width:auto;}
-.brand__name{font-family:var(--font-head);font-size:1.2rem;letter-spacing:var(--track-head);}
+.brand__name{font-family:var(--font-head);font-size:1.2rem;letter-spacing:var(--track-head);text-transform:uppercase;}
 .nav{display:none;gap:4px;}
 .nav a{text-decoration:none;font-size:0.92rem;font-weight:500;padding:8px 12px;border-radius:var(--radius-btn);color:var(--on-dark-78);transition:color .2s ease,background-color .2s ease;}
 .nav a:hover{color:var(--white);background:var(--veil-08);}
@@ -355,7 +355,7 @@ em{font-style:normal;color:var(--accent);}
 .card__icon{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--surface-alt);color:var(--accent);margin-bottom:1.1rem;}
 .card__icon .icon{width:22px;height:22px;}
 .card .link-arrow{margin-top:auto;color:var(--card-fg);}
-.card__num{display:block;font-family:var(--font-head);font-size:2.4rem;font-weight:var(--weight-head);line-height:1;color:var(--accent);opacity:0.3;margin-bottom:0.5rem;}
+.card__num{display:none;}
 .stats-band{background:var(--accent);color:var(--ink);padding:2.5rem 0;}
 .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;}
 .stat{padding:0 1.25rem;border-right:1px solid var(--shade-18);}
@@ -432,7 +432,7 @@ em{font-style:normal;color:var(--accent);}
 
 <header class="site-header" id="siteHeader">
   <div class="wrap site-header__inner">
-    <a class="brand" href="#top"><img class="brand__logo" src="assets/logo.webp" alt="Cold Front Plumbing logo" width="180" height="44"></a>
+    <a class="brand" href="#top"><img class="brand__logo" src="../assets/logo.webp" alt="Cold Front Plumbing logo" width="180" height="44"></a>
     <nav class="nav" aria-label="Main">
       <a href="#about">About</a>
       <a href="#services">Services</a>
@@ -458,8 +458,8 @@ em{font-style:normal;color:var(--accent);}
 <section class="hero" id="top">
   <div class="hero__bg">
     <picture>
-        <source type="image/webp" srcset="assets/photo-01.webp" sizes="100vw">
-        <img src="assets/photo-01.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="eager" fetchpriority="high">
+        <source type="image/webp" srcset="../assets/photo-01.webp" sizes="100vw">
+        <img src="../assets/photo-01.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="eager" fetchpriority="high">
       </picture>
     <div class="hero__scrim"></div>
     <div class="hero__glow"></div>
@@ -524,8 +524,8 @@ em{font-style:normal;color:var(--accent);}
     </div>
     <div class="about__media">
       <picture>
-        <source type="image/webp" srcset="assets/photo-02.webp" sizes="(min-width:900px) 50vw, 100vw">
-        <img src="assets/photo-02.jpg" alt="Cold Front Plumbing on the job in Chermside" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-02.webp" sizes="(min-width:900px) 50vw, 100vw">
+        <img src="../assets/photo-02.jpg" alt="Cold Front Plumbing on the job in Chermside" width="1920" height="1440" loading="lazy" decoding="async">
       </picture>
     </div>
   </div>
@@ -586,20 +586,20 @@ em{font-style:normal;color:var(--accent);}
     <div class="section-head"><span class="eyebrow">Our work</span><h2>Our work, <em>photographed on site</em></h2><p>Real jobs, photographed on site. No stock photography.</p></div>
     <div class="gallery">
       <figure><picture>
-        <source type="image/webp" srcset="assets/photo-01-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
-        <img src="assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-01-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
       <figure><picture>
-        <source type="image/webp" srcset="assets/photo-02-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
-        <img src="assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-02-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
       <figure><picture>
-        <source type="image/webp" srcset="assets/photo-03-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
-        <img src="assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-03-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
       <figure><picture>
-        <source type="image/webp" srcset="assets/photo-04-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
-        <img src="assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-04-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
     </div>
   </div>
@@ -799,7 +799,7 @@ em{font-style:normal;color:var(--accent);}
   <div class="wrap">
     <div class="footer-grid">
       <div>
-        <img class="site-footer__logo" src="assets/logo.webp" alt="Cold Front Plumbing logo" width="240" height="70">
+        <img class="site-footer__logo" src="../assets/logo.webp" alt="Cold Front Plumbing logo" width="240" height="70">
         <p class="site-footer__blurb">Blocked drains done properly in Chermside</p>
       </div>
       <div>

@@ -1,95 +1,95 @@
 {
-  "generatedAt": "2026-08-18T03:43:44.268Z",
+  "generatedAt": "2026-08-19T07:59:35.674Z",
   "generator": "offline fixture, not the Anthropic API",
   "business": "Cold Front Plumbing",
   "note": "Same intake data, same photos, same copy. Only the design style differs.",
   "styles": [
     {
       "style": "industrial",
-      "label": "Bold and industrial",
-      "weight": 1514337,
+      "label": "Heavy and industrial",
+      "weight": 1522684,
       "passed": true,
       "failed": [],
       "signals": {
-        "heading font": "\"Barlow Condensed\", Impact, sans-serif",
-        "heading weight": "800",
-        "heading tracking": "0.01em",
-        "h1 size": "clamp(2.9rem, 1.8rem + 5vw, 5.4rem)",
-        "body size": "1.0625rem",
-        "section padding": "5rem",
-        "gap": "1rem",
+        "heading font": "\"Bebas Neue\", Impact, sans-serif",
+        "heading weight": "400",
+        "heading tracking": "0.04em",
+        "h1 size": "clamp(3rem, 1.9rem + 5.2vw, 5.5rem)",
+        "body size": "1rem",
+        "section padding": "6.5rem",
+        "gap": "1.5rem",
         "measure": "68ch",
         "corner radius": "0px",
         "button radius": "0px",
-        "raised shadow": "10px 10px 0 var(--shadow-hard)",
-        "strong border": "4px",
-        "hero shape": "slab"
+        "raised shadow": "none",
+        "strong border": "1px",
+        "hero shape": "plain"
       }
     },
     {
       "style": "modern",
       "label": "Clean and modern",
-      "weight": 1514056,
+      "weight": 1522789,
       "passed": true,
       "failed": [],
       "signals": {
-        "heading font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
-        "heading weight": "600",
-        "heading tracking": "-0.02em",
-        "h1 size": "clamp(2.4rem, 1.6rem + 3.4vw, 4rem)",
-        "body size": "1.0625rem",
-        "section padding": "7rem",
+        "heading font": "\"Space Grotesk\", system-ui, sans-serif",
+        "heading weight": "700",
+        "heading tracking": "-0.055em",
+        "h1 size": "clamp(2.9rem, 1.9rem + 4.6vw, 4.9rem)",
+        "body size": "1rem",
+        "section padding": "7.5rem",
         "gap": "1.5rem",
         "measure": "62ch",
-        "corner radius": "16px",
+        "corner radius": "18px",
         "button radius": "10px",
-        "raised shadow": "0 12px 32px var(--shadow-soft)",
+        "raised shadow": "0 18px 55px var(--shadow-soft)",
         "strong border": "1px",
-        "hero shape": "cardwrap"
+        "hero shape": "plain"
       }
     },
     {
       "style": "established",
       "label": "Warm and established",
-      "weight": 1514103,
+      "weight": 1522825,
       "passed": true,
       "failed": [],
       "signals": {
-        "heading font": "Lora, Georgia, \"Times New Roman\", serif",
-        "heading weight": "600",
-        "heading tracking": "-0.01em",
-        "h1 size": "clamp(2.3rem, 1.6rem + 3vw, 3.7rem)",
-        "body size": "1.09rem",
-        "section padding": "6rem",
-        "gap": "1.35rem",
-        "measure": "65ch",
-        "corner radius": "10px",
-        "button radius": "999px",
-        "raised shadow": "0 10px 26px var(--shadow-soft)",
-        "strong border": "2px",
-        "hero shape": "panel"
+        "heading font": "Poppins, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+        "heading weight": "700",
+        "heading tracking": "-0.005em",
+        "h1 size": "clamp(2rem, 1.4rem + 3vw, 3.25rem)",
+        "body size": "1rem",
+        "section padding": "5rem",
+        "gap": "1.5rem",
+        "measure": "64ch",
+        "corner radius": "6px",
+        "button radius": "6px",
+        "raised shadow": "0 12px 48px var(--shadow-medium)",
+        "strong border": "1px",
+        "hero shape": "plain"
       }
     },
     {
-      "style": "refined",
-      "label": "Premium and refined",
-      "weight": 1514364,
+      "style": "direct",
+      "label": "Bold and direct",
+      "weight": 1522840,
       "passed": true,
       "failed": [],
       "signals": {
-        "heading font": "Jost, \"Helvetica Neue\", system-ui, sans-serif",
-        "heading weight": "400",
-        "heading tracking": "0.16em",
-        "h1 size": "clamp(1.7rem, 1.3rem + 1.8vw, 2.6rem)",
+        "heading font": "Oswald, \"Arial Narrow\", sans-serif",
+        "heading weight": "700",
+        "heading tracking": "0.01em",
+        "h1 size": "clamp(2.6rem, 1.7rem + 4.4vw, 4.6rem)",
         "body size": "1rem",
-        "section padding": "9rem",
-        "gap": "2rem",
-        "measure": "54ch",
-        "corner radius": "2px",
-        "button radius": "2px",
-        "raised shadow": "none",
-        "strong border": "1px",
-        "hero shape": "rule"
+        "section padding": "5.5rem",
+        "gap": "1.25rem",
+        "measure": "64ch",
+        "corner radius": "10px",
+        "button radius": "6px",
+        "raised shadow": "0 10px 30px var(--shadow-medium)",
+        "strong border": "2px",
+        "hero shape": "plain"
       }
     }
   ],
@@ -97,118 +97,98 @@
     {
       "a": "industrial",
       "b": "modern",
-      "stylesheetDelta": 0.209,
+      "stylesheetDelta": 0.186,
       "differingSignals": [
         "heading font",
         "heading weight",
         "heading tracking",
         "h1 size",
         "section padding",
-        "gap",
         "measure",
         "corner radius",
         "button radius",
-        "raised shadow",
-        "strong border",
-        "hero shape"
-      ]
-    },
-    {
-      "a": "industrial",
-      "b": "refined",
-      "stylesheetDelta": 0.194,
-      "differingSignals": [
-        "heading font",
-        "heading weight",
-        "heading tracking",
-        "h1 size",
-        "body size",
-        "section padding",
-        "gap",
-        "measure",
-        "corner radius",
-        "button radius",
-        "raised shadow",
-        "strong border",
-        "hero shape"
-      ]
-    },
-    {
-      "a": "modern",
-      "b": "refined",
-      "stylesheetDelta": 0.191,
-      "differingSignals": [
-        "heading font",
-        "heading weight",
-        "heading tracking",
-        "h1 size",
-        "body size",
-        "section padding",
-        "gap",
-        "measure",
-        "corner radius",
-        "button radius",
-        "raised shadow",
-        "hero shape"
+        "raised shadow"
       ]
     },
     {
       "a": "established",
       "b": "industrial",
-      "stylesheetDelta": 0.21,
+      "stylesheetDelta": 0.19,
       "differingSignals": [
         "heading font",
         "heading weight",
         "heading tracking",
         "h1 size",
-        "body size",
         "section padding",
-        "gap",
         "measure",
         "corner radius",
         "button radius",
-        "raised shadow",
-        "strong border",
-        "hero shape"
+        "raised shadow"
       ]
     },
     {
       "a": "established",
       "b": "modern",
-      "stylesheetDelta": 0.171,
+      "stylesheetDelta": 0.099,
       "differingSignals": [
         "heading font",
         "heading tracking",
         "h1 size",
-        "body size",
         "section padding",
-        "gap",
         "measure",
         "corner radius",
         "button radius",
-        "raised shadow",
-        "strong border",
-        "hero shape"
+        "raised shadow"
       ]
     },
     {
-      "a": "established",
-      "b": "refined",
-      "stylesheetDelta": 0.195,
+      "a": "direct",
+      "b": "industrial",
+      "stylesheetDelta": 0.186,
       "differingSignals": [
         "heading font",
         "heading weight",
         "heading tracking",
         "h1 size",
-        "body size",
         "section padding",
         "gap",
         "measure",
         "corner radius",
         "button radius",
         "raised shadow",
-        "strong border",
-        "hero shape"
+        "strong border"
+      ]
+    },
+    {
+      "a": "direct",
+      "b": "modern",
+      "stylesheetDelta": 0.132,
+      "differingSignals": [
+        "heading font",
+        "heading tracking",
+        "h1 size",
+        "section padding",
+        "gap",
+        "measure",
+        "corner radius",
+        "button radius",
+        "raised shadow",
+        "strong border"
+      ]
+    },
+    {
+      "a": "direct",
+      "b": "established",
+      "stylesheetDelta": 0.107,
+      "differingSignals": [
+        "heading font",
+        "heading tracking",
+        "h1 size",
+        "section padding",
+        "gap",
+        "corner radius",
+        "raised shadow",
+        "strong border"
       ]
     }
   ]

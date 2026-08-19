@@ -121,17 +121,15 @@ describe('the four styles are materially different', () => {
     }
   })
 
-  // The copy is the same business either way, so the document as a whole is expected to overlap.
-  // What has to move is the stylesheet and the shape of the header and hero.
+  // The copy and the skeleton are the same business either way, so the document as a whole is
+  // expected to overlap heavily. What has to move is the stylesheet.
   const stylesheetOf = (html: string) => html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? ''
-  const heroOf = (html: string) =>
-    html.match(/<section class="hero[\s\S]*?<\/section>/)?.[0] ?? ''
 
-  // A floor, not a target. Roughly half the sheet is scaffolding that has no business changing
-  // with the style: the reset, the form fields, the mobile panel, the grid plumbing. Anything
-  // above this and the difference is in the visible layer rather than a font swap. The real
-  // weight is carried by the signal tests above, which name what changed.
-  const MINIMUM_STYLESHEET_DIFFERENCE = 0.15
+  // A floor, not a target, and deliberately lower than it used to be. The four reference sites
+  // share one skeleton, so most of the sheet SHOULD be identical: the reset, the grid plumbing,
+  // the form fields, the section rhythm. What has to move is the visible layer, and that is what
+  // the signal tests above measure by name. This only guards against a style that changed nothing.
+  const MINIMUM_STYLESHEET_DIFFERENCE = 0.08
 
   it('the stylesheets are not near-identical', () => {
     for (const a of NAMED_STYLES) {
@@ -150,36 +148,82 @@ describe('the four styles are materially different', () => {
     }
   })
 
-  it('the hero is built differently under each style', () => {
-    const heroes = NAMED_STYLES.map((s) => heroOf(built[s].html))
-    for (const hero of heroes) expect(hero.length).toBeGreaterThan(200)
-    expect(new Set(heroes).size, 'two styles produced the same hero markup').toBe(NAMED_STYLES.length)
-  })
+  it('every style builds the SAME skeleton, because that is what the reference sites do', () => {
+    // gildonconstructions.com.au, naarmearthmoving.com.au, summithvacr.com.au and
+    // turquoiseplumbing.com.au run the same sections in the same order. The skeleton is the house
+    // style; the treatment is the choice. A style that reordered sections would be a different
+    // studio, not a different mood.
+    const sectionsOf = (html: string) =>
+      [...html.matchAll(/<section[^>]*id="([a-z-]+)"/g)].map((m) => m[1])
 
-  it('industrial is heavy and square where refined is light and open', () => {
-    const industrial = signals(built.industrial.html)
-    const refined = signals(built.refined.html)
-
-    expect(industrial.radius).toBe('0px')
-    expect(industrial.uppercaseHeadings).toBe(true)
-    expect(industrial.headerStartsSolid).toBe(true)
-    expect(industrial.cardsAreBlocked).toBe(true)
-
-    expect(refined.cardsAreHairline).toBe(true)
-    expect(refined.heroHasRule).toBe(true)
-    expect(refined.shadowRaised).toBe('none')
-    // Smaller type set with much more room around it, which is the whole point of that style.
-    expect(parseFloat(refined.sectionPadding ?? '0')).toBeGreaterThan(
-      parseFloat(industrial.sectionPadding ?? '0'),
-    )
-  })
-
-  it('established is the only one that uses a serif for headings', () => {
-    expect(built.established.html).toContain('Lora')
-    for (const other of ['industrial', 'modern', 'refined'] as const) {
-      expect(built[other].html).not.toContain('Lora')
+    const reference = sectionsOf(built.industrial.html)
+    expect(reference.length).toBeGreaterThan(6)
+    for (const style of NAMED_STYLES) {
+      expect(sectionsOf(built[style].html), style).toEqual(reference)
     }
   })
+
+  it('every style carries the full component vocabulary', () => {
+    // The devices Chris named off the four sites. A style missing one of these is not a variation,
+    // it is a regression.
+    for (const style of NAMED_STYLES) {
+      const html = built[style].html
+      expect(html, style + ': eyebrow labels').toContain('class="eyebrow"')
+      expect(html, style + ': enquiry form inside the hero').toMatch(
+        /<section class="hero"[\s\S]*?class="card-form"[\s\S]*?<\/section>/,
+      )
+      expect(html, style + ': hero photo scrim').toContain('hero__scrim')
+      expect(html, style + ': trust bar').toContain('class="trust-item"')
+      expect(html, style + ': service card icons').toContain('class="card__icon"')
+      expect(html, style + ': arrow links').toContain('class="link-arrow"')
+      expect(html, style + ': stat band').toContain('class="stats-band"')
+      expect(html, style + ': numbered process steps').toContain('class="step__num"')
+      expect(html, style + ': asymmetric gallery').toContain('class="gallery"')
+      expect(html, style + ': dark cta band').toContain('class="section cta-band"')
+      expect(html, style + ': multi-column footer').toContain('class="footer-grid"')
+    }
+  })
+
+  it('each style loads its own typeface, from the site it was measured off', () => {
+    const families = NAMED_STYLES.map((s) => built[s].html.match(/css2\?([^"]+)"/)?.[1] ?? '')
+    expect(new Set(families).size, 'two styles requested the same fonts').toBe(NAMED_STYLES.length)
+    // Measured off the real sites: Bebas Neue on Naarm, Space Grotesk on Turquoise, Poppins on
+    // Gildon, a condensed face on Summit.
+    expect(built.industrial.html).toContain('Bebas+Neue')
+    expect(built.modern.html).toContain('Space+Grotesk')
+    expect(built.established.html).toContain('Poppins')
+    expect(built.direct.html).toContain('Oswald')
+  })
+
+  it('industrial is dark on dark where the others are not', () => {
+    // Naarm has no light section anywhere. The others all alternate.
+    expect(built.industrial.html).toContain('--page-bg:var(--ink)')
+    for (const style of ['modern', 'established', 'direct'] as const) {
+      expect(built[style].html, style).toContain('--page-bg:var(--surface)')
+    }
+  })
+
+  it('the two-tone heading device runs on three of the four, and never on industrial', () => {
+    // Turquoise, Gildon and Summit all set the payoff phrase of a heading in the accent. Naarm
+    // does not: its headings are one colour of shouting.
+    for (const style of ['modern', 'established', 'direct'] as const) {
+      expect(built[style].html.match(/<em>/g)?.length ?? 0, style).toBeGreaterThan(2)
+    }
+    expect(built.industrial.html.match(/<h2>[^<]*<em>/g)).toBeNull()
+  })
+
+  it('the accent never lands on a place name', () => {
+    // "Blocked drains <em>in Chermside</em>" reads as a highlighting accident. Gildon accents
+    // "Without Compromise." and that reads as design, so a preposition is fine and a locative is
+    // not. The renderer refuses the locatives, which covers model-written copy too.
+    for (const style of NAMED_STYLES) {
+      const accents = [...built[style].html.matchAll(/<em>([^<]+)<\/em>/g)].map((m) => m[1]!)
+      for (const phrase of accents) {
+        expect(phrase, style + ': "' + phrase + '"').not.toMatch(/^(in|at|for|with|to|of|on)\s/i)
+      }
+    }
+  })
+
 })
 
 describe('style never touches the palette', () => {
@@ -250,13 +294,13 @@ describe('style never touches the palette', () => {
 describe('choosing on the customer behalf', () => {
   it('an explicit choice is taken at face value and recorded as theirs', () => {
     const resolved = resolveDesignStyle({
-      chosen: 'refined',
+      chosen: 'direct',
       trade: 'plumber',
       palette: { primary: '#0d3b66', accent: '#f4a261', source: 'logo' },
       description: 'We do drains.',
     })
-    expect(resolved.resolved).toBe('refined')
-    expect(resolved.chosen).toBe('refined')
+    expect(resolved.resolved).toBe('direct')
+    expect(resolved.chosen).toBe('direct')
     expect(resolved.reason).toMatch(/customer/i)
   })
 
@@ -269,7 +313,7 @@ describe('choosing on the customer behalf', () => {
         description: 'We do good work for people around here and we turn up on time.',
       })
       // The trade sets the starting point; the logo and the description may move it.
-      expect(['industrial', 'modern', 'established', 'refined']).toContain(resolved.resolved)
+      expect(['industrial', 'modern', 'established', 'direct']).toContain(resolved.resolved)
       if (resolved.reason.includes('trade is')) expect(resolved.reason).toContain(expected)
     }
   })

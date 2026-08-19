@@ -141,7 +141,7 @@ function StyleThumb({ id, palette }: { id: NamedStyleId; palette: ThumbColours }
     industrial: <Industrial palette={palette} />,
     modern: <Modern palette={palette} />,
     established: <Established palette={palette} />,
-    refined: <Refined palette={palette} />,
+    direct: <Direct palette={palette} />,
   }
   return (
     <span className="block overflow-hidden rounded-lg border border-ice-200">
@@ -241,7 +241,7 @@ function Established({ palette }: { palette: ThumbColours }) {
 }
 
 /** Almost nothing in it. Hairline header, small centred type, a rule, a lot of room. */
-function Refined({ palette }: { palette: ThumbColours }) {
+function Direct({ palette }: { palette: ThumbColours }) {
   return (
     <g>
       <rect x="0" y="0" width="200" height="88" fill={palette.primary} opacity="0.86" />

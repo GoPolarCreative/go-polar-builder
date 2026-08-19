@@ -170,7 +170,83 @@ The JSON-LD must be valid JSON. No trailing commas, no comments inside it, no un
 
 # WHAT GOOD LOOKS LIKE
 
-Generous vertical rhythm, roughly 80px section padding on mobile and 120px on desktop. Content capped around 1200px with 20px gutters. Strong type hierarchy: the h1 is large and confident, section headings sit above a short eyebrow label in the accent colour, body copy is 17px to 18px with 1.7 line height and a comfortable measure. Plenty of white space. Two colours doing the work, not six. Photos with a consistent aspect ratio. Nothing decorative that a customer in a hurry has to scroll past to find the phone number.
+This is not a matter of taste. Go Polar has a house style, it is visible on four sites already
+built by hand, and the numbers below were measured off those sites rather than invented. A
+generated site has to look like it came out of the same studio.
+
+The references: gildonconstructions.com.au, naarmearthmoving.com.au, summithvacr.com.au,
+turquoiseplumbing.com.au.
+
+THE SECTION SKELETON IS FIXED. All four run the same sections in the same order, which is the
+order in PAGE STRUCTURE above. What changes between them is palette, heading case and weight, and
+density. That is the whole idea: one skeleton, four treatments. Do not invent a new section, do not
+reorder them, and do not drop one because the content feels thin.
+
+# THE COMPONENT VOCABULARY
+
+These are the devices that make a site recognisable as ours. Use all of them.
+
+EYEBROW LABELS. Every section heading sits under a short ALL CAPS label in the accent colour, with
+wide letter-spacing, around 11px to 13px, weight 600 to 700. "WHAT WE DO". "WHY CHOOSE US". "OUR
+WORK". "HOW IT WORKS". "SERVICE AREAS". "GET IN TOUCH". Short. Two or three words. Never a
+sentence. This single device does more to make the page look designed than anything else here.
+
+THE TWO-TONE HEADING. The payoff phrase of a heading is set in the accent colour, wrapped in an
+<em> that is styled font-style:normal and color:var(--accent). "Water, gas and plumbing handled
+with <em>care.</em>" "Boutique Homes Built <em>Without Compromise.</em>" "Questions,
+<em>answered.</em>" Write headings in two parts so this works: a statement, then a payoff after a
+comma or a full stop. Run it on the h1 and on most section headings. It is the strongest signature
+the house style has. Do not put the accent on a preposition or a place name: an accent on "in
+Chermside" reads as a mistake, an accent on "answered day or night" reads as design.
+
+THE HERO. Full-bleed client photo, a dark gradient scrim over it running roughly 0.85 alpha on the
+copy side down to 0.45 on the far side, headline and supporting copy on the left, and THE ENQUIRY
+FORM AS A CARD SITTING IN THE HERO ON THE RIGHT. All four reference sites do this. The form is
+about 440px wide on desktop and drops below the copy on mobile. Under the copy sits a row of four
+short trust points with small accent ticks. This is the single most important layout decision on
+the page: the customer can start an enquiry without scrolling.
+
+THE TRUST BAR. Immediately under the hero, four items across, each a small accent icon with a bold
+label and a lighter line under it, separated by thin vertical rules. Two columns on mobile.
+
+SERVICE CARDS. An icon in a rounded tinted tile, an h3, two lines of body, and a "Request a quote"
+link with an arrow that slides right on hover. A faint number in the corner or above the heading
+depending on the style. Cards lift on hover and their border picks up the accent colour.
+
+NUMBERED CARDS. Why-choose-us and process steps carry large faint 01 02 03 04 figures, set in the
+accent at low opacity, above or behind the heading.
+
+THE STAT BAND. A full-width band, either in the accent colour with dark figures or in the dark
+colour with white figures. Large figures in the heading font over small ALL CAPS labels with wide
+letter-spacing. It sits directly after a dark section on purpose: it stops two dark blocks reading
+as one undifferentiated slab.
+
+TESTIMONIAL CARDS. A row of accent-coloured stars, the quote, then the name with the suburb under
+it in a lighter weight. Only when real reviews were supplied.
+
+THE GALLERY IS ASYMMETRIC. Never a uniform grid of equal squares. One image spans two columns and
+two rows, the others fill around it.
+
+THE DARK CTA BAND sits before the contact section: eyebrow, heading, one line, two buttons,
+centred.
+
+CONTACT is two columns: details on the left with accent icons and small caps labels, the second
+form on the right.
+
+THE FOOTER is dark and multi-column: brand and a line about the business, then Services, Company
+and Contact columns, then a bottom bar with the copyright and the Go Polar credit.
+
+# MEASUREMENTS
+
+Wrap: max-width 1200px, 20px gutters.
+Section padding: 80px on mobile, 100px to 125px on desktop, from the style spec.
+Heading line-height: 1.08 to 1.2. Body: 1.65 to 1.7.
+Buttons: 14px by 26px padding, weight 700, and they lift 1px to 2px on hover with a shadow in the
+accent colour at low alpha.
+Cards: the radius comes from the style, from 0px on the industrial end to 18px on the modern end.
+Two colours doing the work, not six.
+
+Nothing decorative that a customer in a hurry has to scroll past to find the phone number.
 
 Now build the site.`
 

@@ -19,7 +19,7 @@
 <meta name="theme-color" content="#0d3b66">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -197,195 +197,233 @@
 --white:#ffffff;
 --black:#000000;
 --success:#1f8a4c;
---overlay-strong:rgba(0,0,0,0.74);
---overlay-soft:rgba(0,0,0,0.42);
---shadow-soft:rgba(16,24,32,0.08);
+--shadow-soft:rgba(16,24,32,0.10);
 --shadow-medium:rgba(16,24,32,0.16);
---shadow-hard:rgba(16,24,32,0.9);
---on-primary:#ffffff;
---on-dark:#ffffff;
+--on-dark-80:rgba(255,255,255,0.8);
+--on-dark-78:rgba(255,255,255,0.78);
+--on-dark-72:rgba(255,255,255,0.72);
+--on-dark-70:rgba(255,255,255,0.7);
+--on-dark-68:rgba(255,255,255,0.68);
+--on-dark-66:rgba(255,255,255,0.66);
+--on-dark-55:rgba(255,255,255,0.55);
+--on-dark-50:rgba(255,255,255,0.5);
+--veil-18:rgba(255,255,255,0.18);
+--veil-14:rgba(255,255,255,0.14);
+--veil-12:rgba(255,255,255,0.12);
+--veil-10:rgba(255,255,255,0.10);
+--veil-08:rgba(255,255,255,0.08);
+--veil-06:rgba(255,255,255,0.06);
+--veil-05:rgba(255,255,255,0.05);
+--shade-18:rgba(0,0,0,0.18);
+--on-primary:var(--white);
+--on-dark:var(--white);
 --dark-block:var(--primary);
---font-head:Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
---font-body:Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
---weight-head:600;
---track-head:-0.02em;
+--scrim-1:rgba(0,0,0,0.86);
+--scrim-2:rgba(0,0,0,0.7);
+--scrim-3:rgba(0,0,0,0.52);
+--page-bg:var(--surface);
+--page-fg:var(--ink);
+--page-muted:var(--ink-muted);
+--alt-bg:var(--surface);
+--card-fg:var(--ink);
+--hairline:var(--line);
+--font-head:"Space Grotesk", system-ui, sans-serif;
+--font-body:"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+--weight-head:700;
+--track-head:-0.055em;
 --track-btn:0;
---track-eyebrow:0.14em;
---h1:clamp(2.4rem, 1.6rem + 3.4vw, 4rem);
---h2:clamp(1.8rem, 1.4rem + 1.8vw, 2.6rem);
+--track-eyebrow:0.16em;
+--eyebrow-size:0.69rem;
+--h1:clamp(2.9rem, 1.9rem + 4.6vw, 4.9rem);
+--h2:clamp(2.1rem, 1.6rem + 2.4vw, 3.2rem);
 --h3:1.2rem;
---step-body:1.0625rem;
---step-lead:1.15rem;
+--step-body:1rem;
+--step-lead:1.125rem;
 --section-pad:4.5rem;
---section-pad-lg:7rem;
+--section-pad-lg:7.5rem;
 --gap:1.5rem;
 --measure:62ch;
---radius:16px;
+--radius:18px;
 --radius-btn:10px;
 --radius-input:10px;
---shadow-card:0 1px 2px var(--shadow-soft);
---shadow-raised:0 12px 32px var(--shadow-soft);
---shadow-hover:0 18px 44px var(--shadow-medium);
+--shadow-card:none;
+--shadow-raised:0 18px 55px var(--shadow-soft);
+--shadow-hover:0 18px 55px var(--shadow-medium);
 --border-hairline:1px;
 --border-strong:1px;
---wrap:1200px;
 --header-h:76px;
+--wrap:1200px;
 }
 *,*::before,*::after{box-sizing:border-box;}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
-body{margin:0;font-family:var(--font-body);font-size:var(--step-body);line-height:1.7;color:var(--ink);background:var(--surface);overflow-x:hidden;}
-img{max-width:100%;height:auto;display:block;}
-picture{display:block;}
-h1,h2,h3{font-family:var(--font-head);font-weight:var(--weight-head);letter-spacing:var(--track-head);line-height:1.1;margin:0 0 1rem;}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}*{animation:none!important;transition:none!important;}}
+body{margin:0;font-family:var(--font-body);font-size:var(--step-body);line-height:1.65;color:var(--page-fg);background:var(--page-bg);-webkit-font-smoothing:antialiased;}
+img{max-width:100%;display:block;}
+a{color:inherit;}
+h1,h2,h3,h4{font-family:var(--font-head);font-weight:var(--weight-head);line-height:1.08;letter-spacing:var(--track-head);margin:0 0 1rem;}
 h1{font-size:var(--h1);}
 h2{font-size:var(--h2);}
-h3{font-size:var(--h3);line-height:1.3;}
+h3{font-size:var(--h3);line-height:1.25;}
 p{margin:0 0 1rem;}
-a{color:var(--primary);}
-:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+/* The two-tone heading device: the payoff phrase of a heading, set in the accent colour. */
+em{font-style:normal;color:var(--accent);}
 .wrap{width:100%;max-width:var(--wrap);margin:0 auto;padding:0 20px;}
 .section{padding:var(--section-pad) 0;}
-.section--alt{background:var(--surface-alt);}
-.lead{color:var(--ink-muted);max-width:var(--measure);font-size:var(--step-lead);}
-.eyebrow{font-family:var(--font-head);text-transform:uppercase;letter-spacing:var(--track-eyebrow);color:var(--accent);font-size:0.85rem;margin:0 0 0.5rem;}
+@media (min-width:900px){.section{padding:var(--section-pad-lg) 0;}}
+.section--alt{background:var(--alt-bg);}
+.section--dark{background:var(--dark-block);color:var(--on-dark);}
+.section--dark h2,.section--dark h3{color:var(--on-dark);}
+.section--dark p{color:var(--on-dark-72);}
+.eyebrow{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}
+.section-head{margin-bottom:2.5rem;}
+.section-head p{color:var(--page-muted);max-width:var(--measure);font-size:var(--step-lead);}
+.section--dark .section-head p{color:var(--on-dark-70);}
 .icon{width:22px;height:22px;flex:0 0 auto;}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-weight:600;border-radius:var(--radius-btn);padding:14px 24px;text-decoration:none;border:var(--border-hairline) solid transparent;cursor:pointer;font-size:1rem;letter-spacing:var(--track-btn);transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease;}
-.btn--primary{background:var(--accent);color:var(--on-primary);}
-.btn--solid{background:var(--primary);color:var(--on-primary);}
-.btn--ghost{border-color:var(--white);color:var(--white);}
-.btn--ghost:hover{background:var(--overlay-soft);}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:var(--border-hairline) solid transparent;border-radius:var(--radius-btn);padding:14px 26px;font-family:var(--font-body);font-size:0.95rem;font-weight:700;letter-spacing:var(--track-btn);text-decoration:none;cursor:pointer;transition:transform .2s ease,background-color .2s ease,box-shadow .2s ease,color .2s ease;}
+.btn--primary{background:var(--accent);color:var(--on-primary);border-color:var(--accent);}
+.btn--primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-raised);}
+.btn--dark{background:var(--dark-block);color:var(--on-dark);border-color:var(--dark-block);}
+.btn--dark:hover{transform:translateY(-2px);}
+.btn--ghost{background:transparent;color:var(--white);border-color:var(--on-dark-50);}
+.btn--ghost:hover{background:var(--veil-10);border-color:var(--white);transform:translateY(-2px);}
+.btn--outline{background:transparent;color:var(--page-fg);border-color:var(--page-fg);}
+.btn--outline:hover{background:var(--page-fg);color:var(--page-bg);}
 .btn--block{width:100%;}
-.btn--primary:hover,.btn--solid:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);}
-.card{background:var(--surface);border:var(--border-hairline) solid var(--line);border-radius:var(--radius);padding:1.75rem;box-shadow:var(--shadow-card);transition:transform .18s ease,box-shadow .18s ease;}
-.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);}
-.card--feature{border-color:var(--primary);}
-.card__icon{width:52px;height:52px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:grid;place-items:center;margin-bottom:1rem;}
-.site-header{position:fixed;top:0;left:0;right:0;z-index:60;transition:background-color .25s ease,box-shadow .25s ease;}
-.site-header--solid{background:var(--surface);box-shadow:var(--shadow-card);border-bottom:var(--border-hairline) solid var(--line);}
-.brand__name{color:var(--white);}
-.site-header--solid .brand__name{color:var(--ink);}
-.nav a{color:var(--white);}
-.site-header--solid .nav a{color:var(--ink);}
-.menu-toggle{background:var(--overlay-soft);color:var(--white);}
-.site-header--solid .menu-toggle{background:var(--surface-alt);color:var(--ink);}
-.hero__inner{display:grid;gap:2.5rem;}
-.hero__cardwrap{position:relative;}
-.card-form{box-shadow:var(--shadow-raised);}
-.site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;height:var(--header-h);}
-.brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
-.brand__mark{width:42px;height:42px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.3rem;}
-.brand__logo{max-height:44px;width:auto;}
-.brand__name{font-family:var(--font-head);font-size:1.3rem;}
-.nav{display:none;}
-.nav a{text-decoration:none;font-weight:500;padding:8px 10px;}
-.nav a:hover{color:var(--accent);}
-.header__cta{display:none;}
-.menu-toggle{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--radius-btn);width:44px;height:44px;cursor:pointer;}
-.mobile-panel{position:fixed;inset:var(--header-h) 0 auto 0;background:var(--surface);border-bottom:var(--border-hairline) solid var(--line);box-shadow:var(--shadow-raised);padding:1rem 20px 1.5rem;display:none;z-index:55;}
+/* A phrase with an arrow. The arrow moves on hover, not the text, so nothing reflows. */
+.link-arrow{display:inline-flex;align-items:center;gap:7px;color:var(--page-fg);font-size:0.78rem;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:0.06em;}
+.link-arrow .icon{width:15px;height:15px;color:var(--accent);transition:transform .2s ease;}
+.link-arrow:hover .icon{transform:translateX(4px);}
+.section--dark .link-arrow{color:var(--on-dark);}
+.site-header{position:fixed;top:0;left:0;right:0;z-index:60;height:var(--header-h);display:flex;align-items:center;transition:background-color .3s ease,box-shadow .3s ease;}
+.site-header--solid{background:var(--dark-block);box-shadow:var(--shadow-raised);}
+.site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}
+.brand__mark{width:40px;height:40px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.15rem;}
+.brand__logo{max-height:42px;width:auto;}
+.brand__name{font-family:var(--font-head);font-size:1.2rem;letter-spacing:var(--track-head);}
+.nav{display:none;gap:4px;}
+.nav a{text-decoration:none;font-size:0.92rem;font-weight:500;padding:8px 12px;border-radius:var(--radius-btn);color:var(--on-dark-78);transition:color .2s ease,background-color .2s ease;}
+.nav a:hover{color:var(--white);background:var(--veil-08);}
+.header__actions{display:none;align-items:center;gap:14px;}
+.header__phone{color:var(--on-dark-80);text-decoration:none;font-weight:600;font-size:0.9rem;display:inline-flex;align-items:center;gap:7px;}
+.header__phone:hover{color:var(--white);}
+.menu-toggle{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:var(--radius-btn);width:44px;height:44px;cursor:pointer;background:var(--veil-10);color:var(--white);}
+.mobile-panel{position:fixed;inset:var(--header-h) 0 auto 0;background:var(--dark-block);padding:1rem 20px 1.5rem;display:none;z-index:55;}
 .mobile-panel[data-open="true"]{display:block;}
-.mobile-panel a{display:block;padding:12px 0;color:var(--ink);text-decoration:none;border-bottom:var(--border-hairline) solid var(--line);font-weight:500;}
-.hero{position:relative;padding:calc(var(--header-h) + var(--section-pad)) 0 var(--section-pad);color:var(--white);background:linear-gradient(150deg,var(--primary-dark),var(--dark-block));}
-.hero__bg{position:absolute;inset:0;overflow:hidden;}
+.mobile-panel a{display:block;padding:12px 0;color:var(--white);text-decoration:none;border-bottom:1px solid var(--veil-12);font-weight:500;}
+@media (min-width:980px){.nav{display:flex;}.header__actions{display:flex;}.menu-toggle{display:none;}}
+.hero{position:relative;display:flex;align-items:center;min-height:660px;overflow:hidden;background:var(--dark-block);color:var(--white);padding:calc(var(--header-h) + 3rem) 0 3.5rem;}
+.hero__bg{position:absolute;inset:0;}
 .hero__bg picture,.hero__bg img{width:100%;height:100%;object-fit:cover;}
-.hero__scrim{position:absolute;inset:0;background:linear-gradient(120deg,var(--overlay-strong),var(--overlay-soft));}
-.hero__inner{position:relative;}
-.hero__sub{font-size:var(--step-lead);color:var(--white);max-width:52ch;}
-.hero__ctas{display:flex;flex-wrap:wrap;gap:1rem;margin:1.5rem 0;}
-.hero__points{display:grid;gap:10px;list-style:none;padding:0;margin:0;}
-.hero__points li{display:flex;align-items:center;gap:8px;font-size:0.95rem;}
-.hero__points .icon{color:var(--accent);width:18px;height:18px;}
-.card-form{background:var(--surface);color:var(--ink);border-radius:var(--radius);padding:1.75rem;}
-.field{display:block;margin-bottom:1rem;}
-.field span{display:block;font-weight:600;font-size:0.92rem;margin-bottom:6px;}
-.field input,.field textarea{width:100%;padding:12px 14px;border:var(--border-hairline) solid var(--line);border-radius:var(--radius-input);font:inherit;background:var(--surface);color:var(--ink);}
-.field textarea{min-height:110px;resize:vertical;}
+.hero__scrim{position:absolute;inset:0;background:linear-gradient(100deg,var(--scrim-1) 0%,var(--scrim-2) 55%,var(--scrim-3) 100%);}
+.hero__glow{position:absolute;right:-6%;top:4%;width:640px;height:640px;border-radius:50%;background:radial-gradient(circle,var(--accent),transparent 68%);opacity:0.16;pointer-events:none;}
+.hero__inner{position:relative;z-index:1;display:grid;gap:2.5rem;align-items:center;}
+.hero h1{color:var(--white);margin-bottom:1.25rem;}
+.hero__sub{font-size:var(--step-lead);color:var(--on-dark-72);max-width:52ch;line-height:1.7;}
+.hero__ctas{display:flex;flex-wrap:wrap;gap:14px;margin:1.75rem 0 1.5rem;}
+.hero__points{display:flex;flex-wrap:wrap;gap:10px 22px;list-style:none;padding:0;margin:0;}
+.hero__points li{display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;color:var(--on-dark-66);}
+.hero__points .icon{width:16px;height:16px;color:var(--accent);}
+@media (min-width:1000px){.hero__inner{grid-template-columns:1fr 440px;gap:3.75rem;}}
+.card-form{background:var(--surface);color:var(--ink);border:0;border-radius:var(--radius);padding:1.75rem;box-shadow:var(--shadow-raised);}
+.card-form h2,.card-form h3{margin-bottom:1.25rem;color:var(--ink);}
+.field{display:block;margin-bottom:0.9rem;}
+.field span{display:block;font-weight:600;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;color:var(--ink-muted);}
+.field input,.field textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-input);font:inherit;font-size:0.95rem;background:var(--surface);color:var(--ink);}
+.field input:focus,.field textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.field textarea{min-height:96px;resize:vertical;}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
-.form-note{font-size:0.85rem;color:var(--ink-muted);margin:0;}
-.form-status{margin-top:1rem;font-weight:600;}
+.form-note{font-size:0.78rem;color:var(--ink-muted);margin:0.75rem 0 0;}
+.form-status{margin-top:0.75rem;font-weight:600;font-size:0.9rem;}
 .form-status[data-state="ok"]{color:var(--success);}
 .form-status[data-state="error"]{color:var(--accent);}
-.trust-strip{background:var(--dark-block);color:var(--on-dark);padding:1.75rem 0;}
-.trust-strip__grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--gap);}
-.trust-strip__item{display:flex;gap:12px;align-items:flex-start;}
-.trust-strip__item .icon{color:var(--accent);}
-.trust-strip__label{font-family:var(--font-head);font-size:1.05rem;display:block;}
-.trust-strip__detail{font-size:0.9rem;opacity:0.85;}
-.about__grid{display:grid;gap:2.5rem;}
-.about__media{border-radius:var(--radius);overflow:hidden;min-height:280px;background:linear-gradient(150deg,var(--primary),var(--primary-dark));box-shadow:var(--shadow-card);}
-.about__media picture,.about__media img{width:100%;height:100%;object-fit:cover;}
-.pull-quote{border-left:var(--border-strong) solid var(--accent);padding:6px 0 6px 1rem;margin:1.5rem 0;font-family:var(--font-head);font-size:var(--h3);color:var(--primary);}
-.grid-cards{display:grid;gap:var(--gap);margin-top:2rem;}
-.card__link{font-weight:600;text-decoration:none;display:inline-flex;gap:6px;align-items:center;}
-.gallery__grid{display:grid;gap:var(--gap);grid-template-columns:repeat(2,1fr);margin-top:2rem;}
-.gallery__item{margin:0;border-radius:var(--radius);overflow:hidden;background:var(--surface-alt);}
-.gallery__item img{width:100%;aspect-ratio:4/3;object-fit:cover;}
-.why__num{font-family:var(--font-head);font-size:2.4rem;color:var(--primary-light);line-height:1;margin:0 0 0.5rem;}
-.stats{background:var(--dark-block);color:var(--on-dark);}
-.stats__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap);text-align:center;}
-.stats__value{font-family:var(--font-head);font-size:clamp(2.2rem,6vw,3.4rem);line-height:1;color:var(--on-dark);margin:0;}
-.stats__label{font-size:0.92rem;opacity:0.85;margin:0;}
-.process__list{list-style:none;counter-reset:step;padding:0;margin:2rem 0 0;display:grid;gap:var(--gap);}
-.process__item{counter-increment:step;position:relative;padding-left:64px;}
-.process__item::before{content:counter(step);position:absolute;left:0;top:0;width:44px;height:44px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.3rem;}
-.areas__list{display:flex;flex-wrap:wrap;gap:10px;list-style:none;padding:0;margin:1.5rem 0 0;}
-.areas__list li{background:var(--surface);border:var(--border-hairline) solid var(--line);border-radius:var(--radius-btn);padding:8px 16px;font-size:0.95rem;}
-.quotes{display:grid;gap:var(--gap);margin-top:2rem;}
-.quote{background:var(--surface);border:var(--border-hairline) solid var(--line);border-left:var(--border-strong) solid var(--accent);border-radius:var(--radius);padding:1.6rem;}
-.quote__who{font-weight:600;color:var(--ink-muted);font-size:0.92rem;}
-.faq__wrap{margin-top:2rem;max-width:820px;}
-.faq__item{border-bottom:var(--border-hairline) solid var(--line);}
-.faq__item summary{cursor:pointer;list-style:none;padding:1.1rem 0;font-weight:600;font-size:1.05rem;display:flex;justify-content:space-between;gap:1rem;align-items:center;}
-.faq__item summary::-webkit-details-marker{display:none;}
-.faq__item summary .icon{transition:transform .2s ease;color:var(--primary);}
-.faq__item[open] summary .icon{transform:rotate(180deg);}
-.faq__answer{padding:0 0 1.2rem;color:var(--ink-muted);max-width:var(--measure);}
+.trust-bar{background:var(--alt-bg);border-bottom:1px solid var(--hairline);}
+.trust-grid{display:grid;grid-template-columns:repeat(2,1fr);}
+.trust-item{display:flex;align-items:center;gap:12px;padding:18px 20px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);}
+.trust-item .icon{color:var(--accent);}
+.trust-item b{display:block;font-size:0.85rem;font-weight:700;}
+.trust-item small{display:block;font-size:0.74rem;color:var(--page-muted);margin-top:2px;}
+@media (min-width:900px){.trust-grid{grid-template-columns:repeat(4,1fr);}.trust-item{border-bottom:0;}.trust-item:last-child{border-right:0;}}
+.grid{display:grid;gap:var(--gap);}
+@media (min-width:700px){.grid--2{grid-template-columns:repeat(2,1fr);}.grid--3{grid-template-columns:repeat(2,1fr);}.grid--4{grid-template-columns:repeat(2,1fr);}}
+@media (min-width:1000px){.grid--3{grid-template-columns:repeat(3,1fr);}.grid--4{grid-template-columns:repeat(4,1fr);}}
+.card{position:relative;display:flex;flex-direction:column;padding:1.75rem;border-radius:var(--radius);color:var(--card-fg);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-card);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}
+.card:hover{transform:translateY(-5px);box-shadow:var(--shadow-hover);border-color:var(--accent);}
+.card h3{margin-bottom:0.55rem;}
+.card p{color:var(--ink-muted);font-size:0.92rem;margin-bottom:1rem;}
+.card__icon{display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--surface-alt);color:var(--accent);margin-bottom:1.1rem;}
+.card__icon .icon{width:22px;height:22px;}
+.card .link-arrow{margin-top:auto;color:var(--card-fg);}
+.card__num{position:absolute;right:18px;top:16px;font-family:var(--font-head);font-size:0.78rem;font-weight:700;color:var(--page-muted);opacity:0.6;}
+.stats-band{background:var(--accent);color:var(--ink);padding:2.5rem 0;}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;}
+.stat{padding:0 1.25rem;border-right:1px solid var(--shade-18);}
+.stat:last-child{border-right:0;}
+.stat strong{display:block;font-family:var(--font-head);font-size:2.7rem;font-weight:var(--weight-head);letter-spacing:var(--track-head);line-height:1;}
+.stat span{display:block;text-transform:uppercase;letter-spacing:0.13em;font-size:0.65rem;font-weight:700;margin-top:8px;opacity:0.78;}
+@media (min-width:900px){.stats-grid{grid-template-columns:repeat(4,1fr);}.stat:first-child{padding-left:0;}}
+.about-grid{display:grid;gap:2.5rem;align-items:center;}
+.about__copy p{color:var(--page-muted);max-width:var(--measure);}
+.pull-quote{margin:1.5rem 0;padding:1.1rem 1.4rem;border-left:3px solid var(--accent);background:var(--alt-bg);font-style:italic;color:var(--page-fg);border-radius:0 var(--radius) var(--radius) 0;}
+.about__media img{border-radius:var(--radius);width:100%;height:100%;object-fit:cover;}
+.about__actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:1.5rem;}
+@media (min-width:900px){.about-grid{grid-template-columns:1fr 1fr;gap:3.5rem;}}
+.gallery{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);}
+.gallery figure{margin:0;overflow:hidden;border-radius:var(--radius);}
+.gallery img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease;}
+.gallery figure:hover img{transform:scale(1.04);}
+@media (min-width:900px){
+.gallery{grid-template-columns:repeat(4,1fr);grid-auto-rows:200px;}
+.gallery figure:nth-child(1){grid-column:span 2;grid-row:span 2;}
+.gallery figure:nth-child(4){grid-column:span 2;}
+}
+.process-grid{display:grid;gap:var(--gap);}
+.step{position:relative;padding-top:1.25rem;border-top:2px solid var(--hairline);}
+.step__num{display:block;font-family:var(--font-head);font-size:2rem;font-weight:var(--weight-head);line-height:1;color:var(--accent);opacity:0.5;margin-bottom:0.5rem;}
+.step h3{margin-bottom:0.4rem;}
+.step p{color:var(--page-muted);font-size:0.9rem;}
+@media (min-width:900px){.process-grid{grid-template-columns:repeat(4,1fr);}}
+.areas-grid{display:grid;gap:2rem;}
+.suburbs{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0;}
+.suburbs li{font-size:0.85rem;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--alt-bg);border:1px solid var(--hairline);}
+@media (min-width:900px){.areas-grid{grid-template-columns:1fr 1.2fr;gap:3rem;align-items:center;}}
+.quote{display:flex;flex-direction:column;padding:1.75rem;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-card);}
+.stars{display:flex;gap:3px;color:var(--accent);margin-bottom:0.9rem;}
+.stars .icon{width:16px;height:16px;}
+.quote p{font-size:0.94rem;line-height:1.7;color:var(--ink-muted);}
+.quote__who{margin-top:auto;padding-top:1rem;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--card-fg);}
+.quote__who span{display:block;font-weight:500;text-transform:none;letter-spacing:0;color:var(--page-muted);margin-top:3px;}
+.faq-item{border-bottom:1px solid var(--hairline);}
+.faq-item button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:1rem;text-align:left;background:none;border:0;padding:1.15rem 0;font:inherit;font-weight:700;color:var(--page-fg);cursor:pointer;}
+.faq-item button .icon{color:var(--accent);transition:transform .25s ease;}
+.faq-item[data-open="true"] button .icon{transform:rotate(180deg);}
+.faq-answer{display:none;padding-bottom:1.15rem;color:var(--page-muted);max-width:var(--measure);}
+.faq-item[data-open="true"] .faq-answer{display:block;}
 .cta-band{background:var(--dark-block);color:var(--on-dark);text-align:center;}
 .cta-band h2{color:var(--on-dark);}
-.cta-band p{max-width:56ch;margin-left:auto;margin-right:auto;opacity:0.9;}
-.contact__grid{display:grid;gap:2.5rem;}
-.contact__list{list-style:none;padding:0;margin:0 0 1.5rem;display:grid;gap:1rem;}
-.contact__list li{display:flex;gap:12px;align-items:flex-start;}
-.contact__list .icon{color:var(--primary);}
-.contact__list a{text-decoration:none;font-weight:600;}
-.hours{margin:0;padding:0;list-style:none;color:var(--ink-muted);font-size:0.95rem;}
-.socials{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;}
-.site-footer{background:var(--ink);color:var(--white);padding:2.5rem 0 calc(2.5rem + 76px);}
-.site-footer a{color:var(--white);}
-.site-footer__grid{display:grid;gap:1.5rem;}
-.site-footer__nav{display:flex;flex-wrap:wrap;gap:1rem;list-style:none;padding:0;margin:0;}
-.site-footer__nav a{text-decoration:none;opacity:0.85;}
-.site-footer__legal{border-top:var(--border-hairline) solid var(--overlay-soft);margin-top:1.5rem;padding-top:1rem;font-size:0.88rem;opacity:0.8;display:grid;gap:6px;}
-.site-footer__logo{max-height:70px;width:auto;margin-bottom:1rem;}
-.mobile-bar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:grid;grid-template-columns:1fr 1fr;box-shadow:var(--shadow-raised);}
-.mobile-bar a{padding:16px 8px;text-align:center;font-weight:600;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:var(--track-btn);}
-.mobile-bar a:first-child{background:var(--primary);color:var(--on-primary);}
-.mobile-bar a:last-child{background:var(--accent);color:var(--on-primary);}
-@media (min-width:768px){
-.section{padding:var(--section-pad-lg) 0;}
-.hero__inner{grid-template-columns:1.15fr 0.85fr;align-items:center;}
-.trust-strip__grid{grid-template-columns:repeat(4,1fr);}
-.about__grid{grid-template-columns:1.05fr 0.95fr;align-items:center;}
-.grid-cards{grid-template-columns:repeat(2,1fr);}
-.gallery__grid{grid-template-columns:repeat(3,1fr);}
-.process__list{grid-template-columns:repeat(2,1fr);}
-.quotes{grid-template-columns:repeat(2,1fr);}
-.contact__grid{grid-template-columns:0.9fr 1.1fr;}
-.site-footer{padding-bottom:2.5rem;}
-.site-footer__grid{grid-template-columns:1.2fr 1fr;}
-.mobile-bar{display:none;}
-}
-@media (min-width:1024px){
-.nav{display:flex;align-items:center;gap:0.5rem;}
-.header__cta{display:inline-flex;}
-.menu-toggle{display:none;}
-.grid-cards{grid-template-columns:repeat(3,1fr);}
-.process__list{grid-template-columns:repeat(4,1fr);}
-}
-@media (prefers-reduced-motion:reduce){
-html{scroll-behavior:auto;}
-*,*::before,*::after{animation-duration:0.001ms !important;transition-duration:0.001ms !important;}
-.card:hover,.btn--primary:hover,.btn--solid:hover{transform:none;}
-}
+.cta-band p{color:var(--on-dark-72);max-width:56ch;margin-left:auto;margin-right:auto;}
+.cta-band__actions{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:1.75rem;}
+.contact-grid{display:grid;gap:2.5rem;}
+.contact-list{list-style:none;padding:0;margin:0 0 1.5rem;display:grid;gap:1.1rem;}
+.contact-list li{display:flex;gap:14px;align-items:flex-start;}
+.contact-list .icon{color:var(--accent);margin-top:3px;}
+.contact-list b{display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--page-muted);margin-bottom:3px;}
+.contact-list a{text-decoration:none;font-weight:600;}
+.contact-list a:hover{color:var(--accent);}
+.hours{list-style:none;padding:0;margin:0;font-size:0.88rem;color:var(--page-muted);}
+@media (min-width:900px){.contact-grid{grid-template-columns:1fr 1.05fr;gap:3.5rem;}}
+.site-footer{background:var(--dark-block);color:var(--on-dark-66);padding:3.5rem 0 0;}
+.footer-grid{display:grid;gap:2rem;padding-bottom:2.5rem;}
+.site-footer h4{color:var(--white);font-size:0.76rem;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:1rem;font-family:var(--font-body);font-weight:700;}
+.site-footer ul{list-style:none;padding:0;margin:0;display:grid;gap:9px;font-size:0.88rem;}
+.site-footer a{text-decoration:none;}
+.site-footer a:hover{color:var(--accent);}
+.site-footer__logo{max-height:56px;width:auto;margin-bottom:1rem;}
+.site-footer__blurb{font-size:0.88rem;max-width:34ch;}
+.footer-bottom{border-top:1px solid var(--veil-12);padding:1.25rem 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;font-size:0.79rem;}
+.footer-bottom a{color:var(--accent);}
+@media (min-width:900px){.footer-grid{grid-template-columns:1.6fr 1fr 1fr 1fr;gap:3rem;}}
 </style>
 </head>
 <body>
@@ -424,11 +462,12 @@ html{scroll-behavior:auto;}
         <img src="../assets/photo-01.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="eager" fetchpriority="high">
       </picture>
     <div class="hero__scrim"></div>
+    <div class="hero__glow"></div>
   </div>
   <div class="wrap hero__inner">
     <div class="hero__copy">
-      <p class="eyebrow">Blocked drains done properly in Chermside</p>
-      <h1>Blocked drains in Chermside</h1>
+      <span class="eyebrow">Blocked drains done properly in Chermside</span>
+      <h1>Blocked drains in Chermside. <em>Answered day or night.</em></h1>
       <p class="hero__sub">Cold Front Plumbing has been on the tools for 14 years. We turn up when we say we will, and you get the price before we start.</p>
       <div class="hero__ctas">
         <a class="btn btn--primary" href="tel:+61412345678"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Call 0412 345 678</a>
@@ -441,11 +480,11 @@ html{scroll-behavior:auto;}
         <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Tidy work, no mess left</span></li>
       </ul>
     </div>
-    <div class="hero__cardwrap">
-      <div class="card-form">
+    <div class="card-form">
+      <span class="eyebrow">Start a conversation</span>
       <h2>Request a free quote</h2>
       <form action="https://api.web3forms.com/submit" method="POST" data-web3form id="heroForm">
-        <input type="hidden" name="access_key" value="11111111-2222-3333-4444-555555555555">
+        <input type="hidden" name="access_key" value="00000000-0000-0000-0000-000000000000">
         <input type="hidden" name="subject" value="Cold Front Plumbing - Hero Form Enquiry">
         <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
         <label class="field"><span>Your name</span><input type="text" name="name" required autocomplete="name"></label>
@@ -457,34 +496,36 @@ html{scroll-behavior:auto;}
         <p class="form-note">We will get back to you as soon as we can. If it is urgent, ring us instead.</p>
       </form>
     </div>
-    </div>
   </div>
 </section>
 
-<section class="trust-strip">
-  <div class="wrap trust-strip__grid">
-    <div class="trust-strip__item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><div><span class="trust-strip__label">Local</span><span class="trust-strip__detail">Based in Chermside</span></div></div>
-    <div class="trust-strip__item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><div><span class="trust-strip__label">Experienced</span><span class="trust-strip__detail">14 years on the tools</span></div></div>
-    <div class="trust-strip__item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><div><span class="trust-strip__label">Upfront</span><span class="trust-strip__detail">Price before we start</span></div></div>
-    <div class="trust-strip__item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg><div><span class="trust-strip__label">After hours</span><span class="trust-strip__detail">We answer after hours</span></div></div>
+<section class="trust-bar">
+  <div class="wrap trust-grid">
+    <div class="trust-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg><div><b>Local</b><small>Based in Chermside</small></div></div>
+    <div class="trust-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><div><b>Experienced</b><small>14 years on the tools</small></div></div>
+    <div class="trust-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><div><b>Upfront</b><small>Price before we start</small></div></div>
+    <div class="trust-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><div><b>After hours</b><small>We answer after hours</small></div></div>
   </div>
 </section>
 
 <section class="section" id="about">
-  <div class="wrap about__grid">
-    <div>
-      <p class="eyebrow">About us</p>
-      <h2>Local plumbers who answer the phone</h2>
+  <div class="wrap about-grid">
+    <div class="about__copy">
+      <span class="eyebrow">About us</span>
+      <h2>Local plumbers, <em>14 years on the tools</em></h2>
       <p>Dad started Cold Front out of a ute in 1998 and I took it over in 2011. We are a two van outfit working the Brisbane northside, mostly drains and hot water. We answer the phone ourselves, we turn up when we say we will, and if we cannot get to you the same day we will tell you straight rather than leave you waiting.</p>
       <p>We cover Chermside, Aspley, Nundah, Clayfield, Stafford, Everton Park and the suburbs around them. Same crew every time, so you are not explaining the job twice.</p>
       <p>We do not subcontract. The bloke who quotes the job is the bloke who does the job, so nothing gets lost between the two.</p>
-      <p class="pull-quote">You get a price before we start, and the price is the price.</p>
-      <a class="btn btn--solid" href="#contact">Request a free quote</a>
+      <blockquote class="pull-quote">You get a price before we start, and the price is the price.</blockquote>
+      <div class="about__actions">
+        <a class="btn btn--primary" href="#contact">Request a free quote</a>
+        <a class="btn btn--outline" href="#services">Our services</a>
+      </div>
     </div>
     <div class="about__media">
       <picture>
-        <source type="image/webp" srcset="../assets/photo-02.webp" sizes="(min-width: 768px) 50vw, 100vw">
-        <img src="../assets/photo-02.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
+        <source type="image/webp" srcset="../assets/photo-02.webp" sizes="(min-width:900px) 50vw, 100vw">
+        <img src="../assets/photo-02.jpg" alt="Cold Front Plumbing on the job in Chermside" width="1920" height="1440" loading="lazy" decoding="async">
       </picture>
     </div>
   </div>
@@ -492,45 +533,49 @@ html{scroll-behavior:auto;}
 
 <section class="section section--alt" id="services">
   <div class="wrap">
-    <p class="eyebrow">What we do</p>
-    <h2>Our services</h2>
-    <p class="lead">Everything below is done by our own crew. If it is not on the list, ring and ask, chances are we still do it.</p>
-    <div class="grid-cards">
-      <article class="card card--feature">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+    <div class="section-head"><span class="eyebrow">What we do</span><h2>What we do, <em>and how we work</em></h2><p>Practical, carefully managed work across Chermside and the surrounding suburbs.</p></div>
+    <div class="grid grid--3">
+      <article class="card">
+        <span class="card__num">01</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></span>
         <h3>Blocked drains</h3>
         <p>Blocked drains handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about blocked drains</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
       <article class="card">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+        <span class="card__num">02</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
         <h3>Hot water systems</h3>
         <p>Hot water systems handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about hot water systems</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
       <article class="card">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+        <span class="card__num">03</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
         <h3>Burst pipes</h3>
         <p>Burst pipes handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about burst pipes</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
       <article class="card">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+        <span class="card__num">04</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
         <h3>Leak detection</h3>
         <p>Leak detection handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about leak detection</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
       <article class="card">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+        <span class="card__num">05</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
         <h3>Tap and toilet repairs</h3>
         <p>Tap and toilet repairs handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about tap and toilet repairs</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
       <article class="card">
-        <div class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg></div>
+        <span class="card__num">06</span>
+        <span class="card__icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
         <h3>Gas fitting</h3>
         <p>Gas fitting handled start to finish, with a price agreed before any work begins. We carry the common parts on the van so most jobs are sorted in one visit.</p>
-        <a class="card__link" href="#contact">Ask about gas fitting</a>
+        <a class="link-arrow" href="#contact">Request a quote<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></a>
       </article>
     </div>
   </div>
@@ -538,51 +583,49 @@ html{scroll-behavior:auto;}
 
 <section class="section" id="work">
   <div class="wrap">
-    <p class="eyebrow">Recent jobs</p>
-    <h2>Our work</h2>
-    <div class="gallery__grid">
-      <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="../assets/photo-01-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="../assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="800" height="600" loading="eager" fetchpriority="high">
+    <div class="section-head"><span class="eyebrow">Our work</span><h2>Our work, <em>photographed on site</em></h2><p>Real jobs, photographed on site. No stock photography.</p></div>
+    <div class="gallery">
+      <figure><picture>
+        <source type="image/webp" srcset="../assets/photo-01-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-01-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 1" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
-      <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="../assets/photo-02-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="../assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="800" height="600" loading="lazy" decoding="async">
+      <figure><picture>
+        <source type="image/webp" srcset="../assets/photo-02-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-02-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 2" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
-      <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="../assets/photo-03-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="../assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="800" height="600" loading="lazy" decoding="async">
+      <figure><picture>
+        <source type="image/webp" srcset="../assets/photo-03-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-03-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 3" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
-      <figure class="gallery__item"><picture>
-        <source type="image/webp" srcset="../assets/photo-04-thumb.webp" sizes="(min-width: 768px) 33vw, 50vw">
-        <img src="../assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="800" height="600" loading="lazy" decoding="async">
+      <figure><picture>
+        <source type="image/webp" srcset="../assets/photo-04-thumb.webp" sizes="(min-width:900px) 33vw, 50vw">
+        <img src="../assets/photo-04-thumb.jpg" alt="Blocked drains job completed by Cold Front Plumbing in Chermside, photo 4" width="1920" height="1440" loading="lazy" decoding="async">
       </picture></figure>
     </div>
   </div>
 </section>
 
-<section class="section section--alt" id="why">
+<section class="section section--dark" id="why">
   <div class="wrap">
-    <p class="eyebrow">Why us</p>
-    <h2>Why people call us back</h2>
-    <div class="grid-cards">
+    <div class="section-head"><span class="eyebrow">Why choose us</span><h2>A better experience, <em>from the first call</em></h2><p>4 reasons our clients keep working with us.</p></div>
+    <div class="grid grid--4">
       <article class="card">
-        <p class="why__num">01</p>
+        <span class="card__num">01</span>
         <h3>We answer the phone</h3>
         <p>You get a person, not a message bank. If we cannot take the call we ring you back the same day.</p>
       </article>
       <article class="card">
-        <p class="why__num">02</p>
+        <span class="card__num">02</span>
         <h3>The price is the price</h3>
         <p>You get the number before we start. If something changes on site we tell you first and you decide.</p>
       </article>
       <article class="card">
-        <p class="why__num">03</p>
+        <span class="card__num">03</span>
         <h3>Licensed and insured</h3>
         <p>Fully licensed for the work we do and covered by public liability insurance, so your home is protected.</p>
       </article>
       <article class="card">
-        <p class="why__num">04</p>
+        <span class="card__num">04</span>
         <h3>We leave it tidy</h3>
         <p>Drop sheets down, offcuts taken away, floors swept. You should not be able to tell we were there except for the work.</p>
       </article>
@@ -590,42 +633,50 @@ html{scroll-behavior:auto;}
   </div>
 </section>
 
-<section class="section stats" id="stats">
-  <div class="wrap stats__grid">
-    <div>
-      <p class="stats__value"><span data-count="14">14</span>+</p>
-      <p class="stats__label">Years in the trade</p>
-    </div>
-    <div>
-      <p class="stats__value"><span data-count="8">8</span></p>
-      <p class="stats__label">Suburbs serviced</p>
-    </div>
-    <div>
-      <p class="stats__value"><span data-count="6">6</span></p>
-      <p class="stats__label">Services offered</p>
-    </div>
+<section class="stats-band" id="stats">
+  <div class="wrap stats-grid">
+    <div class="stat"><strong data-count="14">14+</strong><span>Years in the trade</span></div>
+    <div class="stat"><strong data-count="8">8</strong><span>Suburbs serviced</span></div>
+    <div class="stat"><strong data-count="6">6</strong><span>Services offered</span></div>
   </div>
 </section>
 
 <section class="section" id="process">
   <div class="wrap">
-    <p class="eyebrow">How it works</p>
-    <h2>Four steps, no mucking about</h2>
-    <ol class="process__list">
-      <li class="process__item"><h3>Give us a ring</h3><p>Tell us what is going on. We ask the questions that matter and book a time that suits you.</p></li>
-      <li class="process__item"><h3>We take a look</h3><p>We come out, work out what is actually wrong, and explain it in plain English.</p></li>
-      <li class="process__item"><h3>You get the price</h3><p>A clear number before any work starts. No surprises added on at the end.</p></li>
-      <li class="process__item"><h3>We get it done</h3><p>The job done properly, the site left clean, and you know who to ring next time.</p></li>
-    </ol>
+    <div class="section-head"><span class="eyebrow">How it works</span><h2>A clear path, <em>from first call to finished job</em></h2><p>Four steps, so you always know what happens next.</p></div>
+    <div class="process-grid">
+      <div class="step">
+        <span class="step__num">01</span>
+        <h3>Give us a ring</h3>
+        <p>Tell us what is going on. We ask the questions that matter and book a time that suits you.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">02</span>
+        <h3>We take a look</h3>
+        <p>We come out, work out what is actually wrong, and explain it in plain English.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">03</span>
+        <h3>You get the price</h3>
+        <p>A clear number before any work starts. No surprises added on at the end.</p>
+      </div>
+      <div class="step">
+        <span class="step__num">04</span>
+        <h3>We get it done</h3>
+        <p>The job done properly, the site left clean, and you know who to ring next time.</p>
+      </div>
+    </div>
   </div>
 </section>
 
 <section class="section section--alt" id="areas">
-  <div class="wrap">
-    <p class="eyebrow">Service area</p>
-    <h2>Suburbs we cover around Chermside</h2>
-    <p class="lead">We are based in Chermside and work across the surrounding suburbs. If you are just outside this list give us a ring anyway, we will tell you straight whether we can get to you.</p>
-    <ul class="areas__list">
+  <div class="wrap areas-grid">
+    <div>
+      <span class="eyebrow">Service areas</span>
+      <h2>Where we work, <em>and how far we travel</em></h2>
+      <p>We are based in Chermside and work across the surrounding suburbs. If you are just outside this list give us a ring anyway, we will tell you straight whether we can get to you.</p>
+    </div>
+    <ul class="suburbs">
       <li>Chermside</li>
       <li>Aspley</li>
       <li>Nundah</li>
@@ -640,68 +691,81 @@ html{scroll-behavior:auto;}
 
 <section class="section" id="reviews">
   <div class="wrap">
-    <p class="eyebrow">Reviews</p>
-    <h2>What our customers say</h2>
-    <div class="quotes">
-      <blockquote class="quote"><p>Rang at 7am with a blocked main and they were here by 9. Cleared it, showed me the camera footage, and the price was what they said on the phone.</p><footer class="quote__who">Marion, Aspley</footer></blockquote>
-      <blockquote class="quote"><p>Hot water went on a Sunday night. Got a new one in Monday morning and they took the old unit away. No mess, no fuss.</p><footer class="quote__who">Dave, Nundah</footer></blockquote>
-      <blockquote class="quote"><p>Second time we have used them. Straight answer on the phone and a fair price. Hard to find.</p><footer class="quote__who">Priya, Clayfield</footer></blockquote>
+    <div class="section-head"><span class="eyebrow">What clients say</span><h2>What our customers say</h2></div>
+    <div class="grid grid--3">
+      <blockquote class="quote">
+        <div class="stars" aria-label="5 out of 5"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg></div>
+        <p>Rang at 7am with a blocked main and they were here by 9. Cleared it, showed me the camera footage, and the price was what they said on the phone.</p>
+        <footer class="quote__who">Marion<span>Aspley</span></footer>
+      </blockquote>
+      <blockquote class="quote">
+        <div class="stars" aria-label="5 out of 5"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg></div>
+        <p>Hot water went on a Sunday night. Got a new one in Monday morning and they took the old unit away. No mess, no fuss.</p>
+        <footer class="quote__who">Dave<span>Nundah</span></footer>
+      </blockquote>
+      <blockquote class="quote">
+        <div class="stars" aria-label="5 out of 5"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon></svg></div>
+        <p>Second time we have used them. Straight answer on the phone and a fair price. Hard to find.</p>
+        <footer class="quote__who">Priya<span>Clayfield</span></footer>
+      </blockquote>
     </div>
-    
   </div>
 </section>
 
 <section class="section section--alt" id="faq">
   <div class="wrap">
-    <p class="eyebrow">Questions</p>
-    <h2>Frequently asked questions</h2>
-    <div class="faq__wrap">
-      <details class="faq__item">
-        <summary>What suburbs do you cover?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">We are based in Chermside and cover Chermside, Aspley, Nundah, Clayfield, Stafford, Everton Park, Albany Creek, Strathpine. If your suburb is not on the list, give us a ring anyway and we will tell you straight whether we can get to you.</div>
-      </details>
-      <details class="faq__item">
-        <summary>How do I get a free quote?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">Ring us on 0412 345 678 or send the form on this page through with a few details about the job. We will come back to you with what it involves and what it costs.</div>
-      </details>
-      <details class="faq__item">
-        <summary>What are your hours?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">Monday to Friday: 6:30am to 5pm. Saturday: 7am to 12pm. Sunday: Closed. We also take after hours calls when something cannot wait.</div>
-      </details>
-      <details class="faq__item">
-        <summary>Are you licensed and insured?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">Yes. We hold the licences required for the work we do and we carry public liability insurance. If you would like to see the paperwork before we start, just ask and we will send it through.</div>
-      </details>
-      <details class="faq__item">
-        <summary>How long have you been going?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">14 years. Most of our work now comes from people who have used us before, or from someone they told about us, which is the way we like it.</div>
-      </details>
-      <details class="faq__item">
-        <summary>Do you clean up afterwards?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-        <div class="faq__answer">Always. Drop sheets go down before we start, offcuts and old parts leave with us, and the area gets swept before we go. You should only be able to tell we were there by the work itself.</div>
-      </details>
+    <div class="section-head"><span class="eyebrow">Common questions</span><h2>Questions, <em>answered</em></h2></div>
+    <div class="faq">
+      <div class="faq-item" data-faq data-open="true">
+        <button type="button" aria-expanded="true">What suburbs do you cover?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>We are based in Chermside and cover Chermside, Aspley, Nundah, Clayfield, Stafford, Everton Park, Albany Creek, Strathpine. If your suburb is not on the list, give us a ring anyway and we will tell you straight whether we can get to you.</p></div>
+      </div>
+      <div class="faq-item" data-faq data-open="false">
+        <button type="button" aria-expanded="false">How do I get a free quote?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>Ring us on 0412 345 678 or send the form on this page through with a few details about the job. We will come back to you with what it involves and what it costs.</p></div>
+      </div>
+      <div class="faq-item" data-faq data-open="false">
+        <button type="button" aria-expanded="false">What are your hours?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>Monday to Friday: 6:30am to 5pm. Saturday: 7am to 12pm. Sunday: Closed. We also take after hours calls when something cannot wait.</p></div>
+      </div>
+      <div class="faq-item" data-faq data-open="false">
+        <button type="button" aria-expanded="false">Are you licensed and insured?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>Yes. We hold the licences required for the work we do and we carry public liability insurance. If you would like to see the paperwork before we start, just ask and we will send it through.</p></div>
+      </div>
+      <div class="faq-item" data-faq data-open="false">
+        <button type="button" aria-expanded="false">How long have you been going?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>14 years. Most of our work now comes from people who have used us before, or from someone they told about us, which is the way we like it.</p></div>
+      </div>
+      <div class="faq-item" data-faq data-open="false">
+        <button type="button" aria-expanded="false">Do you clean up afterwards?<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="faq-answer"><p>Always. Drop sheets go down before we start, offcuts and old parts leave with us, and the area gets swept before we go. You should only be able to tell we were there by the work itself.</p></div>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="section cta-band">
   <div class="wrap">
+    <span class="eyebrow">Get started</span>
     <h2>Need a plumber in Chermside?</h2>
     <p>Give us a ring and tell us what is going on. We will tell you what it takes to fix it.</p>
-    <a class="btn btn--primary" href="tel:+61412345678"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Call 0412 345 678</a>
+    <div class="cta-band__actions">
+      <a class="btn btn--primary" href="tel:+61412345678"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>0412 345 678</a>
+      <a class="btn btn--ghost" href="#contact">Call 0412 345 678</a>
+    </div>
   </div>
 </section>
 
 <section class="section" id="contact">
-  <div class="wrap contact__grid">
+  <div class="wrap contact-grid">
     <div>
-      <p class="eyebrow">Contact</p>
+      <span class="eyebrow">Get in touch</span>
       <h2>Get in touch</h2>
-      <p class="lead">Ring us, or send the form through and we will come back to you. We cover Chermside and the surrounding suburbs.</p>
-      <ul class="contact__list">
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><a href="tel:+61412345678">0412 345 678</a></li>
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22 6 12 13 2 6"></polyline></svg><a href="mailto:jobs@coldfrontplumbing.com.au">jobs@coldfrontplumbing.com.au</a></li>
-        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>Chermside and surrounding suburbs</span></li>
+      <p>Ring us, or send the form through and we will come back to you. We cover Chermside and the surrounding suburbs.</p>
+      <ul class="contact-list">
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><div><b>Phone</b><a href="tel:+61412345678">0412 345 678</a></div></li>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22 6 12 13 2 6"></polyline></svg><div><b>Email</b><a href="mailto:jobs@coldfrontplumbing.com.au">jobs@coldfrontplumbing.com.au</a></div></li>
+        <li><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><div><b>Based in</b><span>Chermside and surrounding suburbs</span></div></li>
       </ul>
       <h3>Opening hours</h3>
       
@@ -713,9 +777,10 @@ html{scroll-behavior:auto;}
       <div class="socials"><a href="https://www.facebook.com/coldfrontplumbing" target="_blank" rel="noopener">Facebook</a></div>
     </div>
     <div class="card-form">
+      <span class="eyebrow">Send an enquiry</span>
       <h3>Request a free quote</h3>
       <form action="https://api.web3forms.com/submit" method="POST" data-web3form id="contactForm">
-        <input type="hidden" name="access_key" value="11111111-2222-3333-4444-555555555555">
+        <input type="hidden" name="access_key" value="00000000-0000-0000-0000-000000000000">
         <input type="hidden" name="subject" value="Cold Front Plumbing - Contact Page Enquiry">
         <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
         <label class="field"><span>Your name</span><input type="text" name="name" required autocomplete="name"></label>
@@ -732,14 +797,24 @@ html{scroll-behavior:auto;}
 
 <footer class="site-footer">
   <div class="wrap">
-    <div class="site-footer__grid">
+    <div class="footer-grid">
       <div>
         <img class="site-footer__logo" src="../assets/logo.webp" alt="Cold Front Plumbing logo" width="240" height="70">
-        <p>Blocked drains done properly in Chermside</p>
-        <p><a href="tel:+61412345678">0412 345 678</a></p>
+        <p class="site-footer__blurb">Blocked drains done properly in Chermside</p>
       </div>
       <div>
-        <ul class="site-footer__nav">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="#services">Blocked drains</a></li>
+          <li><a href="#services">Hot water systems</a></li>
+          <li><a href="#services">Burst pipes</a></li>
+          <li><a href="#services">Leak detection</a></li>
+          <li><a href="#services">Tap and toilet repairs</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
           <li><a href="#about">About</a></li>
           <li><a href="#services">Services</a></li>
           <li><a href="#work">Our work</a></li>
@@ -748,8 +823,16 @@ html{scroll-behavior:auto;}
           <li><a href="#contact">Contact</a></li>
         </ul>
       </div>
+      <div>
+        <h4>Contact</h4>
+        <ul>
+          <li><a href="tel:+61412345678">0412 345 678</a></li>
+          <li><a href="mailto:jobs@coldfrontplumbing.com.au">jobs@coldfrontplumbing.com.au</a></li>
+          <li>Chermside</li>
+        </ul>
+      </div>
     </div>
-    <div class="site-footer__legal">
+    <div class="footer-bottom">
       <span>&copy; 2026 Cold Front Plumbing. ABN 51824753556.</span>
       <span><a href="https://www.itscold.com.au" target="_blank" rel="noopener">Website by Go Polar Creative</a></span>
     </div>
@@ -760,7 +843,6 @@ html{scroll-behavior:auto;}
   <a href="tel:+61412345678"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Call now</a>
   <a href="#contact">Request a free quote</a>
 </div>
-
 <script>
 (function(){
   "use strict";

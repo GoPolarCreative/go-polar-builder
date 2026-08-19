@@ -167,7 +167,11 @@ export function offlinePlan(
     },
 
     hero: {
-      h1: `${intake.primaryService} in ${base}`.slice(0, 90),
+      // Two clauses on purpose: the second one carries the accent colour under the two-tone
+      // device the reference sites all use. Nothing here claims anything the intake did not.
+      h1: `${intake.primaryService} in ${base}. ${
+        intake.emergency ? 'Answered day or night.' : 'Done properly.'
+      }`.slice(0, 90),
       sub: `${intake.businessName} has been on the tools for ${intake.yearsInBusiness} years. We turn up when we say we will, and you get the price before we start.`.slice(
         0,
         220,
@@ -195,7 +199,7 @@ export function offlinePlan(
     ],
 
     about: {
-      heading: `Local ${trade}s who answer the phone`,
+      heading: `Local ${trade}s, ${intake.yearsInBusiness} years on the tools`,
       body: [
         truncateTo(intake.about, 40, 600),
         `We cover ${intake.suburbsServiced
@@ -217,7 +221,7 @@ export function offlinePlan(
 
     gallery: {
       enabled: galleryOn,
-      heading: 'Our work',
+      heading: 'Our work, photographed on site',
       items: galleryOn
         ? photoInventory.map((p, i) => ({
             assetId: p.assetId,
@@ -267,7 +271,7 @@ export function offlinePlan(
     ],
 
     serviceAreas: {
-      heading: `Suburbs we cover around ${base}`,
+      heading: `Where we work, and how far we travel`,
       blurb: `We are based in ${base} and work across the surrounding suburbs. If you are just outside this list give us a ring anyway, we will tell you straight whether we can get to you.`,
       suburbs: intake.suburbsServiced.map((s) => s.name),
     },

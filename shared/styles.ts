@@ -16,11 +16,11 @@ import type { Trade } from './trades'
  * off before a customer sees them. See DECISIONS.md D28.
  */
 
-export const DESIGN_STYLES = ['industrial', 'modern', 'established', 'refined', 'auto'] as const
+export const DESIGN_STYLES = ['industrial', 'modern', 'established', 'direct', 'auto'] as const
 export type DesignStyleId = (typeof DESIGN_STYLES)[number]
 
 /** The four real styles. `auto` is a request for us to choose, not a style in itself. */
-export const NAMED_STYLES = ['industrial', 'modern', 'established', 'refined'] as const
+export const NAMED_STYLES = ['industrial', 'modern', 'established', 'direct'] as const
 export type NamedStyleId = (typeof NAMED_STYLES)[number]
 
 export interface DesignStyleOption {
@@ -37,27 +37,27 @@ export interface DesignStyleOption {
 export const DESIGN_STYLE_OPTIONS: DesignStyleOption[] = [
   {
     id: 'industrial',
-    label: 'Bold and industrial',
-    blurb: 'Heavy condensed type, dark surfaces, high contrast, chunky blocks.',
+    label: 'Heavy and industrial',
+    blurb: 'Near black throughout, big condensed capitals, one bright accent. Reads as plant and machinery.',
     suits: ['excavation', 'concreter', 'fencing'],
   },
   {
     id: 'modern',
     label: 'Clean and modern',
-    blurb: 'Light and airy, generous whitespace, crisp type, restrained.',
+    blurb: 'Light and roomy, tight modern type, soft rounded cards. Reads as organised and current.',
     suits: ['electrician', 'hvac', 'plumber'],
   },
   {
     id: 'established',
     label: 'Warm and established',
-    blurb: 'Warmer neutrals, a serif for headings, softer edges, family business feel.',
+    blurb: 'Cream and white sections under a deep header, sentence case headings, gold detailing. Reads as settled and premium.',
     suits: ['builder', 'landscaper', 'painter', 'tiler'],
   },
   {
-    id: 'refined',
-    label: 'Premium and refined',
-    blurb: 'Restrained, wide spacing, smaller type set with more room around it.',
-    suits: [],
+    id: 'direct',
+    label: 'Bold and direct',
+    blurb: 'Strong colour, everything centred, capitals and hard contrast. Reads as fast, available and easy to ring.',
+    suits: ['roofer', 'pest'],
   },
   {
     id: 'auto',
@@ -73,11 +73,11 @@ export const TRADE_STYLE_SUGGESTION: Record<Trade, NamedStyleId> = {
   excavation: 'industrial',
   concreter: 'industrial',
   fencing: 'industrial',
-  roofer: 'industrial',
+  roofer: 'direct',
   electrician: 'modern',
   hvac: 'modern',
   plumber: 'modern',
-  pest: 'modern',
+  pest: 'direct',
   builder: 'established',
   landscaper: 'established',
   painter: 'established',
@@ -89,19 +89,35 @@ export const TRADE_STYLE_SUGGESTION: Record<Trade, NamedStyleId> = {
 // The concrete design values
 // ---------------------------------------------------------------------------------------------
 
-export type HeaderTreatment = 'solid-heavy' | 'transparent-light' | 'solid-warm' | 'minimal-thin'
-export type HeroComposition = 'stacked-block' | 'split-card' | 'centred-panel' | 'quiet-wide'
-export type CardTreatment = 'blocked' | 'soft' | 'warm' | 'hairline'
+export type HeaderTreatment = 'solid-dark' | 'solid-warm' | 'transparent-dark'
+export type CardTreatment = 'outlined-dark' | 'soft-light' | 'warm-bordered' | 'flat-tinted'
 export type SurfaceMode = 'dark' | 'light' | 'warm' | 'pale'
+/** How the section backgrounds alternate down the page. */
+export type Rhythm = 'alternating-light' | 'dark-on-dark' | 'navy-and-white'
+/** Where the eyebrow and heading sit at the top of a section. */
+export type HeadingAlign = 'left' | 'centred'
+/** The faint figure on a numbered card. */
+export type NumberTreatment = 'corner-small' | 'large-faint' | 'none'
 
 /**
  * Everything a style decides, as values rather than adjectives.
  *
- * These are consumed directly by the site renderer and are also read out to the model as a
- * directive, so the offline fixture and a real build make the same decisions.
+ * EVERY NUMBER HERE CAME OFF A REAL SITE. These four specs are measurements taken from four sites
+ * Chris built by hand, read out of the live CSS rather than guessed from a screenshot:
+ *
+ *   industrial  -> naarmearthmoving.com.au    Bebas Neue on near-black, cyan, dark on dark
+ *   direct      -> summithvacr.com.au         navy and red, centred caps, high contrast
+ *   established -> gildonconstructions.com.au navy, gold and cream, sentence case, alternating
+ *   modern      -> turquoiseplumbing.com.au   Space Grotesk, light and generous, two-tone
+ *
+ * The section SKELETON does not vary between them. What varies is palette, heading case and
+ * weight, and density. That is the whole insight, and it is why these are values rather than
+ * separate templates: one renderer, four treatments. See DECISIONS.md D40.
  */
 export interface StyleSpec {
   id: NamedStyleId
+  /** The site this was measured from, so a future change can go and look again. */
+  reference: string
   /** Google Fonts query, the only external request a generated site makes. */
   fontsQuery: string
   headingFamily: string
@@ -117,8 +133,20 @@ export interface StyleSpec {
   shadow: { card: string; raised: string; hover: string }
   border: { hairline: string; strong: string }
   header: HeaderTreatment
-  hero: HeroComposition
   card: CardTreatment
+  rhythm: Rhythm
+  headingAlign: HeadingAlign
+  cardNumber: NumberTreatment
+  /**
+   * The payoff phrase of a heading set in the accent colour. Turquoise runs it on nearly every
+   * section, Gildon and Summit run it in the hero. It is the single most recognisable device the
+   * four have in common, so three of the four styles use it.
+   */
+  twoTone: boolean
+  /** The full-width stat band under the dark section. */
+  statBand: 'accent' | 'dark'
+  /** Alpha stops for the hero photo overlay, left to right. Darker on the copy side. */
+  heroOverlay: [number, number, number]
   /** Which surface the alternating sections use. */
   altSurface: SurfaceMode
   /** Whether the hero sits on a dark ground. */
@@ -126,144 +154,177 @@ export interface StyleSpec {
   buttonTransform: 'uppercase' | 'none'
   buttonTracking: string
   eyebrowTracking: string
+  eyebrowSize: string
   /** A one-line summary used in the prompt directive. */
   feel: string
 }
 
 export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
+  // naarmearthmoving.com.au. Near-black on near-black, one cold accent, condensed caps shouting.
   industrial: {
     id: 'industrial',
-    fontsQuery: 'family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700',
-    headingFamily: '"Barlow Condensed", Impact, sans-serif',
-    bodyFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
-    headingWeight: 800,
-    headingTransform: 'uppercase',
-    headingTracking: '0.01em',
+    reference: 'naarmearthmoving.com.au',
+    fontsQuery: 'family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700',
+    headingFamily: '"Bebas Neue", Impact, sans-serif',
+    bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
+    headingWeight: 400,
+    headingTransform: 'none',
+    // Bebas is already caps. Positive tracking opens it up rather than closing it down.
+    headingTracking: '0.04em',
     scale: {
-      h1: 'clamp(2.9rem, 1.8rem + 5vw, 5.4rem)',
-      h2: 'clamp(2.1rem, 1.5rem + 2.6vw, 3.4rem)',
+      h1: 'clamp(3rem, 1.9rem + 5.2vw, 5.5rem)',
+      h2: 'clamp(2.5rem, 1.8rem + 3vw, 4rem)',
       h3: '1.35rem',
-      body: '1.0625rem',
-      lead: '1.2rem',
+      body: '1rem',
+      lead: '1rem',
     },
-    // Tight and blocky: sections butt into each other rather than floating.
-    spacing: { sectionMobile: '3.5rem', sectionDesktop: '5rem', gap: '1rem', measure: '68ch' },
+    spacing: { sectionMobile: '4.5rem', sectionDesktop: '6.5rem', gap: '1.5rem', measure: '68ch' },
     radius: { card: '0px', button: '0px', input: '0px' },
-    shadow: {
-      card: 'none',
-      raised: '10px 10px 0 var(--shadow-hard)',
-      hover: '14px 14px 0 var(--shadow-hard)',
-    },
-    border: { hairline: '2px', strong: '4px' },
-    header: 'solid-heavy',
-    hero: 'stacked-block',
-    card: 'blocked',
+    shadow: { card: 'none', raised: 'none', hover: 'none' },
+    border: { hairline: '1px', strong: '1px' },
+    header: 'solid-dark',
+    card: 'outlined-dark',
+    rhythm: 'dark-on-dark',
+    headingAlign: 'centred',
+    cardNumber: 'none',
+    twoTone: false,
+    statBand: 'dark',
+    heroOverlay: [0.88, 0.72, 0.45],
     altSurface: 'dark',
     heroSurface: 'dark',
     buttonTransform: 'uppercase',
     buttonTracking: '0.06em',
-    eyebrowTracking: '0.2em',
-    feel: 'heavy, high contrast, built out of solid blocks with hard edges and no rounding',
+    eyebrowTracking: '0.05em',
+    eyebrowSize: '0.78rem',
+    feel: 'near-black throughout, one cold accent, heavy condensed capitals, cards outlined in thin accent rules on dark',
   },
 
-  modern: {
-    id: 'modern',
-    fontsQuery: 'family=Inter:wght@400;500;600;700',
-    headingFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
-    bodyFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
-    headingWeight: 600,
-    headingTransform: 'none',
-    headingTracking: '-0.02em',
+  // summithvacr.com.au. Navy and a hot accent, everything centred, high contrast, consumer trade.
+  direct: {
+    id: 'direct',
+    reference: 'summithvacr.com.au',
+    fontsQuery: 'family=Oswald:wght@500;600;700&family=Poppins:wght@400;500;600;700',
+    headingFamily: 'Oswald, "Arial Narrow", sans-serif',
+    bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
+    headingWeight: 700,
+    headingTransform: 'uppercase',
+    headingTracking: '0.01em',
     scale: {
-      h1: 'clamp(2.4rem, 1.6rem + 3.4vw, 4rem)',
-      h2: 'clamp(1.8rem, 1.4rem + 1.8vw, 2.6rem)',
-      h3: '1.2rem',
-      body: '1.0625rem',
-      lead: '1.15rem',
+      h1: 'clamp(2.6rem, 1.7rem + 4.4vw, 4.6rem)',
+      h2: 'clamp(2rem, 1.5rem + 2.4vw, 3.1rem)',
+      h3: '1.15rem',
+      body: '1rem',
+      lead: '1.1rem',
     },
-    spacing: { sectionMobile: '4.5rem', sectionDesktop: '7rem', gap: '1.5rem', measure: '62ch' },
-    radius: { card: '16px', button: '10px', input: '10px' },
+    spacing: { sectionMobile: '4rem', sectionDesktop: '5.5rem', gap: '1.25rem', measure: '64ch' },
+    radius: { card: '10px', button: '6px', input: '6px' },
     shadow: {
-      card: '0 1px 2px var(--shadow-soft)',
-      raised: '0 12px 32px var(--shadow-soft)',
-      hover: '0 18px 44px var(--shadow-medium)',
-    },
-    border: { hairline: '1px', strong: '1px' },
-    header: 'transparent-light',
-    hero: 'split-card',
-    card: 'soft',
-    altSurface: 'pale',
-    heroSurface: 'dark',
-    buttonTransform: 'none',
-    buttonTracking: '0',
-    eyebrowTracking: '0.14em',
-    feel: 'light and uncluttered, generous whitespace, soft corners and quiet shadows',
-  },
-
-  established: {
-    id: 'established',
-    fontsQuery: 'family=Lora:wght@500;600;700&family=Inter:wght@400;500;600',
-    headingFamily: 'Lora, Georgia, "Times New Roman", serif',
-    bodyFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
-    headingWeight: 600,
-    headingTransform: 'none',
-    headingTracking: '-0.01em',
-    scale: {
-      h1: 'clamp(2.3rem, 1.6rem + 3vw, 3.7rem)',
-      h2: 'clamp(1.75rem, 1.35rem + 1.7vw, 2.5rem)',
-      h3: '1.25rem',
-      body: '1.09rem',
-      lead: '1.18rem',
-    },
-    spacing: { sectionMobile: '4rem', sectionDesktop: '6rem', gap: '1.35rem', measure: '65ch' },
-    radius: { card: '10px', button: '999px', input: '10px' },
-    shadow: {
-      card: '0 2px 6px var(--shadow-soft)',
-      raised: '0 10px 26px var(--shadow-soft)',
-      hover: '0 14px 34px var(--shadow-medium)',
+      card: '0 2px 10px var(--shadow-soft)',
+      raised: '0 10px 30px var(--shadow-medium)',
+      hover: '0 16px 38px var(--shadow-medium)',
     },
     border: { hairline: '1px', strong: '2px' },
-    header: 'solid-warm',
-    hero: 'centred-panel',
-    card: 'warm',
+    header: 'solid-dark',
+    card: 'flat-tinted',
+    rhythm: 'navy-and-white',
+    headingAlign: 'centred',
+    cardNumber: 'none',
+    twoTone: true,
+    statBand: 'accent',
+    heroOverlay: [0.82, 0.74, 0.6],
+    altSurface: 'dark',
+    heroSurface: 'dark',
+    buttonTransform: 'uppercase',
+    buttonTracking: '0.04em',
+    eyebrowTracking: '0.18em',
+    eyebrowSize: '0.7rem',
+    feel: 'navy and a hot accent, centred capitals, strong contrast, the payoff line of a heading in the accent colour',
+  },
+
+  // gildonconstructions.com.au. Navy, gold and cream, sentence case, alternating light sections.
+  established: {
+    id: 'established',
+    reference: 'gildonconstructions.com.au',
+    fontsQuery: 'family=Poppins:wght@400;500;600;700;800',
+    headingFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
+    bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
+    headingWeight: 700,
+    headingTransform: 'none',
+    headingTracking: '-0.005em',
+    scale: {
+      h1: 'clamp(2rem, 1.4rem + 3vw, 3.25rem)',
+      h2: 'clamp(1.6rem, 1.25rem + 1.9vw, 2.5rem)',
+      h3: '1.05rem',
+      body: '1rem',
+      lead: '1.05rem',
+    },
+    spacing: { sectionMobile: '3.5rem', sectionDesktop: '5rem', gap: '1.5rem', measure: '64ch' },
+    radius: { card: '6px', button: '6px', input: '6px' },
+    shadow: {
+      card: '0 4px 24px var(--shadow-soft)',
+      raised: '0 12px 48px var(--shadow-medium)',
+      hover: '0 12px 48px var(--shadow-medium)',
+    },
+    border: { hairline: '1px', strong: '1px' },
+    header: 'transparent-dark',
+    card: 'warm-bordered',
+    rhythm: 'alternating-light',
+    headingAlign: 'left',
+    cardNumber: 'large-faint',
+    twoTone: true,
+    statBand: 'accent',
+    heroOverlay: [0.82, 0.6, 0.4],
     altSurface: 'warm',
     heroSurface: 'dark',
     buttonTransform: 'none',
     buttonTracking: '0.01em',
-    eyebrowTracking: '0.16em',
-    feel: 'warm and settled, a serif for headings, rounded edges, the feel of a family business',
+    eyebrowTracking: '0.12em',
+    eyebrowSize: '0.75rem',
+    feel: 'navy with a gold accent over cream and white, sentence case headings, alternating light sections, quiet and settled',
   },
 
-  refined: {
-    id: 'refined',
-    fontsQuery: 'family=Jost:wght@300;400;500&family=Inter:wght@300;400;500',
-    headingFamily: 'Jost, "Helvetica Neue", system-ui, sans-serif',
-    bodyFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
-    headingWeight: 400,
-    headingTransform: 'uppercase',
-    // Smaller type, much more room around and between the letters.
-    headingTracking: '0.16em',
+  // turquoiseplumbing.com.au. Light and generous, Space Grotesk, the two-tone device everywhere.
+  modern: {
+    id: 'modern',
+    reference: 'turquoiseplumbing.com.au',
+    fontsQuery: 'family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;700',
+    headingFamily: '"Space Grotesk", system-ui, sans-serif',
+    bodyFamily: '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+    headingWeight: 700,
+    headingTransform: 'none',
+    // The tightest tracking of the four, and the thing that makes it read as designed.
+    headingTracking: '-0.055em',
     scale: {
-      h1: 'clamp(1.7rem, 1.3rem + 1.8vw, 2.6rem)',
-      h2: 'clamp(1.25rem, 1.05rem + 0.9vw, 1.75rem)',
-      h3: '1rem',
+      h1: 'clamp(2.9rem, 1.9rem + 4.6vw, 4.9rem)',
+      h2: 'clamp(2.1rem, 1.6rem + 2.4vw, 3.2rem)',
+      h3: '1.2rem',
       body: '1rem',
-      lead: '1.05rem',
+      lead: '1.125rem',
     },
-    // The most generous rhythm of the four, and a narrower measure.
-    spacing: { sectionMobile: '5.5rem', sectionDesktop: '9rem', gap: '2rem', measure: '54ch' },
-    radius: { card: '2px', button: '2px', input: '2px' },
-    shadow: { card: 'none', raised: 'none', hover: '0 6px 18px var(--shadow-soft)' },
+    // The most generous rhythm of the four.
+    spacing: { sectionMobile: '4.5rem', sectionDesktop: '7.5rem', gap: '1.5rem', measure: '62ch' },
+    radius: { card: '18px', button: '10px', input: '10px' },
+    shadow: {
+      card: 'none',
+      raised: '0 18px 55px var(--shadow-soft)',
+      hover: '0 18px 55px var(--shadow-medium)',
+    },
     border: { hairline: '1px', strong: '1px' },
-    header: 'minimal-thin',
-    hero: 'quiet-wide',
-    card: 'hairline',
+    header: 'transparent-dark',
+    card: 'soft-light',
+    rhythm: 'alternating-light',
+    headingAlign: 'left',
+    cardNumber: 'corner-small',
+    twoTone: true,
+    statBand: 'accent',
+    heroOverlay: [0.86, 0.7, 0.52],
     altSurface: 'pale',
     heroSurface: 'dark',
-    buttonTransform: 'uppercase',
-    buttonTracking: '0.18em',
-    eyebrowTracking: '0.3em',
-    feel: 'understated and spacious, small type set with wide letter spacing, almost no ornament',
+    buttonTransform: 'none',
+    buttonTracking: '0',
+    eyebrowTracking: '0.16em',
+    eyebrowSize: '0.69rem',
+    feel: 'light and generous, tightly tracked sentence case headings with the payoff line in the accent, soft deep-rounded cards',
   },
 }
 
@@ -365,7 +426,7 @@ export function resolveDesignStyle(args: {
     }
   }
   if (/\b(luxury|high end|architectural|bespoke|custom home|prestige|premium)\b/.test(text)) {
-    resolved = 'refined'
+    resolved = 'direct'
     reasons.push('the description describes high end work')
   }
 
@@ -460,10 +521,14 @@ Shape
   Border widths: ${spec.border.hairline} hairline, ${spec.border.strong} strong
 
 Header treatment: ${describeHeader(spec.header)}
-Hero composition: ${describeHero(spec.hero)}
 Cards: ${describeCard(spec.card)}
+Section rhythm: ${describeRhythm(spec.rhythm)}
+Section headings: ${spec.headingAlign === 'centred' ? 'eyebrow and heading centred, supporting line centred under it' : 'eyebrow and heading left aligned, supporting line in a column to the right or directly under'}
+Card numbering: ${spec.cardNumber === 'large-faint' ? 'a large faint 01 02 03 04 above each card heading' : spec.cardNumber === 'corner-small' ? 'a small faint number in the top right corner of each card' : 'no numbers on cards'}
+Two-tone headings: ${spec.twoTone ? 'YES. Wrap the payoff phrase of a heading in <em> so it renders in the accent colour. Do this on the h1 and on most section headings.' : 'NO. Headings are a single colour on this style.'}
+Stat band: ${spec.statBand === 'accent' ? 'full width band in the accent colour, dark figures' : 'full width band in the dark colour, white figures'}
 Buttons: ${spec.buttonTransform === 'uppercase' ? 'UPPERCASE' : 'sentence case'}, letter-spacing ${spec.buttonTracking}
-Eyebrow labels: letter-spacing ${spec.eyebrowTracking}
+Eyebrow labels: ${spec.eyebrowSize}, weight 700, letter-spacing ${spec.eyebrowTracking}, in the accent colour
 
 THIS STYLE CONTROLS LAYOUT, TYPE, DENSITY AND TREATMENT ONLY. It does not change a single colour.
 The palette comes from the customer's logo and is already fixed in the plan's tokens. Use those
@@ -472,39 +537,35 @@ tokens and no others, and keep every colour in the :root block as the house rule
 
 function describeHeader(treatment: HeaderTreatment): string {
   switch (treatment) {
-    case 'solid-heavy':
-      return 'solid and dark from the top of the page, with a thick bottom border. Not transparent over the hero.'
-    case 'transparent-light':
-      return 'transparent over the hero, turning solid with a hairline border once the page scrolls past 60px.'
+    case 'solid-dark':
+      return 'solid in the dark colour from the top of the page, never transparent over the hero.'
     case 'solid-warm':
       return 'solid in the warm surface colour from the top, with a soft bottom border.'
-    case 'minimal-thin':
-      return 'very thin and transparent, with wide letter-spaced nav links and no border until scrolled.'
+    case 'transparent-dark':
+      return 'transparent over the hero, turning solid dark with a shadow once the page scrolls past 60px.'
   }
 }
 
-function describeHero(composition: HeroComposition): string {
-  switch (composition) {
-    case 'stacked-block':
-      return 'full width photo with a heavy dark scrim, an oversized left-aligned h1 stacked above the trust points, and the quote form as a hard-edged block below the copy rather than beside it.'
-    case 'split-card':
-      return 'two columns on desktop: copy on the left, the quote form as a rounded raised card on the right.'
-    case 'centred-panel':
-      return 'centred copy over a warm overlay, with the quote form in a rounded panel underneath, centred and narrower than the copy.'
-    case 'quiet-wide':
-      return 'a lot of empty space, small centred heading with wide letter-spacing, one thin rule under it, and the quote form kept small and understated below the fold of the hero.'
+function describeRhythm(rhythm: Rhythm): string {
+  switch (rhythm) {
+    case 'dark-on-dark':
+      return 'the whole page is dark. Sections alternate between the near black ground and a slightly lifted dark panel. No light sections at all.'
+    case 'alternating-light':
+      return 'white and a tinted light surface alternate down the page, broken up by two or three full width dark sections.'
+    case 'navy-and-white':
+      return 'hard alternation between white sections and full width dark sections, roughly every other one.'
   }
 }
 
 function describeCard(treatment: CardTreatment): string {
   switch (treatment) {
-    case 'blocked':
-      return 'solid blocks with thick borders, square corners and an offset hard shadow on hover.'
-    case 'soft':
-      return 'white cards with a hairline border, rounded corners and a soft shadow that deepens on hover.'
-    case 'warm':
-      return 'cards on the warm surface tone with rounded corners and a gentle shadow.'
-    case 'hairline':
-      return 'no card at all: items separated by hairline rules with generous space, no shadow and no fill.'
+    case 'outlined-dark':
+      return 'panels on the dark ground outlined with a thin accent coloured rule, square corners, no shadow.'
+    case 'soft-light':
+      return 'white cards with a hairline border and deep rounded corners, lifting on hover with a soft shadow.'
+    case 'warm-bordered':
+      return 'white cards with a hairline border and small radius, a soft shadow, sitting on the cream sections.'
+    case 'flat-tinted':
+      return 'white cards with a hairline border and a modest radius, flat until hovered.'
   }
 }

@@ -963,3 +963,80 @@ to be right.
 permalink is built as `/cart/{variantId}:{qty}`, and a gid in there produces a URL that 404s.
 
 Both points are now stated in `.env.example` above the block they apply to.
+
+---
+
+## D40. The house style comes from four real sites, not from a written list
+
+**What went wrong.** The brief said "visual reference: the Gildon Constructions and CWM Modular
+screenshots in the Claude project". Those screenshots were never available. The house rules were
+therefore built from a written list of sections with **no visual quality bar at all**, and
+everything downstream inherited that gap. The generated sample was structurally complete and
+visually generic, which is exactly what a section list without a reference produces. Chris was
+right to reject it.
+
+**What replaced it.** Four full sites Chris built by hand, read as live CSS with a browser rather
+than eyeballed from images:
+
+| Style | Reference | What it is |
+| --- | --- | --- |
+| `industrial` | naarmearthmoving.com.au | Bebas Neue on near-black, cyan accent, dark on dark, no light section anywhere |
+| `direct` | summithvacr.com.au | Navy and red, everything centred, capitals, hard contrast |
+| `established` | gildonconstructions.com.au | Navy, gold and cream, sentence case, alternating light sections |
+| `modern` | turquoiseplumbing.com.au | Space Grotesk, light and generous, the two-tone device on nearly every heading |
+
+**THE INSIGHT, and it was Chris's.** The section skeleton does not vary between the four. What
+varies is palette, heading case and weight, and density. That is why the four styles are values in
+one renderer rather than four templates, and it is why the test that demanded four different heroes
+was demanding the wrong thing and had to be rewritten.
+
+**The component vocabulary**, now documented in the house rules and implemented in the renderer:
+eyebrow labels above every section heading; the two-tone heading with the payoff phrase in the
+accent; a full-bleed hero photo under a gradient scrim with the enquiry form as a card inside the
+hero; a four-item trust bar with dividers; service cards with icon tiles, faint numbers and arrow
+links; large faint 01-04 figures on why-choose and process; a full-width stat band; testimonial
+cards with star rows; an asymmetric gallery; a dark CTA band; two-column contact; a multi-column
+dark footer.
+
+**Measured, not guessed.** Section padding 80px, wrap 1200px, h1 clamping to 52px, card radius 6px
+with a 1px hairline and a `0 4px 24px` shadow, eyebrow 12px at 700 with 1.44px tracking. Those are
+Gildon's numbers and the sample now computes the same ones.
+
+**`refined` was renamed to `direct`.** It was the one style invented from adjectives rather than
+taken from a real site, and it described something none of the four references do. It is now the
+Summit treatment. Stored payloads carrying the old id would fail validation, which is acceptable
+because no customer has ever submitted one.
+
+**The labels still need Chris's sign-off** (D28), but they now describe real looks rather than
+moods: "Heavy and industrial", "Bold and direct", "Warm and established", "Clean and modern".
+
+---
+
+## D41. What it took to make the sample hold up
+
+Four passes, and the honest record of each.
+
+**Pass 1.** Rebuilt the renderer against the measured vocabulary. Every device landed and the
+numbers matched Gildon exactly. Three faults remained: the two-tone split was producing "Blocked
+drains <em>in Chermside</em>", the h1 was an SEO string rather than a proposition, and the stat band
+sat in navy directly under the navy why-section so the two read as one slab.
+
+**Pass 2.** Split only on a real clause. Rewrote the headline to carry a payoff:
+"Blocked drains in Chermside. <em>Answered day or night.</em>" Moved the `established` stat band to
+the accent colour, which is what stops the dark blocks merging, exactly as Turquoise does.
+
+**Pass 3.** The device was only firing three times because the renderer's own section headings were
+written as single flat statements. Rewrote them with payoff clauses: "A better experience, from the
+first call", "What we do, and how we work". Eight headings now carry it, which is the Turquoise
+cadence.
+
+**Pass 4.** A test caught the accent landing on "on the tools since 2012". Investigating it produced
+a better rule than the one being tested: Gildon accents "Without Compromise.", so a preposition is
+not the problem. A **locative** is. The renderer now refuses "in", "at", "near" and friends, which
+covers model-written copy as well as the fixture's.
+
+**Three tests had to be rewritten because they asserted the opposite of what the references do.**
+The one demanding four different heroes, the one demanding a serif on `established`, and the
+stylesheet-difference floor. The four sites share a skeleton, so most of the stylesheet SHOULD be
+identical and the weight belongs on the named signals. The replacements assert the real design:
+the skeleton is shared, the vocabulary is present in all four, and the treatment differs.
