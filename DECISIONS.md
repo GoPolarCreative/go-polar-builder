@@ -914,3 +914,52 @@ three Shopify calls this app actually makes rather than from a generous guess: l
 for the reconciliation sweep, reading product status and billing policy, and creating a cart through
 the Storefront API. No write scope of any kind, and no access to customer records. DEPLOY.md section
 6 walks through creating the custom app click by click and says what each scope is for.
+
+---
+
+## D38. Hosting sells the "Hosting Only" variant, not the bundle
+
+**The Website Hosting product has two variants**, and the app has to pick one:
+
+| Variant | Id | Price | Status |
+| --- | --- | --- | --- |
+| Hosting Only | `62848019595423` | $33.00 | **This is what the app sells.** $33.00 inc GST is the $30 + GST hosting from the brief |
+| Hosting + 2 Monthly Website Edits | `62848019628191` | $100.00 | A different offer. Not part of this flow |
+
+**Chosen: Hosting Only**, confirmed by Chris on 2026-08-19. It is the one the brief describes and
+the one every price in the app and on the go-live screen refers to.
+
+**The bundle is a real product with no decision behind it.** It is not wrong, it is simply not
+something this flow has ever been asked to sell, and quietly attaching a $100 monthly charge to a
+customer who agreed to $33 would be the worst possible way to find that out. It is recorded here
+rather than left as an unexplained second variant nobody remembers.
+
+**If Chris wants it offered later**, it is a genuine product decision rather than a config change:
+the go-live screen currently presents hosting as a single required line with one price. Offering a
+choice means a second option on that screen, wording that explains what "2 monthly edits" buys, and
+a decision about what happens to the edit counter for a customer on that plan. The variant id above
+is all the plumbing needs.
+
+---
+
+## D39. Variant ids live in the environment under derived names
+
+**A trap worth writing down**, because it cost nothing to avoid here and would have been invisible
+if missed.
+
+The env var names are **derived**, not free text: `SHOPIFY_VARIANT_<REF>` where REF is the
+product's identifier. So the three subscriptions are `SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA`,
+`SHOPIFY_VARIANT_DOMAIN_1_YEAR` and `SHOPIFY_VARIANT_EMAIL_HOSTING`, from their handles, while the
+one-off products use their SKUs.
+
+Chris's `.env.local` was carrying the brief-era names `SHOPIFY_VARIANT_HOSTING_MONTHLY`,
+`SHOPIFY_VARIANT_DOMAIN_MONTHLY` and `SHOPIFY_VARIANT_EMAIL_MONTHLY`, which no longer correspond to
+anything. **A wrongly named variable is not an error, it is silence**: the value is simply never
+read, and the failure surfaces later as a checkout that will not build. The startup report catches
+it, because it reports the id as missing rather than assuming it is fine, but the name itself has
+to be right.
+
+**Format is the numeric id only**, never the full `gid://shopify/ProductVariant/…` string. A cart
+permalink is built as `/cart/{variantId}:{qty}`, and a gid in there produces a URL that 404s.
+
+Both points are now stated in `.env.example` above the block they apply to.

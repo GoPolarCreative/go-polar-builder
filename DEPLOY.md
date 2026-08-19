@@ -137,14 +137,39 @@ error and finish SHOPIFY-SETUP.md.
 
 | Variable | Where |
 | --- | --- |
-| `SHOPIFY_STORE_DOMAIN` | `itscold.myshopify.com` |
+| `SHOPIFY_STORE_DOMAIN` | Settings → Domains. The **myshopify.com** one, which may be numeric like `473724-9e.myshopify.com` rather than anything resembling the brand |
 | `SHOPIFY_WEBHOOK_SECRET` | Shown once when you create the webhook in section 7 |
 | `SHOPIFY_ADMIN_API_TOKEN` | Section 6. Scopes `read_orders` and `read_products`, nothing else |
 | `SHOPIFY_STOREFRONT_TOKEN` | Section 6. Scope `unauthenticated_write_checkouts` |
-| `SHOPIFY_VARIANT_*` and `SHOPIFY_SELLING_PLAN_*` | One pair per subscription product. The three one-off products need neither: their ids are already recorded. Full list in SHOPIFY-SETUP.md |
+| `SHOPIFY_VARIANT_*` and `SHOPIFY_SELLING_PLAN_*` | Ten variables, listed in full below. **Numeric ids only, never the `gid://` string**, and the names are derived rather than free text |
 
 All three subscription products have `requiresSellingPlan: true`, so a checkout without the selling
 plan id is rejected by Shopify. The app treats a missing plan id as fatal for exactly that reason.
+
+The full set, with the values verified on the live store on 2026-08-19:
+
+```
+SHOPIFY_VARIANT_BUILD_TOKEN=62852208328863
+SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA=62848019595423
+SHOPIFY_VARIANT_DOMAIN_1_YEAR=62844878717087
+SHOPIFY_VARIANT_EMAIL_HOSTING=62844876193951
+SHOPIFY_VARIANT_POST_LIVE_EDIT=62852208361631
+SHOPIFY_VARIANT_DISCHARGE=62852208394399
+# Still unpriced and not created. Leave empty.
+SHOPIFY_VARIANT_EXTRA_EDITS=
+
+SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA=3911188639
+SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR=3936321695
+SHOPIFY_SELLING_PLAN_EMAIL_HOSTING=3936256159
+```
+
+**The names cannot be shortened or tidied.** Each is `SHOPIFY_VARIANT_<REF>`, derived from the
+product's identifier in `shared/pricing.ts`. A variable named anything else is read as nothing at
+all, silently, and the first symptom is a checkout that will not build. See DECISIONS.md D39.
+
+Hosting has two variants and `62848019595423` is **Hosting Only** at $33.00. The other,
+`62848019628191` at $100.00, is "Hosting + 2 Monthly Website Edits", a different offer this flow
+does not sell. See DECISIONS.md D38.
 
 ### Email, CRM and domains
 
