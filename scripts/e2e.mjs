@@ -30,6 +30,9 @@ function check(name, ok, detail = '') {
 async function call(path, init = {}) {
   const headers = { ...(init.headers ?? {}) }
   if (session) headers.authorization = `Bearer ${session}`
+  // The admin-guarded routes (discharge release, the operator trace) refuse without this when the
+  // server has an ADMIN_TOKEN set. Passing it through keeps the script working either way.
+  if (process.env.ADMIN_TOKEN) headers['x-admin-token'] = process.env.ADMIN_TOKEN
   const res = await fetch(`${BASE}${path}`, { ...init, headers })
   const text = await res.text()
   let body = null

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { config } from './config'
 import { recordEvent } from './lib/db'
 import { assertProductConfig, productConfigReport } from './lib/products'
+import { checkStoreProducts } from './lib/shopify'
 import { requireSession } from './lib/auth'
 import auth from './routes/auth'
 import jobs from './routes/jobs'
@@ -18,6 +19,7 @@ import cron from './routes/cron'
 import demo from './routes/demo'
 import sites from './routes/sites'
 import dev from './routes/dev'
+import admin from './routes/admin'
 
 /**
  * Go Polar Website Builder API.
@@ -33,10 +35,17 @@ export const api = new Hono().basePath('/api')
 // server/lib/products.ts and SHOPIFY-SETUP.md.
 assertProductConfig()
 
-api.get('/health', (c) => {
+api.get('/health', async (c) => {
   const cfg = config()
+  // Asks the store what it will actually do with each product: active or draft, and billing every
+  // 1 MONTH or something else. Cached for ten minutes, so this is one round trip at most. Empty in
+  // demo mode, and "cannot verify" rather than "ok" without an admin token.
+  const store = await checkStoreProducts().catch((err) => ({
+    results: [{ ref: '-', label: 'store', ok: false, detail: String(err) }],
+  }))
   return c.json({
     products: productConfigReport(),
+    storeChecks: store.results,
     ok: true,
     // Presence only, never values.
     demoMode: cfg.demoMode,
@@ -65,6 +74,9 @@ api.get('/health', (c) => {
 api.route('/', auth)
 api.route('/', webhooks)
 api.route('/', cron)
+// Operator diagnostics. Guards itself with ADMIN_TOKEN, so it sits with the other self-guarding
+// routes rather than behind the customer session middleware.
+api.route('/', admin)
 api.route('/', lookups)
 api.route('/', sites)
 

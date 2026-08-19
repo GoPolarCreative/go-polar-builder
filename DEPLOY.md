@@ -120,7 +120,7 @@ Vercel project → **Settings** → **Environment Variables**. Set every one of 
 ### The live-action flags
 
 Everything that spends money, emails a person or touches DNS is off unless deliberately switched on.
-Set them **after** the smoke test in section 8, not before.
+Set them **after** the smoke test in section 9, not before.
 
 ```
 ENABLE_LIVE_PAYMENTS=1
@@ -138,10 +138,10 @@ error and finish SHOPIFY-SETUP.md.
 | Variable | Where |
 | --- | --- |
 | `SHOPIFY_STORE_DOMAIN` | `itscold.myshopify.com` |
-| `SHOPIFY_WEBHOOK_SECRET` | Shown once when you create the webhook in section 6 |
-| `SHOPIFY_ADMIN_API_TOKEN` | Settings → Apps → Develop apps → your app → Admin API. Scopes `read_orders`, `read_products` |
-| `SHOPIFY_STOREFRONT_TOKEN` | Same app → Storefront API, scope `unauthenticated_write_checkouts` |
-| `SHOPIFY_VARIANT_*` and `SHOPIFY_SELLING_PLAN_*` | One pair per product. The full list is in SHOPIFY-SETUP.md step 5 |
+| `SHOPIFY_WEBHOOK_SECRET` | Shown once when you create the webhook in section 7 |
+| `SHOPIFY_ADMIN_API_TOKEN` | Section 6. Scopes `read_orders` and `read_products`, nothing else |
+| `SHOPIFY_STOREFRONT_TOKEN` | Section 6. Scope `unauthenticated_write_checkouts` |
+| `SHOPIFY_VARIANT_*` and `SHOPIFY_SELLING_PLAN_*` | One pair per subscription product. The three one-off products need neither: their ids are already recorded. Full list in SHOPIFY-SETUP.md |
 
 All three subscription products have `requiresSellingPlan: true`, so a checkout without the selling
 plan id is rejected by Shopify. The app treats a missing plan id as fatal for exactly that reason.
@@ -156,7 +156,7 @@ plan id is rejected by Shopify. The app treats a missing plan id as fatal for ex
 | `VERCEL_API_TOKEN` | vercel.com/account/tokens. Attaches customer domains to the project |
 | `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Project → Settings → General |
 | `CRON_SECRET` | Generate another random hex string. Bearer secret on the cron endpoint |
-| `ADMIN_TOKEN` | Another random string. Guards the admin routes |
+| `ADMIN_TOKEN` | Another random string. Guards /api/admin/trace, which is how you diagnose a failed smoke test. Set this one before section 9 |
 
 ---
 
@@ -177,7 +177,58 @@ Then delete `.env.production.local`. It is gitignored, but it holds every secret
 
 ---
 
-## 6. Register the Shopify webhook
+## 6. Create the Shopify custom app
+
+This is where the two API tokens come from. You have not done this before, so here it is click by
+click.
+
+**Shopify admin → Settings → Apps and sales channels → Develop apps.**
+
+If you see a button saying **Allow custom app development**, click it and confirm. It appears once,
+the first time anyone in the store does this.
+
+1. **Create an app**. Name it `Go Polar Website Builder`. App developer: you.
+2. Open it and click **Configure Admin API scopes**.
+3. Tick **exactly two**, and nothing else:
+
+   | Scope | What the app does with it | What breaks without it |
+   | --- | --- | --- |
+   | `read_orders` | The hourly sweep lists recently paid orders and processes any whose webhook never arrived | A dropped webhook stays dropped forever. The customer paid, got no build link, and nothing ever notices |
+   | `read_products` | Reads each product's status and its selling plan billing policy before building any checkout link | The store checks report "cannot verify" instead of passing. A product that has been unpublished, or a subscription silently billing yearly, is no longer caught |
+
+   **No write scopes at all.** This app never creates, edits or deletes anything on the store, and
+   it never touches customer records. If a scope is not one of those two, leave it unticked.
+
+4. Click **Save**.
+5. Click **Configure Storefront API scopes** and tick **`unauthenticated_write_checkouts`**.
+
+   That one exists so the app can build a proper cart. A Shopify cart permalink carries only **one**
+   selling plan, so a customer taking hosting **and** a custom email is two subscriptions and the
+   permalink cannot express it. Rather than quietly dropping a line from their cart, the app refuses
+   and says why. With this token it builds a real cart instead.
+
+6. **Install app**, top right, and confirm.
+7. Go to the **API credentials** tab. Two things to copy:
+
+   - **Admin API access token**. Click **Reveal token once**. It starts `shpat_`. **You get one
+     look at it**, so paste it straight into Vercel as `SHOPIFY_ADMIN_API_TOKEN`. If you lose it,
+     uninstall the app and start again.
+   - **Storefront API access token**, further down the same page. Paste into Vercel as
+     `SHOPIFY_STOREFRONT_TOKEN`.
+
+8. Redeploy so the functions pick up the new variables.
+
+Check both landed:
+
+```bash
+curl -s https://build.itscold.com.au/api/health | grep -o '"storeChecks":[^]]*]'
+```
+
+Every product should report `ok: true`. "Cannot verify" means the admin token is missing or wrong.
+
+---
+
+## 7. Register the Shopify webhook
 
 **Shopify admin → Settings → Notifications → Webhooks → Create webhook.**
 
@@ -194,7 +245,7 @@ everything rather than trusting it.
 
 ---
 
-## 7. Point build.itscold.com.au at Vercel
+## 8. Point build.itscold.com.au at Vercel
 
 1. Vercel project → **Settings** → **Domains** → **Add** → `build.itscold.com.au`.
 2. Vercel shows the record to create. Add it wherever itscold.com.au's DNS lives:
@@ -217,48 +268,110 @@ separate host on separate infrastructure, which is the whole reason it is a subd
 
 ---
 
-## 8. Smoke test, with real money
+## 9. Smoke test, with real money
 
-Do this before switching the live flags on for real customers, and do it as a real purchase so the
-whole path is exercised rather than a piece of it.
+Do it as a real purchase, so the whole path is exercised rather than a piece of it.
 
-**First, check the wiring:**
+**Before you start, make sure `ADMIN_TOKEN` is set in Vercel.** Without it you cannot use the
+diagnostic below, and the diagnostic is the difference between "it did not work" and "it broke at
+step 2, here is why".
+
+### First, check the wiring
 
 ```bash
-curl https://build.itscold.com.au/api/health
+curl -s https://build.itscold.com.au/api/health
 ```
 
-Read the `products` block. Every problem listed there is a real gap. Once the three drafts are
-published it should list only `extra-edits`, and the store check should report all six products
-active with the three subscriptions billing every 1 MONTH. If it says "cannot verify",
-`SHOPIFY_ADMIN_API_TOKEN` is missing.
+The `products` block should list only `extra-edits`, and every entry in `storeChecks` should be
+`ok: true`. "Cannot verify" means `SHOPIFY_ADMIN_API_TOKEN` is missing or wrong.
 
-**Then buy a website.**
+### Then buy a website
 
-1. Set `ENABLE_LIVE_PAYMENTS=1`, `ENABLE_LIVE_EMAIL=1` and redeploy.
-2. Go to the **DIY Website Build** product page on itscold.com.au and buy it with a real card. Use an email
-   you can read. It costs $220 and you can refund yourself afterwards.
-3. **Within a minute or so, a build link should arrive in that inbox.** That single email proves the
-   whole chain: Shopify took the payment, fired `orders/paid`, the HMAC verified, the user and job
-   were created, the token was minted and Resend delivered it.
+1. Set `ENABLE_LIVE_PAYMENTS=1` and `ENABLE_LIVE_EMAIL=1`, and redeploy.
+2. Buy **DIY Website Build** on itscold.com.au with a real card, using an email you can read. $220,
+   refundable afterwards.
+3. **Within a minute or so a build link should arrive in that inbox.**
 4. Click it. You should land in the intake wizard, signed in.
-5. Fill it in with a real-ish business and press **Build it**. Watch the HTML stream in, the checks
-   run and the site appear. This is the part that costs Anthropic credit and takes a minute or two.
+5. Fill it in and press **Build it**. Watch the HTML stream in, the checks run, the site appear.
+   This is the part that costs Anthropic credit and takes a minute or two.
 6. Ask for a change in the edit box. Confirm a new version appears and the counter drops by one.
-7. Press go live. The first screen asks for a Web3Forms key. Create a free one at web3forms.com with
-   an inbox you can read, paste it in, and confirm **a test enquiry actually arrives**. Then confirm
-   the checkout link opens a real Shopify cart carrying the monthly subscription.
+7. Press go live. The first screen asks for a Web3Forms key. Create a free one at web3forms.com
+   with an inbox you can read, paste it in, and confirm **a test enquiry actually arrives**. Then
+   confirm the checkout link opens a real Shopify cart carrying the monthly subscription.
+8. **Refund yourself** in Shopify. The job stays in the database, which is worth keeping.
 
-**If step 3 fails**, in order: Shopify admin → Notifications → Webhooks shows recent deliveries and
-their response codes. A 401 means the signing secret is wrong. A 404 means the URL is wrong. No
-delivery at all means the webhook was never registered. Vercel → your project → Logs shows what the
-function did with it.
+### If the link does not arrive
 
-**If the email never arrives but the webhook returned 200**, the job exists and the email failed.
-Resend → Logs will say why, usually an unverified sending domain. The hourly sweep retries.
+Four separate things have to happen between the card being charged and an email landing, and "no
+email" is the same symptom for all four failures. This tells you which one:
 
-**Then refund yourself** in Shopify. The job stays in the database, which is fine and worth keeping
-as a reference.
+```bash
+curl -s -H "x-admin-token: $ADMIN_TOKEN" \
+  "https://build.itscold.com.au/api/admin/trace?email=you@example.com"
+```
+
+Use the email you paid with. It answers in four steps, each independently, with the fix:
+
+```json
+{
+  "verdict": "Broke at step 2: Signature verified.",
+  "jobId": null,
+  "steps": [
+    { "step": 1, "name": "Shopify sent the webhook", "status": "ok" },
+    { "step": 2, "name": "Signature verified", "status": "failed",
+      "detail": "A webhook arrived and its HMAC signature did not match, so it was refused.",
+      "fix": "SHOPIFY_WEBHOOK_SECRET in Vercel does not match ..." },
+    { "step": 3, "name": "Job created", "status": "waiting" },
+    { "step": 4, "name": "Build link emailed", "status": "waiting" }
+  ]
+}
+```
+
+What each step separates out:
+
+| Step | Answers | Typical cause when it fails |
+| --- | --- | --- |
+| 1. Shopify sent the webhook | Did anything at all reach the deployment? | Webhook not registered, wrong URL, or the deployment was down |
+| 2. Signature verified | Did HMAC pass? | `SHOPIFY_WEBHOOK_SECRET` wrong or unset, or `DEMO_MODE` still 1 so webhooks are inert |
+| 3. Job created | Did the order become a user and a job? | The line item matched no known product, usually a changed SKU. The trace prints what arrived |
+| 4. Build link emailed | Did Resend accept it? | Sending domain not verified, `RESEND_API_KEY` unset, or `ENABLE_LIVE_EMAIL` still 0 |
+
+A step reading `waiting` rather than `failed` means it never got that far, so fix the earliest
+`failed` step and buy again. Steps 1 and 2 work without the `email` parameter, so you can check
+whether webhooks are arriving at all before an order exists.
+
+**Step 4 saying "ok" but no email in the inbox** means Resend accepted it and delivery is Resend's
+problem: check spam, then Resend's own delivery log. The hourly sweep retries failed sends, so a
+transient failure fixes itself.
+
+### The raw event log
+
+For anything the trace does not cover. Every stage of the app writes to it.
+
+```bash
+# Everything in the last hour
+curl -s -H "x-admin-token: $ADMIN_TOKEN" \
+  "https://build.itscold.com.au/api/admin/events?hours=1"
+
+# Just the failed sends
+curl -s -H "x-admin-token: $ADMIN_TOKEN" \
+  "https://build.itscold.com.au/api/admin/events?type=email.failed"
+
+# Everything that happened to one job
+curl -s -H "x-admin-token: $ADMIN_TOKEN" \
+  "https://build.itscold.com.au/api/admin/events?job=job_xxxxx"
+```
+
+Useful types: `webhook.received`, `webhook.rejected`, `webhook.refused`, `order.paid.build`,
+`order.unmatched`, `email.sent`, `email.failed`, `error.unhandled`.
+
+### The two places outside the app worth checking
+
+- **Shopify admin → Settings → Notifications → Webhooks** lists recent delivery attempts and the
+  response code each got. A 401 is a signature mismatch, a 404 is a wrong URL, a timeout means the
+  function did not answer.
+- **Vercel → your project → Logs**, filtered to `/api/webhooks/shopify`, shows what the function
+  did with the request.
 
 ---
 

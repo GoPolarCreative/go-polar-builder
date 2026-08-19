@@ -96,7 +96,7 @@ FAKE SHOPIFY: would create a checkout  [jobId=job_... lines=website-hosting-aust
 ## 4. Run the checks yourself
 
 ```bash
-npm test              # 245 unit tests
+npm test              # 278 unit tests
 npm run sample:verify # all 17 checks against sample/index.html, using a real browser
 ```
 
@@ -122,7 +122,7 @@ Nothing deploys. Nothing bills. No email leaves the machine. No DNS record chang
 | 5 | Go live, three domain branches, RDAP and DNS lookups, discharge | done |
 | 6 | Auth, Shopify, Resend, GHL, cron, demo mode, deploy-ready config | done, not deployed |
 
-**245 unit tests.** Plus a 45-check end-to-end script and a verification self-test.
+**278 unit tests.** Plus a 45-check end-to-end script and a verification self-test.
 
 ### What needs real credentials
 

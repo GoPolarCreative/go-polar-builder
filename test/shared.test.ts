@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { formatAbn, isValidAbn, normaliseAbn } from '../shared/abn'
 import { formatAuPhone, normaliseAuPhone, phoneKind } from '../shared/phone'
 import {
+  EDITS_INCLUDED,
+  EXTRA_EDITS_QUANTITY,
   PRICING,
   ProductNotOnStoreError,
   checkoutRef,
@@ -9,6 +11,7 @@ import {
   formatPrice,
   isPriceSet,
   productConfigProblems,
+  productForRef,
   sellingPlanEnvKey,
   variantEnvKey,
   variantIdFor,
@@ -178,6 +181,38 @@ describe('how a product is identified', () => {
   it('knows nothing about the ids for products that do not exist', () => {
     expect(variantIdFor('extra-edits', {})).toBeNull()
   })
+
+  it('never treats a SKU as a handle, now that the real handles are known', () => {
+    // The published handles are diy-website-build, website-update and website-discharge. The SKUs
+    // are build-token, post-live-edit and discharge. Anything that looked one up as the other
+    // would silently miss, so the two are recorded separately and only the SKU is sold by.
+    const cases = [
+      ['build', 'build-token', 'diy-website-build'],
+      ['postLiveEdit', 'post-live-edit', 'website-update'],
+      ['discharge', 'discharge', 'website-discharge'],
+    ] as const
+
+    for (const [key, sku, handle] of cases) {
+      expect(PRICING[key].ref, key).toBe(sku)
+      expect(PRICING[key].storeHandle, key).toBe(handle)
+      expect(PRICING[key].ref, key).not.toBe(PRICING[key].storeHandle)
+      // The lookup key is the SKU, so a handle must not resolve to the product.
+      expect(productForRef(handle), handle).toBeNull()
+      expect(productForRef(sku)?.key, sku).toBe(key)
+    }
+  })
+
+  it('records the handle for the three subscriptions too, where it is the same thing', () => {
+    for (const key of ['hosting', 'domain', 'email'] as const) {
+      expect(PRICING[key].storeHandle, key).toBe(PRICING[key].ref)
+    }
+  })
+
+  it('all six products on the store are published, and none is flagged draft', () => {
+    for (const [key, product] of Object.entries(PRICING)) {
+      if (product.store.exists) expect(product.store.draft ?? false, key).toBe(false)
+    }
+  })
 })
 
 describe('products that do not exist on the store', () => {
@@ -209,30 +244,60 @@ describe('products that do not exist on the store', () => {
   })
 })
 
-describe('the three products created in draft', () => {
-  const DRAFTED = ['build', 'postLiveEdit', 'discharge'] as const
+describe('the three one-off products, now published', () => {
+  const ONE_OFF = ['build', 'postLiveEdit', 'discharge'] as const
 
-  it('are on the store, priced, and flagged as drafts', () => {
-    for (const key of DRAFTED) {
+  it('are on the store, priced, active, and not subscriptions', () => {
+    for (const key of ONE_OFF) {
       expect(PRICING[key].store.exists, key).toBe(true)
-      expect(PRICING[key].store.draft, key).toBe(true)
+      expect(PRICING[key].store.draft ?? false, key).toBe(false)
       expect(PRICING[key].incGstCents, key).toBeGreaterThan(0)
+      // Verified on the store: requiresSellingPlan false, which is correct for a one-off.
+      expect(PRICING[key].requiresSellingPlan, key).toBe(false)
+      expect(PRICING[key].recurrence, key).toBe('once')
     }
   })
 
-  it('are reported as blocking, because a draft cannot be bought by anybody', () => {
-    const problems = productConfigProblems({})
-    for (const key of DRAFTED) {
-      const draft = problems.find((p) => p.key === key && /still a draft/.test(p.missing))
-      expect(draft, key).toBeDefined()
-      expect(draft!.needsShopify).toBe(true)
+  it('need no selling plan id, so none is demanded of the environment', () => {
+    const missing = productConfigProblems({}).map((p) => p.missing)
+    expect(missing).not.toContain('SHOPIFY_SELLING_PLAN_BUILD_TOKEN')
+    expect(missing).not.toContain('SHOPIFY_SELLING_PLAN_POST_LIVE_EDIT')
+    expect(missing).not.toContain('SHOPIFY_SELLING_PLAN_DISCHARGE')
+  })
+
+  it('can be sold, with the store still the authority on that', () => {
+    // checkoutRef deliberately does not look at store status: the live check does, immediately
+    // before a link is built, so unpublishing one is caught without editing this file.
+    for (const key of ONE_OFF) expect(() => checkoutRef(key), key).not.toThrow()
+  })
+})
+
+describe('extra edits, the one thing still unpriced', () => {
+  // The claim being held down: its absence cannot block a launch, because it is unreachable until
+  // a customer has used all ten included rounds, and it shows nothing rather than a wrong number.
+  it('shows no price and no number anywhere', () => {
+    expect(PRICING.extraEdits.incGstCents).toBeNull()
+    expect(formatPrice('extraEdits')).toBeNull()
+    expect(isPriceSet('extraEdits')).toBe(false)
+  })
+
+  it('cannot be bought, and the refusal quotes no figure', () => {
+    expect(() => checkoutRef('extraEdits')).toThrow(ProductNotOnStoreError)
+    try {
+      checkoutRef('extraEdits')
+    } catch (err) {
+      expect((err as Error).message).not.toMatch(/\$\d/)
     }
   })
 
-  it('are still sellable as far as this file is concerned, because the store decides that', () => {
-    // checkoutRef deliberately does not check the draft flag: the live store check does, so
-    // publishing a product takes effect immediately with no code change.
-    for (const key of DRAFTED) expect(() => checkoutRef(key), key).not.toThrow()
+  it('is only reachable after all ten included rounds are used', () => {
+    expect(EDITS_INCLUDED).toBe(10)
+    expect(EXTRA_EDITS_QUANTITY).toBe(5)
+  })
+
+  it('is the only gap that costs nothing today, and says so', () => {
+    const problem = productConfigProblems({}).find((p) => p.key === 'extraEdits' && p.needsDecision)!
+    expect(problem.breaks).toMatch(/nothing today/i)
   })
 })
 
@@ -243,11 +308,9 @@ describe('the startup configuration report', () => {
 
     // The one product that still does not exist.
     expect(missing.some((m) => m.includes('extra-edits'))).toBe(true)
-    // The three that exist but are still drafts, which nobody can buy.
-    for (const title of ['DIY Website Build', 'Website Update', 'Website Discharge']) {
-      expect(missing.some((m) => m.includes(title)), title).toBe(true)
-    }
-    // And a selling plan id for each subscription, because Shopify refuses the line without one.
+    // Nothing is in draft any more, so nothing should be reported as one.
+    expect(missing.some((m) => /still a draft/.test(m))).toBe(false)
+    // A selling plan id for each subscription, because Shopify refuses the line without one.
     expect(missing).toContain('SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
@@ -294,10 +357,10 @@ describe('the startup configuration report', () => {
 
     const problems = productConfigProblems(env)
 
-    // Everything left is Chris's to do, not ours: publish three drafts, and price extra-edits.
+    // One thing left in the whole configuration, and it is a price only Chris can set.
+    expect(problems.map((p) => p.key)).toEqual(['extraEdits', 'extraEdits'])
+    expect(problems.some((p) => p.needsDecision)).toBe(true)
     expect(problems.every((p) => p.needsShopify || p.needsDecision)).toBe(true)
-    expect(problems.filter((p) => p.needsDecision).map((p) => p.key)).toEqual(['extraEdits'])
-    expect(problems.filter((p) => /still a draft/.test(p.missing))).toHaveLength(3)
   })
 })
 

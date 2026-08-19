@@ -853,3 +853,64 @@ static flag drives the setup checklist and the startup report only.
 section 11 of the brief with the figures converted to GST-inclusive. **Chris should read it before
 publishing**, because it is the copy a customer reads immediately before paying $220. The draft is
 in SHOPIFY-SETUP.md.
+
+---
+
+## D36. The published handles are recorded, and still not what anything sells by
+
+**Verified on the live store on 2026-08-19.** All three one-off products are ACTIVE, taxable, with
+`requiresSellingPlan: false`, which is correct for a one-off. SKUs and variant ids are unchanged
+from what was recorded. The handles Shopify generated are now known:
+
+| Title | Handle | SKU | Variant |
+| --- | --- | --- | --- |
+| DIY Website Build | `diy-website-build` | `build-token` | 62852208328863 |
+| Website Update | `website-update` | `post-live-edit` | 62852208361631 |
+| Website Discharge | `website-discharge` | `discharge` | 62852208394399 |
+
+**None of them is what the app sells by, and that is deliberate.** The handle is recorded in
+`storeHandle` so somebody looking at a Shopify URL can find the product in this file, and nothing
+else reads it. Selling, env var naming and order matching all key off the SKU, because a handle
+follows whatever the title happens to be and a SKU does not. Rename "Website Update" to "Website
+Updates" and the handle moves; the SKU does not. A test asserts the two are recorded separately and
+that a handle does not resolve to a product.
+
+**The draft flags are gone**, but the draft *check* is not: the store is still asked whether each
+product is active immediately before every checkout, so unpublishing one is caught without anybody
+editing this file.
+
+---
+
+## D37. The smoke test tells the operator where it broke, not that it broke
+
+**Question.** The deployment smoke test is "buy the build product with a real card and see whether a
+link arrives". When it arrives, everything worked. When it does not, that single fact is useless:
+the webhook might never have fired, or fired and failed HMAC, or verified and matched no product, or
+created the job perfectly and then failed to send. Four failures, four different fixes, one symptom.
+
+**Chosen.** `GET /api/admin/trace?email=`, guarded by `ADMIN_TOKEN`, walks those four steps and
+reports each independently with the reason and the fix. It reads the event log, which every stage of
+that path already writes to, rather than adding new instrumentation that could itself be wrong and
+would then need its own diagnosis.
+
+**Downstream steps report "waiting", never "failed".** The first version of this said "Broke at step
+3: Job created" when no webhook had ever arrived, which would have sent Chris to look at product
+SKUs when the real problem was an unregistered webhook. Writing the test caught it. A step that
+never ran does not get to claim it failed, and the verdict names the earliest step that is not ok.
+
+**The fixes are specific rather than generic.** A refusal because `DEMO_MODE` is still 1 says that,
+not "check your webhook secret". A send blocked by `ENABLE_LIVE_EMAIL` says that, not "check your
+sending domain". An unmatched line item prints the product title that actually arrived, so it can be
+compared against the SKU on the store.
+
+**It never claims delivery.** Step 4 says Resend accepted the message, because that is all the app
+can know. Whether it reached an inbox is Resend's log to answer.
+
+`GET /api/admin/events` sits beside it for anything the four steps do not cover, filterable by type,
+job and time window.
+
+**The Admin API scopes are `read_orders` and `read_products`, and nothing else.** Derived from the
+three Shopify calls this app actually makes rather than from a generous guess: listing paid orders
+for the reconciliation sweep, reading product status and billing policy, and creating a cart through
+the Storefront API. No write scope of any kind, and no access to customer records. DEPLOY.md section
+6 walks through creating the custom app click by click and says what each scope is for.

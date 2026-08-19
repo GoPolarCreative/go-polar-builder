@@ -22,8 +22,10 @@
  * 2. NO INVENTED PRICES. `extra-edits` has never been priced, so nothing shows a number for it.
  * 3. SELLING PLANS ARE NOT OPTIONAL. All three subscriptions have `requiresSellingPlan: true`, so
  *    Shopify REJECTS a line without a plan id. A missing plan id is fatal, not a downgrade.
- * 4. A DRAFT PRODUCT CANNOT BE BOUGHT. Three are in draft awaiting Chris's review. The store is the
- *    authority on that, not this file: see `checkStoreProducts` in server/lib/shopify.ts.
+ * 4. THE STORE IS THE AUTHORITY ON WHETHER SOMETHING CAN BE SOLD. All six products are published
+ *    and active as of 2026-08-19, but this file is not what decides that: `checkStoreProducts` in
+ *    server/lib/shopify.ts asks Shopify immediately before every checkout, so a product being
+ *    unpublished, archived or re-priced is caught without anybody having to remember to edit here.
  */
 
 export type PriceKey = 'build' | 'hosting' | 'domain' | 'email' | 'postLiveEdit' | 'extraEdits' | 'discharge'
@@ -52,8 +54,16 @@ export interface Product {
   requiresSellingPlan: boolean
   /** Verified numeric variant id, where it is known. An env var of the same name overrides it. */
   variantId: string | null
-  /** Verified numeric product id, for cross-checking against the store. */
+  /** Verified numeric product id. How SKU-identified products are looked up on the store. */
   productId: string | null
+  /**
+   * The product's real Shopify handle, for reference only.
+   *
+   * NOTHING SELLS BY THIS for a SKU-identified product. It is recorded because it is now known and
+   * because somebody looking at a Shopify URL should be able to find the product here, but the app
+   * matches on variant id and SKU. A handle changes when somebody edits a title; a SKU does not.
+   */
+  storeHandle: string | null
   store: StoreState
 }
 
@@ -62,7 +72,8 @@ export interface StoreState {
   title?: string
   /**
    * Created but not published. A draft product cannot be bought by anybody, so this blocks the
-   * same way a missing product does until Chris publishes it.
+   * same way a missing product does. Nothing sets it today: all six are published. Kept because
+   * the next product created will start life in draft too.
    */
   draft?: boolean
   sellingPlan?: { group: string; plan: string; interval: 'MONTH' | 'YEAR'; intervalCount: number }
@@ -87,8 +98,9 @@ export const STORE = {
 
 export const PRICING: Record<PriceKey, Product> = {
   build: {
-    // Created 2026-08-19 as "DIY Website Build". Its handle was auto-generated from that title and
-    // is not recorded here, because the SKU is the identifier that was set deliberately.
+    // Created and published 2026-08-19 as "DIY Website Build", handle diy-website-build. The app
+    // sells by the SKU, because that is the identifier that was set deliberately: a handle follows
+    // whatever the title happens to be.
     ref: 'build-token',
     refKind: 'sku',
     proposedRef: 'build-token',
@@ -99,13 +111,11 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: false,
     variantId: '62852208328863',
     productId: '10930413568159',
+    storeHandle: 'diy-website-build',
     store: {
       exists: true,
       title: 'DIY Website Build',
-      draft: true,
-      todo: 'Publish it. Created in draft so you can read the description first.',
-      breaks:
-        'While it is in draft nobody can buy a build, and this is the front door of the entire product: no build token means no job, no build link and no customer.',
+      todo: 'Nothing. Published and verified active on 2026-08-19.',
     },
   },
   hosting: {
@@ -119,6 +129,7 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: true,
     variantId: null,
     productId: null,
+    storeHandle: 'website-hosting-australia',
     store: {
       exists: true,
       title: 'Website Hosting',
@@ -139,6 +150,7 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: true,
     variantId: null,
     productId: null,
+    storeHandle: 'domain-1-year',
     store: {
       exists: true,
       title: 'Domain Hosting',
@@ -160,6 +172,7 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: true,
     variantId: null,
     productId: null,
+    storeHandle: 'email-hosting',
     store: {
       exists: true,
       title: 'Email Hosting',
@@ -178,13 +191,11 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: false,
     variantId: '62852208361631',
     productId: '10930413600927',
+    storeHandle: 'website-update',
     store: {
       exists: true,
       title: 'Website Update',
-      draft: true,
-      todo: 'Publish it.',
-      breaks:
-        'While it is in draft a live customer who wants a change cannot pay for one, and the confirmation screen still quotes the price.',
+      todo: 'Nothing. Published and verified active on 2026-08-19.',
     },
   },
   extraEdits: {
@@ -200,6 +211,7 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: false,
     variantId: null,
     productId: null,
+    storeHandle: null,
     store: {
       exists: false,
       todo: 'Do not create it yet. Decide the price first.',
@@ -218,13 +230,11 @@ export const PRICING: Record<PriceKey, Product> = {
     requiresSellingPlan: false,
     variantId: '62852208394399',
     productId: '10930413633695',
+    storeHandle: 'website-discharge',
     store: {
       exists: true,
       title: 'Website Discharge',
-      draft: true,
-      todo: 'Publish it.',
-      breaks:
-        'While it is in draft the handover is offered, accepted, and then the checkout fails. Worse than not offering it.',
+      todo: 'Nothing. Published and verified active on 2026-08-19.',
     },
   },
 }
