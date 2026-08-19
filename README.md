@@ -1,6 +1,6 @@
 # Go Polar Website Builder
 
-A self-serve web app where Australian trade businesses pay $200 + GST, answer a guided set of
+A self-serve web app where Australian trade businesses pay $220 inc GST, answer a guided set of
 questions, and watch a complete single-page website get generated in front of them. They get 10
 rounds of changes, then choose to go live on Go Polar hosting or take the files elsewhere.
 
@@ -132,7 +132,7 @@ it is stubbed or silently skipped.
 | Needs | For | Without it |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | real generation and edits | Clear error, or `DEV_OFFLINE_GENERATION=1` for the fixture |
-| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable. **Four products still have to be created on the store: SHOPIFY-SETUP.md** |
+| `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable. **Six of seven products are live on the store; only extra-edits is unpriced: SHOPIFY-SETUP.md** |
 | `RESEND_API_KEY` | build links, receipts, handover | Printed to the terminal in demo mode; recorded as `email.failed` and retried otherwise |
 | `GHL_INBOUND_WEBHOOK_URL` | CRM notifications | Printed in demo mode; recorded as `ghl.failed`, never blocks a payment |
 | `DATABASE_URL` | Neon in production | Embedded PGlite locally |
