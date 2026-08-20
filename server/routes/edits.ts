@@ -241,7 +241,13 @@ app.post('/jobs/:jobId/edits', async (c) => {
         await emit({ type: 'plan', plan: revisedPlan })
 
         const toVersion = await nextVersion(jobId)
-        await db.insert(schema.plans).values({ id: id('pln'), jobId, version: toVersion, plan: revisedPlan })
+        await db
+          .insert(schema.plans)
+          .values({ id: id('pln'), jobId, version: toVersion, plan: revisedPlan })
+          .onConflictDoUpdate({
+            target: [schema.plans.jobId, schema.plans.version],
+            set: { plan: revisedPlan },
+          })
 
         const html = await rebuildFromPlan({
           plan: revisedPlan,

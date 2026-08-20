@@ -80,7 +80,18 @@ app.post('/jobs/:jobId/generate', async (c) => {
         await emit({ type: 'plan', plan })
 
         const version = await nextVersion(jobId)
-        await db.insert(schema.plans).values({ id: id('pln'), jobId, version, plan })
+        // Upsert, not insert. nextVersion counts BUILDS, so a run that wrote its plan and then
+        // failed before writing a build leaves the plan behind and the next attempt asks for the
+        // same version again. As a plain insert that is a unique violation, and the job is stuck
+        // permanently: every retry dies on the leftovers of the last one. A plan already sitting
+        // at this version belongs to an attempt that never finished, so replacing it is right.
+        await db
+          .insert(schema.plans)
+          .values({ id: id('pln'), jobId, version, plan })
+          .onConflictDoUpdate({
+            target: [schema.plans.jobId, schema.plans.version],
+            set: { plan },
+          })
 
         // ---- Call 2: build ----------------------------------------------------------------
         const { html: rawHtml, sectioned } = await generateHtml({ plan, facts, emit })

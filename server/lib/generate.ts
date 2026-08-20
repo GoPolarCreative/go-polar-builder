@@ -112,7 +112,7 @@ export async function generatePlan(args: {
         },
       ],
       maxTokens: MAX_TOKENS_PLAN,
-      effort: 'high',
+      effort: 'medium',
     })
 
     let candidate: unknown

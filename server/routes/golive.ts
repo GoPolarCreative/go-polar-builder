@@ -228,7 +228,13 @@ app.post('/jobs/:jobId/golive/forms-key', async (c) => {
     .limit(1)
 
   if (currentPlan[0]) {
-    await db.insert(schema.plans).values({ id: id('pln'), jobId, version, plan: currentPlan[0].plan })
+    await db
+      .insert(schema.plans)
+      .values({ id: id('pln'), jobId, version, plan: currentPlan[0].plan })
+      .onConflictDoUpdate({
+        target: [schema.plans.jobId, schema.plans.version],
+        set: { plan: currentPlan[0].plan },
+      })
   }
 
   await db
