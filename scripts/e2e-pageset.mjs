@@ -158,7 +158,7 @@ check(String(svcAfter.body).includes(key), 'the service page posts to the custom
 const adminToken = process.env.ADMIN_TOKEN ?? ''
 const pub = await fetch(`${BASE}/api/admin/publish`, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', authorization: `Bearer ${adminToken}` },
+  headers: { 'content-type': 'application/json', 'x-admin-token': adminToken },
   body: JSON.stringify({ jobId, hostname: 'pageset-test.com.au', force: true }),
 })
 const pubBody = await pub.json()

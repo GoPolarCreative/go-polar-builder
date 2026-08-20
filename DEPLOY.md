@@ -100,6 +100,23 @@ clients is under a gigabyte.
 
 ## 4. Environment variables
 
+**Do not type these one at a time.** On Chris's machine:
+
+```bash
+npm run vercel:env
+```
+
+That writes `vercel-env.txt`: every value already settled carried across from `.env.local`, every
+value that must differ in production already set to the production value, and every secret that is
+not on this machine left blank with a note saying where it comes from. The gaps are listed again at
+the bottom of the file so none is missed by scrolling past it.
+
+Paste the whole thing into **Project -> Settings -> Environment Variables -> import .env**, fill the
+blanks as you work through the sections below, then delete the file. It is gitignored and it holds
+real credentials.
+
+The reference list follows.
+
 Vercel project → **Settings** → **Environment Variables**. Set every one of these for **Production**.
 `.env.example` is the same list with comments.
 

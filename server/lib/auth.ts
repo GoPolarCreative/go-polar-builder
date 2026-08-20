@@ -164,24 +164,54 @@ export async function requireSession(c: Context, next: Next) {
  */
 export async function requireAdmin(c: Context, next: Next) {
   const cfg = config()
+
   if (cfg.adminToken) {
-    if (c.req.header('x-admin-token') !== cfg.adminToken) {
+    // Accepted either way round. curl and the runbook use x-admin-token; a bearer header is what
+    // anyone reaching for an API reaches for first, and refusing it teaches nothing.
+    const bearer = (c.req.header('authorization') ?? '').replace(/^Bearer /i, '')
+    const supplied = c.req.header('x-admin-token') ?? bearer
+    if (!timingSafeEqualString(supplied, cfg.adminToken)) {
       return c.json({ error: 'forbidden', detail: 'Admin token required.' }, 403)
     }
     await next()
     return
   }
 
-  if (cfg.shopify.webhookSecret) {
-    return c.json(
-      {
-        error: 'forbidden',
-        detail:
-          'ADMIN_TOKEN is not set on this deployment, so admin actions are refused. Add it to the Vercel project environment variables.',
-      },
-      403,
-    )
+  /*
+   * No token configured.
+   *
+   * Open on a demo install, because that is a laptop with fixture data on it and the operator
+   * screens have to be usable without ceremony.
+   *
+   * REFUSED ANYWHERE ELSE. This used to be gated on the Shopify webhook secret, which left a
+   * window: a deployment with DEMO_MODE=0 on a real domain, before the webhook had been
+   * registered, served /api/admin/* to the entire internet. Publishing a site and reading the
+   * event log both live behind here. The absence of a secret is not permission.
+   */
+  if (cfg.demoMode) {
+    await next()
+    return
   }
 
-  await next()
+  return c.json(
+    {
+      error: 'forbidden',
+      detail:
+        'ADMIN_TOKEN is not set on this deployment, so admin actions are refused. Add it to the Vercel project environment variables.',
+    },
+    403,
+  )
+}
+
+/**
+ * Compare without leaking the answer in how long it took.
+ *
+ * Length is compared first and does leak, which is fine: the token is a random string of known
+ * shape, and nobody guesses one character at a time from a length.
+ */
+function timingSafeEqualString(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
 }

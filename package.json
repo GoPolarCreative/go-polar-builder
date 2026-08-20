@@ -24,7 +24,8 @@
     "vercel:build": "tsc -b && vite build && node scripts/check-bundle.mjs",
     "predeploy": "node -e \"console.error('Deploying is a deliberate act. Run: npx vercel --prod. See README.');process.exit(1)\"",
     "sample:verify": "tsx scripts/check-sample.ts",
-    "e2e:pageset": "tsx scripts/e2e-pageset.mjs"
+    "e2e:pageset": "tsx scripts/e2e-pageset.mjs",
+    "vercel:env": "node scripts/make-vercel-env.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",

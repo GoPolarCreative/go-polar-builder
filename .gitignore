@@ -33,3 +33,6 @@ yarn-error.log*
 
 # Generated build artefacts kept out of git (they live in R2)
 /out/
+
+# Generated for a deploy, contains real ids. Never committed.
+vercel-env.txt
