@@ -207,17 +207,24 @@ does not sell. See DECISIONS.md D38.
 ## 5. Run the migrations
 
 Migrations are a deliberate step, not part of the build, so a bad deploy cannot half-migrate the
-database. Run them from your machine against the Neon database:
+database.
+
+**They run inside the deployment, not from your machine.** The Neon integration marks every
+variable it creates as Sensitive, and Vercel redacts sensitive values on `vercel env pull`, so the
+file arrives with `DATABASE_URL=[SENSITIVE]` in it. The connection string is not meant to leave the
+platform, which is right, so the migration runs where it lives:
 
 ```bash
-npx vercel env pull .env.production.local
-DATABASE_URL="<the value from that file>" DATABASE_DRIVER=postgres npm run db:migrate
+curl -X POST https://build.itscold.com.au/api/admin/migrate -H "x-admin-token: $ADMIN_TOKEN"
 ```
 
-It prints `Migrations applied (postgres).` Two migrations exist: the initial schema and the
-Web3Forms columns.
+It returns the migrations on disk and the tables that exist afterwards, so you can see the schema
+is really there rather than trusting that no error meant success.
 
-Then delete `.env.production.local`. It is gitignored, but it holds every secret you just set.
+Drizzle records what it has applied, so this is **idempotent**: run it twice and the second run
+applies nothing. Run it again after every deploy that adds a migration.
+
+If it reports `DATABASE_URL is not set`, the Neon integration is not attached to this project.
 
 ---
 

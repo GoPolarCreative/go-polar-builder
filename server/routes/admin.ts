@@ -473,6 +473,89 @@ app.post('/admin/storefront-token', async (c) => {
  * Paid-but-blocked is listed separately and first, because those customers have handed over money
  * and can see nothing happening.
  */
+/**
+ * Apply database migrations, from inside the deployment.
+ *
+ *   POST /api/admin/migrate
+ *
+ * WHY THIS EXISTS RATHER THAN A LOCAL COMMAND. The runbook used to say: pull the environment down
+ * with `vercel env pull` and run the migration against the connection string. That does not work.
+ * The Neon integration marks every variable Sensitive, and Vercel redacts sensitive values on
+ * pull, so the file arrives with `DATABASE_URL=[SENSITIVE]` in it. The connection string is not
+ * meant to leave the platform, which is right, and it means migrations have to run where it lives.
+ *
+ * Drizzle records what it has applied in its own table, so this is idempotent: running it twice
+ * applies nothing the second time. Migrations here are forward-only and none of the three drops a
+ * column, so there is no destructive path to guard against beyond the admin token already on this
+ * whole route group.
+ */
+app.post('/admin/migrate', async (c) => {
+  const cfg = config()
+  const started = Date.now()
+
+  // Reading the list off disk rather than out of the database, so the answer is the same whether
+  // this is the first run or the fiftieth, and so a missing migrations folder is obvious.
+  let available: string[] = []
+  try {
+    const { readdirSync } = await import('node:fs')
+    available = readdirSync('db/migrations')
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+  } catch (err) {
+    return c.json(
+      {
+        error: 'migrations_missing',
+        detail:
+          'The db/migrations folder was not found in the deployment. Check it is not excluded by .vercelignore.',
+        cause: err instanceof Error ? err.message : String(err),
+      },
+      500,
+    )
+  }
+
+  try {
+    const { migrate } = await import('../db/migrate.js')
+    await migrate()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json(
+      {
+        error: 'migration_failed',
+        detail: message,
+        fix: message.includes('DATABASE_URL')
+          ? 'DATABASE_URL is not set on this deployment. Attach the Neon integration to the project and redeploy.'
+          : 'Read the error above. Migrations are forward-only, so a partial failure leaves the earlier ones applied and safe to re-run.',
+        driver: cfg.databaseDriver,
+      },
+      500,
+    )
+  }
+
+  // Prove the schema is actually there rather than trusting that no error means success.
+  let tables: string[] = []
+  try {
+    const db = await getDb()
+    const result = await db.execute(
+      sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
+    )
+    const rows = (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as Array<{
+      table_name: string
+    }>
+    tables = rows.map((r) => r.table_name)
+  } catch {
+    // Not fatal. The migration succeeded; this is only the readback.
+  }
+
+  return c.json({
+    ok: true,
+    driver: cfg.databaseDriver,
+    migrationsOnDisk: available,
+    tables,
+    tookMs: Date.now() - started,
+    detail: `Applied migrations against ${cfg.databaseDriver}. ${tables.length} table(s) now present. Running this again applies nothing.`,
+  })
+})
+
 app.get('/admin/queue', async (c) => {
   const db = await getDb()
 
