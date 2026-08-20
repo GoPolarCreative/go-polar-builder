@@ -299,7 +299,9 @@ Return one JSON object and nothing else. No markdown fence, no commentary, no tr
 
 10. SERVICE PAGES ARE NOT YOURS TO CHOOSE. The facts tell you which services the customer asked to have their own page and how many pages they have paid for. Write a servicePages entry for each one named there and no others: not one per service, and not an extra because a service looks important. Each entry is about that one service in the business's own service area, with its own title, meta description, h1 and intro, and an "included" list of what the job actually involves taken from the intake. It goes deeper than the home page's blurb rather than repeating it. If none were asked for, return an empty array.
 
-11. ASSUMPTIONS ARRAY. Anything you had to assume goes in it, in plain English. An empty array is a good answer and a made-up detail is not.
+11. THREE ARRAYS MUST HAVE EXACTLY FOUR ENTRIES. hero.trustPoints, trustStrip, and process. Not three, not five. These are rejected outright rather than trimmed, because trimming would silently drop something you wrote and padding would invent something you did not. If you cannot find four honest trust points, make them shorter rather than fewer.
+
+12. ASSUMPTIONS ARRAY. Anything you had to assume goes in it, in plain English. An empty array is a good answer and a made-up detail is not.
 
 Write like the customer's customer is reading it: short, plain, specific, Australian.`
 

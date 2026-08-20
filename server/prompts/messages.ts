@@ -50,13 +50,13 @@ const PLAN_SHAPE = `{
     "formHeading": "string",
     "formButtonLabel": "string"
   },
-  "trustStrip": [ { "label": "string", "detail": "string" } ],
+  "trustStrip": [ { "label": "string", "detail": "string" } ],   // EXACTLY 4, no more, no fewer
   "about": { "heading": "string", "body": ["2 to 4 paragraphs"], "pullQuote": "string" },
   "services": [ { "name": "string", "blurb": "30 to 300 chars", "iconHint": "what to draw, e.g. water drop" } ],
   "gallery": { "enabled": boolean, "heading": "string", "items": [ { "assetId": "id from the photo list", "alt": "5 to 125 chars" } ] },
   "whyUs": [ { "title": "string", "body": "string" } ],
   "stats": [ { "value": number, "suffix": "+ or none", "label": "string", "source": "which intake field this came from" } ],
-  "process": [ { "title": "string", "body": "string" } ],
+  "process": [ { "title": "string", "body": "string" } ],   // EXACTLY 4 steps, no more, no fewer
   "serviceAreas": { "heading": "string", "blurb": "string", "suburbs": ["every suburb supplied"] },
   "testimonials": { "enabled": boolean, "heading": "string", "items": [ { "quote": "verbatim", "name": "first name", "suburb": "string" } ] },
   "faq": [ { "q": "string", "a": "40 to 700 chars" } ],

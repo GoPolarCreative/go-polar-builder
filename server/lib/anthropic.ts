@@ -11,12 +11,24 @@ import { config, modelFor, type AppConfig } from '../config.js'
 const DEFAULT_API_URL = 'https://api.anthropic.com/v1/messages'
 const API_VERSION = '2023-06-01'
 
+/*
+ * Output ceilings.
+ *
+ * THESE HAVE TO ALLOW FOR THINKING. On Claude 5 adaptive thinking is on by default and its tokens
+ * are billed and counted against max_tokens like any others. A ceiling sized for a model that did
+ * not think is a ceiling the visible answer no longer fits inside: the first live plan call came
+ * back as JSON cut off mid-string at position 2975, because thinking had eaten most of 8,000.
+ *
+ * Truncation does not announce itself as truncation either. It arrives as a parse error about
+ * an unterminated string, which reads like a model that cannot produce valid JSON.
+ */
+
 /** Output ceiling for the single-shot build call. A finished site runs 80-150KB. */
-export const MAX_TOKENS_BUILD = 32_000
+export const MAX_TOKENS_BUILD = 64_000
 /** Output ceiling for one section in the sectioned fallback. */
-export const MAX_TOKENS_SECTION = 12_000
-/** The content plan is JSON and compact. */
-export const MAX_TOKENS_PLAN = 8_000
+export const MAX_TOKENS_SECTION = 24_000
+/** The content plan is compact JSON, but the thinking that precedes it is not. */
+export const MAX_TOKENS_PLAN = 32_000
 
 export interface SystemBlock {
   type: 'text'

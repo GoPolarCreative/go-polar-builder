@@ -96,7 +96,7 @@ export async function generatePlan(args: {
   })
 
   let lastError = ''
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     const result = await callMessage({
       system: [
         // Cached: identical on every build, and it is the expensive half of this call.
@@ -137,7 +137,7 @@ export async function generatePlan(args: {
     })
   }
 
-  throw new Error(`Content plan did not validate after 2 attempts.\n${lastError}`)
+  throw new Error(`Content plan did not validate after 3 attempts.\n${lastError}`)
 }
 
 function describePhoto(asset: AssetRecord | undefined): string {
