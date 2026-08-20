@@ -36,3 +36,6 @@ yarn-error.log*
 
 # Generated for a deploy, contains real ids. Never committed.
 vercel-env.txt
+
+.vercel
+.env*

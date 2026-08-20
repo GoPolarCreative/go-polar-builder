@@ -1,0 +1,20 @@
+# What never belongs in a deployment upload.
+#
+# Without this the CLI uploaded 590MB, nearly all of it .local: the embedded Postgres data
+# directory and the local blob store. That is development data from one machine. It has no business
+# leaving it, and it makes every deploy slow for no reason.
+#
+# Deliberately conservative. `scripts` and `test` stay, because the build runs
+# scripts/check-bundle.mjs and tsc reads the whole project. Excluding them saves a few hundred
+# kilobytes and breaks the build, which is a bad trade.
+
+.local
+.env.local
+.env.production.local
+vercel-env.txt
+
+# Build output. Vercel runs the build itself; a stale local copy only invites confusion.
+dist
+
+# The committed example site and its full-resolution source photos: reference material, not runtime.
+sample
