@@ -26,7 +26,8 @@
     "sample:verify": "tsx scripts/check-sample.ts",
     "e2e:pageset": "tsx scripts/e2e-pageset.mjs",
     "vercel:env": "node scripts/make-vercel-env.mjs",
-    "check:imports": "node scripts/add-import-extensions.mjs --check"
+    "check:imports": "node scripts/add-import-extensions.mjs --check",
+    "vercel:push": "node scripts/push-env.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",
