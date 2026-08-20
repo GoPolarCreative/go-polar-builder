@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
+import { resetUsageMeter, usageReport } from '../lib/anthropic.js'
 import type { GenerationEvent } from '../../shared/types.js'
 import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
 import { getIntake, getJob, holdJob, listAssets, nextVersion, recordEvent, setJobStatus } from '../lib/db.js'
@@ -62,6 +63,8 @@ app.post('/jobs/:jobId/generate', async (c) => {
       try {
         const db = await getDb()
         await setJobStatus(jobId, 'generating')
+        // Start the meter with the job, so what gets recorded is this build and nothing else.
+        resetUsageMeter()
         await recordEvent(jobId, 'generation.started')
 
         const facts = buildFacts(intake, assets)
@@ -120,6 +123,15 @@ app.post('/jobs/:jobId/generate', async (c) => {
           homeHtml: outcome.html,
           homeReport: outcome.report,
           repairPasses: outcome.attempts,
+        })
+
+        const spend = usageReport()
+        await recordEvent(jobId, 'generation.completed', {
+          version,
+          pages: set.pages.length,
+          passed: set.passed,
+          repairPasses: outcome.attempts,
+          ...spend,
         })
 
         if (set.pages.length > 1) {

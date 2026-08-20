@@ -176,7 +176,9 @@ export async function callMessage(opts: CallOptions): Promise<CallResult> {
     .filter((b) => b.type === 'text')
     .map((b) => b.text ?? '')
     .join('')
-  return { text, stopReason: json.stop_reason ?? null, usage: json.usage ?? {} }
+  const usage = json.usage ?? {}
+  record(usage)
+  return { text, stopReason: json.stop_reason ?? null, usage }
 }
 
 export type StreamChunk =
@@ -249,6 +251,7 @@ export async function* streamMessage(opts: CallOptions): AsyncGenerator<StreamCh
     reader.releaseLock()
   }
 
+  record(usage)
   yield { type: 'done', stopReason, usage }
 }
 
@@ -297,4 +300,90 @@ export function extractJson(text: string): string {
     }
   }
   return cleaned.slice(start)
+}
+
+// -----------------------------------------------------------------------------------------------
+// What a build costs
+// -----------------------------------------------------------------------------------------------
+
+/**
+ * Token meter.
+ *
+ * Every call already gets a usage block back from the API and every one of them was being thrown
+ * away, so the only honest answer to "what does a build cost me" was a guess. It is a real number
+ * and it should be recorded like one, per job, next to the build it paid for.
+ *
+ * Process-local and reset per generation. A serverless function handles one generation at a time,
+ * which is what makes that safe; if that ever stops being true this has to move into the request.
+ */
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheWriteTokens: number
+  cacheReadTokens: number
+  calls: number
+}
+
+const EMPTY: TokenUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheWriteTokens: 0,
+  cacheReadTokens: 0,
+  calls: 0,
+}
+
+let meter: TokenUsage = { ...EMPTY }
+
+export function resetUsageMeter(): void {
+  meter = { ...EMPTY }
+}
+
+export function usageSoFar(): TokenUsage {
+  return { ...meter }
+}
+
+function record(usage: CallResult['usage']): void {
+  meter.calls += 1
+  meter.inputTokens += usage.input_tokens ?? 0
+  meter.outputTokens += usage.output_tokens ?? 0
+  meter.cacheWriteTokens += usage.cache_creation_input_tokens ?? 0
+  meter.cacheReadTokens += usage.cache_read_input_tokens ?? 0
+}
+
+/**
+ * Published per-million-token rates, in US dollars.
+ *
+ * These are prices on someone else's website, so they go stale. They are here to turn a token
+ * count into a number worth looking at, not to be an invoice: the authority is the Anthropic
+ * console, and a figure derived from this is an estimate and is labelled as one everywhere it is
+ * shown.
+ *
+ * Cache writes cost about 1.25x input and cache reads about 0.1x, which is why the house rules
+ * carry a cache_control breakpoint: they are the same on every build and they are the expensive
+ * half of the prompt.
+ */
+const RATES: Record<string, { input: number; output: number }> = {
+  'claude-opus-5': { input: 5, output: 25 },
+  'claude-sonnet-5': { input: 3, output: 15 },
+  'claude-haiku-4-5': { input: 1, output: 5 },
+}
+
+const FALLBACK_RATE = { input: 3, output: 15 }
+
+export function estimateCostUsd(usage: TokenUsage, model: string): number {
+  const rate = RATES[model] ?? FALLBACK_RATE
+  const dollars =
+    (usage.inputTokens * rate.input +
+      usage.cacheWriteTokens * rate.input * 1.25 +
+      usage.cacheReadTokens * rate.input * 0.1 +
+      usage.outputTokens * rate.output) /
+    1_000_000
+  return Math.round(dollars * 10_000) / 10_000
+}
+
+/** Everything worth writing into the event log when a build finishes. */
+export function usageReport(): TokenUsage & { model: string; estimatedCostUsd: number } {
+  const model = modelFor(config())
+  const usage = usageSoFar()
+  return { ...usage, model, estimatedCostUsd: estimateCostUsd(usage, model) }
 }
