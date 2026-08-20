@@ -8,7 +8,10 @@ import { attachDomain, publishSite } from '../lib/publish'
 import { loadPageSet } from '../lib/buildSet'
 import { storage } from '../lib/storage'
 import { buildFacts } from '../lib/facts'
-import { getIntake, listAssets } from '../lib/db'
+import { getIntake, listAssets, recordEvent } from '../lib/db'
+import { buildDischargePackage } from '../lib/discharge'
+import { toBody } from '../lib/storage'
+import type { ContentPlan } from '../../shared/plan'
 import { intakeSchema, type IntakePayload } from '../../shared/intake'
 
 const app = new Hono()
@@ -455,6 +458,214 @@ app.post('/admin/storefront-token', async (c) => {
     }
     return c.json({ error: 'failed', detail: err instanceof Error ? err.message : String(err) }, 500)
   }
+})
+
+/**
+ * The worklist. Who is waiting on Chris, and for what.
+ *
+ *   GET /api/admin/queue
+ *
+ * The operating model is not "the app runs the customer's website". It is: the customer builds,
+ * pays for hosting, and Chris takes the files and puts them live the same way he already does for
+ * every other client site. So the app's last job is to say clearly whose site is finished and paid
+ * for and what it still needs, rather than leaving that to an inbox.
+ *
+ * Paid-but-blocked is listed separately and first, because those customers have handed over money
+ * and can see nothing happening.
+ */
+app.get('/admin/queue', async (c) => {
+  const db = await getDb()
+
+  const rows = await db
+    .select({
+      jobId: schema.jobs.id,
+      businessName: schema.jobs.businessName,
+      status: schema.jobs.status,
+      version: schema.jobs.currentVersion,
+      held: schema.jobs.held,
+      heldReason: schema.jobs.heldReason,
+      editsUsed: schema.jobs.editsUsed,
+      editsAllowed: schema.jobs.editsAllowed,
+      pagesAllowed: schema.jobs.pagesAllowed,
+      formsKeyVerifiedAt: schema.jobs.web3formsVerifiedAt,
+      email: schema.users.email,
+      updatedAt: schema.jobs.updatedAt,
+      hostingPaidAt: schema.golive.paidAt,
+      hosting: schema.golive.hosting,
+      emailAddon: schema.golive.emailAddon,
+      domainAddon: schema.golive.domainAddon,
+    })
+    .from(schema.jobs)
+    .innerJoin(schema.users, eq(schema.users.id, schema.jobs.userId))
+    .leftJoin(schema.golive, eq(schema.golive.jobId, schema.jobs.id))
+    .orderBy(desc(schema.jobs.updatedAt))
+    .limit(100)
+
+  const domainRows = await db.select().from(schema.domains).orderBy(desc(schema.domains.createdAt))
+  const domainFor = new Map<string, (typeof domainRows)[number]>()
+  for (const row of domainRows) if (!domainFor.has(row.jobId)) domainFor.set(row.jobId, row)
+
+  const jobs = rows.map((row) => {
+    const domain = domainFor.get(row.jobId) ?? null
+
+    // What is stopping this one going live, in the order it has to be fixed. An empty list means
+    // it is ready for you to take the files.
+    const blockers: string[] = []
+    if (row.version < 1) blockers.push('They have not built anything yet.')
+    if (row.held) blockers.push(`Held: ${row.heldReason ?? 'verification failed twice'}. Needs a look.`)
+    if (!row.hostingPaidAt) blockers.push('Hosting has not been paid for.')
+    if (!row.formsKeyVerifiedAt) {
+      blockers.push(
+        'No verified Web3Forms key, so the forms still post to the Go Polar account. They do this themselves on the go-live screen. Do not put the site live without it.',
+      )
+    }
+
+    return {
+      jobId: row.jobId,
+      businessName: row.businessName,
+      email: row.email,
+      status: row.status,
+      version: row.version,
+      pagesAllowed: row.pagesAllowed,
+      editsLeft: row.editsAllowed - row.editsUsed,
+      wants: {
+        hosting: Boolean(row.hosting),
+        email: Boolean(row.emailAddon),
+        domain: Boolean(row.domainAddon),
+        domainName: domain?.name ?? null,
+        domainBranch: domain?.branch ?? null,
+      },
+      hostingPaidAt: row.hostingPaidAt?.toISOString() ?? null,
+      formsKeyVerified: Boolean(row.formsKeyVerifiedAt),
+      readyForYou: blockers.length === 0,
+      blockers,
+      files: blockers.length === 0 ? `/api/admin/jobs/${row.jobId}/files` : null,
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  })
+
+  const ready = jobs.filter((j) => j.readyForYou)
+  const paidButBlocked = jobs.filter((j) => !j.readyForYou && j.hostingPaidAt)
+
+  return c.json({
+    summary: {
+      readyToTakeLive: ready.length,
+      paidButBlocked: paidButBlocked.length,
+      total: jobs.length,
+    },
+    paidButBlocked,
+    ready,
+    all: jobs,
+  })
+})
+
+/**
+ * Download a customer's finished website as a zip, as the operator.
+ *
+ *   GET /api/admin/jobs/:jobId/files
+ *
+ * The same package the paid discharge produces, and deliberately the same code, so what Chris
+ * pushes to GitHub is byte for byte what a customer paying $330 would have received. Two
+ * differences: it is not gated on a discharge purchase, and it marks nothing as discharged,
+ * because this is Chris hosting their site rather than a customer leaving.
+ *
+ * The Web3Forms key is still swapped for the customer's own. That is not optional: a site put live
+ * carrying the Go Polar key sends the customer's enquiries to us. This refuses by default when
+ * there is no verified key, and says which key went in either way.
+ */
+app.get('/admin/jobs/:jobId/files', async (c) => {
+  const jobId = c.req.param('jobId')
+  const db = await getDb()
+
+  const [job] = await db.select().from(schema.jobs).where(eq(schema.jobs.id, jobId)).limit(1)
+  if (!job) return c.json({ error: 'not_found', detail: `No job ${jobId}` }, 404)
+  if (job.currentVersion < 1) {
+    return c.json({ error: 'nothing_built', detail: 'This job has no build yet.' }, 409)
+  }
+
+  if (!job.web3formsVerifiedAt && c.req.query('allowGoPolarKey') !== 'yes') {
+    return c.json(
+      {
+        error: 'forms_key_unverified',
+        detail:
+          'This customer has not verified their own Web3Forms key, so their enquiry forms would post to the Go Polar account. Ask them to finish the go-live screen first. Add ?allowGoPolarKey=yes to download anyway, which ships a clearly commented placeholder instead of any real key.',
+      },
+      409,
+    )
+  }
+
+  const version = job.currentVersion
+  const [planRow] = await db
+    .select({ plan: schema.plans.plan })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, version)))
+    .limit(1)
+  if (!planRow) {
+    return c.json({ error: 'not_found', detail: 'That version has no plan stored beside it.' }, 404)
+  }
+
+  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
+  const parsed = intakeSchema.safeParse(stored?.payload)
+  if (!parsed.success) return c.json({ error: 'invalid_intake' }, 422)
+  const facts = buildFacts(parsed.data as IntakePayload, assets)
+
+  const store = storage()
+  const set = await loadPageSet(jobId, version)
+  const home = set.find((pg) => pg.path === 'index.html')
+  const homeKey = home ? home.blobKey : `jobs/${jobId}/builds/v${version}/index.html`
+  const homeHtml = await store.getText(homeKey)
+  if (homeHtml === null) {
+    return c.json({ error: 'not_found', detail: 'The home page is missing from storage.' }, 404)
+  }
+
+  const extraPages: Array<{ path: string; html: string }> = []
+  for (const page of set.filter((pg) => pg.path !== 'index.html')) {
+    const html = await store.getText(page.blobKey)
+    if (html === null) {
+      return c.json({ error: 'page_missing', detail: `${page.path} is missing from storage.` }, 409)
+    }
+    extraPages.push({ path: page.path, html })
+  }
+
+  const extraFiles: Array<{ path: string; content: string }> = []
+  if (extraPages.length > 0) {
+    for (const name of ['sitemap.xml', 'robots.txt']) {
+      const content = await store.getText(`jobs/${jobId}/builds/v${version}/${name}`)
+      if (content !== null) extraFiles.push({ path: name, content })
+    }
+  }
+
+  const pkg = await buildDischargePackage({
+    jobId,
+    html: homeHtml,
+    plan: planRow.plan as ContentPlan,
+    facts,
+    customerWeb3FormsKey: job.customerWeb3formsKey,
+    extraPages,
+    extraFiles,
+  })
+
+  await recordEvent(jobId, 'files.downloaded_by_operator', {
+    version,
+    pages: set.length,
+    keySwapped: pkg.keySwapped,
+  })
+
+  const slug = (job.businessName ?? 'website')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return new Response(toBody(Buffer.from(pkg.zip)), {
+    headers: {
+      'content-type': 'application/zip',
+      'content-disposition': `attachment; filename="${slug}-v${version}.zip"`,
+      'content-length': String(pkg.zip.byteLength),
+      // Visible from the download alone: whose key is in these files.
+      'x-forms-key': pkg.keySwapped ? 'customer' : 'placeholder',
+      'x-pages': String(set.length),
+    },
+  })
 })
 
 app.get('/admin/events', async (c) => {
