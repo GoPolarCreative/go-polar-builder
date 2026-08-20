@@ -489,6 +489,82 @@ app.post('/admin/storefront-token', async (c) => {
  * column, so there is no destructive path to guard against beyond the admin token already on this
  * whole route group.
  */
+/**
+ * Can this deployment actually store a file?
+ *
+ *   GET /api/admin/storage-check
+ *
+ * Configuration says storageDriver is vercel-blob. That is a reading of an environment variable,
+ * not evidence. This writes a small object, reads it back, compares the bytes and deletes it, so
+ * the answer is what the storage layer really did rather than what it was told to do.
+ *
+ * Worth having permanently. A misconfigured blob store fails at the worst possible moment: after a
+ * customer has answered every question and uploaded their photos, at the point the build is saved.
+ */
+app.get('/admin/storage-check', async (c) => {
+  const cfg = config()
+  const store = storage()
+  const key = `diagnostics/storage-check-${Date.now()}.txt`
+  const payload = `storage check ${new Date().toISOString()}`
+
+  const report: Record<string, unknown> = {
+    driver: store.driver,
+    configuredDriver: cfg.storageDriver,
+    blobTokenPresent: Boolean(cfg.blobToken),
+  }
+
+  try {
+    await store.put(key, payload, 'text/plain; charset=utf-8')
+  } catch (err) {
+    return c.json(
+      {
+        ...report,
+        ok: false,
+        stage: 'write',
+        detail: err instanceof Error ? err.message : String(err),
+        fix: cfg.blobToken
+          ? 'The token is set but the write failed. Check the Blob store is connected to this project and not deleted.'
+          : 'BLOB_READ_WRITE_TOKEN is not set on this deployment. Open the Blob store in the Vercel dashboard, copy its read/write token, and add it to the project environment variables.',
+      },
+      500,
+    )
+  }
+
+  const readBack = await store.getText(key).catch(() => null)
+
+  // Clean up whatever happened next, so a repeated check does not litter the store.
+  let cleaned = true
+  try {
+    await store.delete(key)
+  } catch {
+    cleaned = false
+  }
+
+  if (readBack !== payload) {
+    return c.json(
+      {
+        ...report,
+        ok: false,
+        stage: 'read',
+        detail:
+          readBack === null
+            ? 'The write reported success but the object could not be read back.'
+            : 'The object read back did not match what was written.',
+        cleanedUp: cleaned,
+      },
+      500,
+    )
+  }
+
+  return c.json({
+    ...report,
+    ok: true,
+    bytes: payload.length,
+    cleanedUp: cleaned,
+    detail: `Wrote, read back and deleted a test object using the ${store.driver} driver. File storage works.`,
+  })
+})
+
 app.post('/admin/migrate', async (c) => {
   const cfg = config()
   const started = Date.now()
