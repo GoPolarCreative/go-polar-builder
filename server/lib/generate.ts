@@ -112,7 +112,7 @@ export async function generatePlan(args: {
         },
       ],
       maxTokens: MAX_TOKENS_PLAN,
-      temperature: 0.5,
+      effort: 'high',
     })
 
     let candidate: unknown
@@ -346,7 +346,7 @@ export async function generateHtml(args: { plan: ContentPlan; facts: BuildFacts;
     ],
     messages: [{ role: 'user', content: buildUserMessage(plan, facts) }],
     maxTokens: MAX_TOKENS_BUILD,
-    temperature: 0.3,
+    effort: 'high',
   })) {
     if (chunk.type === 'text') {
       html += chunk.text
@@ -413,7 +413,7 @@ export async function generateSectioned(args: { plan: ContentPlan; facts: BuildF
         },
       ],
       maxTokens: spec.id === 'head' ? MAX_TOKENS_BUILD : MAX_TOKENS_SECTION,
-      temperature: 0.3,
+      effort: 'high',
     })) {
       if (chunk.type === 'text') {
         text += chunk.text

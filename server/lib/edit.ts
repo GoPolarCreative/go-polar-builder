@@ -127,7 +127,7 @@ export async function generateEditedPlan(args: {
       ],
       maxTokens: MAX_TOKENS_PLAN,
       // Low: an edit is a targeted change, not a fresh creative act.
-      temperature: 0.1,
+      effort: 'high',
     })
 
     let candidate: unknown
@@ -188,7 +188,7 @@ export async function rebuildFromPlan(args: {
     ],
     maxTokens: MAX_TOKENS_BUILD,
     // Lower than a first build. Unrelated drift between versions is the risk being managed here.
-    temperature: 0.1,
+    effort: 'high',
   })) {
     if (chunk.type === 'text') {
       html += chunk.text

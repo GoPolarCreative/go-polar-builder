@@ -109,7 +109,7 @@ export async function verifyAndRepair(args: {
           },
         ],
         maxTokens: MAX_TOKENS_BUILD,
-        temperature: 0.1,
+        effort: 'low',
       })
       repaired = stripCodeFence(result.text)
 

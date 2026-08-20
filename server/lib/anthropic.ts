@@ -35,7 +35,18 @@ export interface CallOptions {
   system: SystemBlock[]
   messages: Msg[]
   maxTokens: number
-  temperature?: number
+  /**
+   * How hard the model should work on this call.
+   *
+   * This replaced temperature. Claude 5 models removed the sampling parameters entirely and
+   * REJECT them: sending temperature returns 400 "temperature is deprecated for this model",
+   * which is how every generation on the first live deployment failed. Effort is the knob now,
+   * and it controls thinking depth and overall token spend rather than randomness.
+   *
+   * Omitted means "high", which is the right default for anything that writes a whole document.
+   * Set it low for cheap checks where a fast answer is worth more than a considered one.
+   */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   stopSequences?: string[]
 }
 
@@ -73,11 +84,16 @@ function requireKey(cfg: AppConfig): string {
   return key
 }
 
+export function requestBodyForTests(cfg: AppConfig, opts: CallOptions, stream: boolean): string {
+  return body(cfg, opts, stream)
+}
+
 function body(cfg: AppConfig, opts: CallOptions, stream: boolean): string {
   return JSON.stringify({
     model: modelFor(cfg),
     max_tokens: opts.maxTokens,
-    temperature: opts.temperature ?? 0.4,
+    // No temperature, top_p or top_k. They are removed on Claude 5 and return a 400.
+    ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
     system: opts.system,
     messages: opts.messages,
     ...(opts.stopSequences ? { stop_sequences: opts.stopSequences } : {}),
