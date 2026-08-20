@@ -33,11 +33,27 @@ class VercelBlobStorage implements Storage {
 
   constructor(private readonly token: string) {}
 
+  /*
+   * PRIVATE ACCESS, EVERYWHERE.
+   *
+   * The store holds uploaded photos, every generated version of a customer's website, and the
+   * discharge zips. None of that should be readable by anyone who guesses a URL, so the store is
+   * created private and every object is written private to match.
+   *
+   * This has to agree with how the store itself was created. Writing with access: 'public' to a
+   * private store is refused outright — "Cannot use public access on a private store" — and reads
+   * then have to go through the SDK with the token rather than fetching a URL, because a private
+   * blob has no publicly fetchable URL, which is the entire point of it.
+   *
+   * Serving is unaffected. Images on a published site are proxied by the site-asset route, which
+   * reads through here and sets a one year immutable cache header, so the edge answers repeat
+   * requests without touching storage or this function.
+   */
   async put(key: string, data: Uint8Array | string, contentType: string): Promise<StoredObject> {
     const { put } = await import('@vercel/blob')
     const body = Buffer.from(typeof data === 'string' ? new TextEncoder().encode(data) : data)
     const result = await put(key, body, {
-      access: 'public',
+      access: 'private',
       token: this.token,
       contentType,
       // The key is the identity of the object, so it must not be rewritten. Overwriting is
@@ -50,14 +66,15 @@ class VercelBlobStorage implements Storage {
   }
 
   async get(key: string): Promise<Buffer | null> {
-    const { head } = await import('@vercel/blob')
+    const { get } = await import('@vercel/blob')
     try {
-      const meta = await head(key, { token: this.token })
-      const res = await fetch(meta.url)
-      if (!res.ok) return null
-      return Buffer.from(await res.arrayBuffer())
+      const result = await get(key, { access: 'private', token: this.token })
+      // null is a missing blob. A 304 cannot happen here because no conditional header is sent,
+      // but it carries no body either way, so both mean "nothing to return" rather than a fault.
+      if (!result || result.statusCode !== 200) return null
+      return Buffer.from(await new Response(result.stream).arrayBuffer())
     } catch (err) {
-      // head throws BlobNotFoundError for a missing key. Anything else is a real fault.
+      // A missing key is a null, not a fault. Anything else is real and must not be swallowed.
       if (err instanceof Error && /not\s*found/i.test(err.message)) return null
       throw err
     }
