@@ -154,7 +154,9 @@ async function main() {
   check(
     'every check catches its own breakage',
     selftest.body?.ok === true,
-    `${selftest.body?.caught}/${selftest.body?.total} caught`,
+    selftest.body?.ok === true
+      ? `${selftest.body?.caught}/${selftest.body?.total} caught`
+      : `${selftest.body?.caught}/${selftest.body?.total} caught :: ${selftest.body?.diagnosis ?? ''}`,
   )
 
   // --- edit loop ---------------------------------------------------------------------------------

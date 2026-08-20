@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
+import { closeDb, getDb, schema } from '../db/client'
 import type { CheckId } from '../../shared/types'
 import { intakeSchema, type IntakePayload } from '../../shared/intake'
 import { config } from '../config'
@@ -33,22 +33,22 @@ const MUTATIONS: Mutation[] = [
   {
     expect: 'hex_outside_root',
     what: 'a literal hex colour used in a rule instead of a token',
-    apply: (h) => h.replace('.card__link{font-weight:600', '.card__link{color:#c0392b;font-weight:600'),
+    apply: (h) => h.replace('.link-arrow{display:inline-flex', '.link-arrow{color:#c0392b;display:inline-flex'),
   },
   {
     expect: 'no_em_dash',
     what: 'an em dash in body copy',
-    apply: (h) => h.replace('<p class="lead">', '<p class="lead">Fast, fair — and local. '),
+    apply: (h) => h.replace('<h2>Get in touch</h2>', '<h2>Get in touch</h2><p>Fast, fair — and local.</p>'),
   },
   {
     expect: 'no_emoji',
     what: 'an emoji in a heading',
-    apply: (h) => h.replace('<h2>Our services</h2>', '<h2>Our services \u{1F527}</h2>'),
+    apply: (h) => h.replace('<h2>Get in touch</h2>', '<h2>Get in touch \u{1F527}</h2>'),
   },
   {
     expect: 'single_h1',
     what: 'a second h1',
-    apply: (h) => h.replace('<h2>Our services</h2>', '<h1>Our services</h1>'),
+    apply: (h) => h.replace('<h2>Get in touch</h2>', '<h1>Get in touch</h1>'),
   },
   {
     expect: 'heading_hierarchy',
@@ -163,6 +163,12 @@ app.get('/dev/selftest/:jobId/:version', async (c) => {
 
   const missed = results.filter((r) => !r.mutationApplied || !r.caught)
 
+  // These two failures look identical in a pass count and have opposite causes. A stale mutation
+  // means the renderer moved and this test stopped testing anything; an uncaught one means a
+  // check has actually stopped working. Never report one as the other.
+  const stale = results.filter((r) => !r.mutationApplied).map((r) => r.expect)
+  const uncaught = results.filter((r) => r.mutationApplied && !r.caught).map((r) => r.expect)
+
   return c.json({
     jobId,
     version,
@@ -171,8 +177,52 @@ app.get('/dev/selftest/:jobId/:version', async (c) => {
     total: results.length,
     caught: results.filter((r) => r.caught).length,
     ok: baselineFailures.length === 0 && missed.length === 0,
+    stale,
+    uncaught,
+    diagnosis:
+      stale.length > 0
+        ? `${stale.length} mutation(s) no longer match the markup they were written against, so those checks were not exercised at all: ${stale.join(', ')}. Fix the anchors in server/routes/dev.ts.`
+        : uncaught.length > 0
+          ? `${uncaught.length} check(s) did not fire on a document that was genuinely broken: ${uncaught.join(', ')}.`
+          : 'Every check fired on its own breakage and nothing fired by accident.',
     results,
   })
+})
+
+/**
+ * Close the local server down properly.
+ *
+ *   POST /api/dev/shutdown
+ *
+ * On Windows there is no clean way to send an interrupt to a detached console process, so the
+ * only alternative is a forced kill. A forced kill of the embedded Postgres has already corrupted
+ * this database once and cost a morning. This asks the process to run the same shutdown path a
+ * Ctrl+C runs: close the database, then exit.
+ *
+ * Development and demo only, like everything else in this file, and it refuses outright once a
+ * Shopify webhook secret is present, because by then it is not a development machine.
+ */
+app.post('/dev/shutdown', async (c) => {
+  const cfg = config()
+  if (cfg.shopify.webhookSecret || cfg.live.payments) {
+    return c.json({ error: 'disabled', detail: 'Not available on a configured install.' }, 403)
+  }
+
+  // Answer first, exit after. Otherwise the caller sees a dropped connection and cannot tell a
+  // clean shutdown from a crash.
+  setTimeout(() => {
+    void (async () => {
+      try {
+        await closeDb()
+        console.log('\n  Stopped (requested through /api/dev/shutdown).')
+      } catch (err) {
+        console.error('database did not close cleanly', err)
+      }
+      process.exit(0)
+    })()
+  }, 50)
+
+  return c.json({ ok: true, detail: 'Closing the database and stopping.' })
 })
 
 export default app

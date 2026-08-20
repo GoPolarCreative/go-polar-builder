@@ -85,8 +85,20 @@ app.get('/jobs/:jobId/builds', async (c) => {
 
 /** Every page in one version, home first. */
 app.get('/jobs/:jobId/builds/:version/pages', async (c) => {
-  const pages = await loadPageSet(c.req.param('jobId'), Number(c.req.param('version')))
-  return c.json({ pages })
+  const set = await loadPageSet(c.req.param('jobId'), Number(c.req.param('version')))
+  // Storage keys stay on the server. What the customer needs is what the page is and whether it
+  // passed; the key is how we find it, which is nobody else's business.
+  return c.json({
+    pages: set.map((page) => ({
+      path: page.path,
+      url: page.url,
+      title: page.title,
+      service: page.serviceSlug,
+      passed: page.passed,
+      pageWeightBytes: page.pageWeightBytes,
+    })),
+    passed: set.length > 0 && set.every((page) => page.passed),
+  })
 })
 
 /** The stored document, exactly as generated. Relative asset paths, no inlining. */

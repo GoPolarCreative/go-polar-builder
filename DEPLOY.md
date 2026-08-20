@@ -292,6 +292,52 @@ curl -I https://build.itscold.com.au/api/health
 **Your storefront is untouched.** `itscold.com.au` and `www` keep pointing at Shopify. `build` is a
 separate host on separate infrastructure, which is the whole reason it is a subdomain.
 
+### The builder host is named in vercel.json
+
+```json
+{ "type": "host", "value": "(build\.itscold\.com\.au|.*\.vercel\.app|localhost(:\d+)?)" }
+```
+
+That rule is what decides whether a request gets the builder app or a customer's published website.
+A host that matches gets the builder; every other host is treated as a customer domain and answered
+from that site's published files.
+
+**If you ever move the builder to a different hostname, change that value in `vercel.json` in the
+same deploy.** Miss it and the builder host starts being treated as a customer site, which means
+every page of the app 404s. It is one line and it is the only place the builder's own hostname is
+hardcoded.
+
+---
+
+## 8b. Customer domains
+
+A customer's own domain is added the same way as the builder's, once, per customer:
+
+1. Vercel project → **Settings** → **Domains** → **Add** → their domain.
+2. Give them the record Vercel shows. For a bare domain that is usually an A record to
+   `76.76.21.21`; for `www` it is a CNAME to `cname.vercel-dns.com`.
+3. Once it resolves, publish their site (below). Order does not matter: publishing first is fine,
+   the site simply is not reachable until DNS points here.
+
+Then put their site live:
+
+```bash
+curl -X POST https://build.itscold.com.au/api/admin/publish   -H "authorization: Bearer $ADMIN_TOKEN"   -H "content-type: application/json"   -d '{"jobId":"job_...","hostname":"theirbusiness.com.au"}'
+```
+
+It publishes **every page of their build** together, with the sitemap and robots file, and returns
+the URLs it wrote. It refuses, with the reason, when:
+
+- hosting has not been paid for on that job
+- the customer has not verified their own Web3Forms key, because a live site posting to the Go Polar
+  account sends their enquiries to us
+- the current version did not pass its checks
+
+`force: true` overrides the first and the third. Nothing overrides the second.
+
+To move them to a newer version later, run the same call again. To take a site down, set `live` to
+false on its row in the `sites` table.
+
 ---
 
 ## 9. Smoke test, with real money
@@ -435,3 +481,39 @@ older deployment runs fine against a newer database.
 - **`ANTHROPIC_API_KEY` set as a Vite variable.** It must be a plain environment variable. Anything
   prefixed `VITE_` is compiled into the browser bundle. `npm run vercel:build` scans the built bundle
   for secrets and fails the deploy if it finds one.
+- **The builder hostname in `vercel.json`.** See section 8. It is the one place the builder's own
+  host is hardcoded, and getting it wrong 404s the whole app.
+- **Publishing before the customer has verified their Web3Forms key.** The publish endpoint refuses,
+  and that refusal is deliberate: it is the difference between their leads reaching them and their
+  leads reaching us.
+
+---
+
+## Stopping the local server
+
+On Windows there is no clean way to interrupt a detached console process, and a forced kill of the
+embedded Postgres has already corrupted the local database once.
+
+Ctrl+C in the terminal running `npm run dev` is the normal way. If it is running detached:
+
+```bash
+curl -X POST http://localhost:8787/api/dev/shutdown
+```
+
+It closes the database and exits. Development installs only: it refuses once a Shopify webhook
+secret is configured.
+
+---
+
+## Checking a page set end to end
+
+```bash
+npm run dev:api
+npm run e2e:pageset
+```
+
+Buys two additional pages on a throwaway job, builds, checks that every page was verified rather
+than only the home page, swaps the forms key across the set, publishes it and asks the live site for
+each path. Twenty-odd assertions, each printed separately, so a failure names itself.
+
+`npm run e2e` does the same for the single-page path and the discharge package.

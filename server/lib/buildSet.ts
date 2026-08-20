@@ -189,7 +189,17 @@ export async function copyPageSet(args: {
       .limit(1)
     const row = rows[0]
     if (!row) return { error: 'The current build is missing.' }
-    source = [{ path: 'index.html', url: '/', title: '', blobKey: row.blobKey, serviceSlug: null }]
+    source = [
+      {
+        path: 'index.html',
+        url: '/',
+        title: '',
+        blobKey: row.blobKey,
+        serviceSlug: null,
+        passed: row.passed,
+        pageWeightBytes: row.pageWeightBytes ?? 0,
+      },
+    ]
   }
 
   // Transform everything before writing anything. A page that will not swap cleanly stops the
@@ -278,7 +288,17 @@ export async function copyPageSet(args: {
 export async function loadPageSet(
   jobId: string,
   version: number,
-): Promise<Array<{ path: string; url: string; title: string; blobKey: string; serviceSlug: string | null }>> {
+): Promise<
+  Array<{
+    path: string
+    url: string
+    title: string
+    blobKey: string
+    serviceSlug: string | null
+    passed: boolean
+    pageWeightBytes: number
+  }>
+> {
   const db = await getDb()
   const rows = await db
     .select()
@@ -293,6 +313,8 @@ export async function loadPageSet(
       title: r.title,
       blobKey: r.blobKey,
       serviceSlug: r.serviceSlug,
+      passed: r.passed,
+      pageWeightBytes: r.pageWeightBytes ?? 0,
     }))
     .sort((a, b) => (a.path === 'index.html' ? -1 : b.path === 'index.html' ? 1 : a.path.localeCompare(b.path)))
 }
