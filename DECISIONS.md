@@ -1134,3 +1134,29 @@ affirmative forms. The rule is about claims, not about a word.
 anyway, and at the preview stage where they can see what a page actually is.
 
 **COPY IS NOT APPROVED.** This needs Chris's sign-off before a customer reads it, same as D28.
+
+## D46. Render checks are off in production, and say so
+
+**Decided 2026-08-20, on the live deployment.**
+
+`RENDER_DRIVER=none` is set on Vercel. The four checks that need a real browser — layout overflow,
+tap target size, colour contrast, mobile viewport — do not run there. The thirteen static checks
+run on every page of every build, as always.
+
+**Why.** Those four launch Chromium (`@sparticuz/chromium`, 67MB) inside the function. On the first
+real generation the run reached verification and never came back: the function was killed with the
+build unsaved, after twelve minutes. With the browser checks off the same job completed in 12m13s
+including two repair passes, and wrote a build that passed.
+
+**What this costs.** Four checks of seventeen. They are reported as **skipped**, never as passed, so
+no build is ever described as verified in a way it was not. Nothing silently becomes a pass.
+
+**How to get them back.** They still run locally, so `npm run sample` exercises all seventeen on
+every design style before anything ships. If they are wanted in production later, the route is to
+move verification out of the request into a second invocation rather than to raise the timeout
+again — a customer should not wait on a browser starting up.
+
+**Generation takes about twelve minutes.** That is the real number on Claude Sonnet 5 with adaptive
+thinking, for a plan call, a build call and two repair passes. The brief sells watching the site
+being written, so this is not dead time, but it is longer than the wording anywhere implies and the
+copy should not promise otherwise.
