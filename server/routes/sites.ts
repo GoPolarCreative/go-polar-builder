@@ -15,15 +15,26 @@ const app = new Hono()
 
 app.get('/site', async (c) => {
   const host = c.req.query('host') ?? c.req.header('host') ?? ''
-  const site = await findSiteByHostname(host)
+  // A build can be a page set, so the path decides which stored document answers. `path` is what
+  // the rewrite hands us; the header is the fallback for a direct call.
+  const path = c.req.query('path') ?? '/'
+  const site = await findSiteByHostname(host, path)
   if (!site) return c.json({ error: 'not_found', detail: `No site published for ${host}` }, 404)
 
   const html = await storage().getText(site.blobKey)
-  if (html === null) return c.json({ error: 'not_found', detail: 'Site document missing from storage' }, 404)
+  if (html === null) {
+    return c.json({ error: 'not_found', detail: `Nothing published at ${path} for ${host}` }, 404)
+  }
+
+  const type = site.blobKey.endsWith('.xml')
+    ? 'application/xml; charset=utf-8'
+    : site.blobKey.endsWith('.txt')
+      ? 'text/plain; charset=utf-8'
+      : 'text/html; charset=utf-8'
 
   return new Response(html, {
     headers: {
-      'content-type': 'text/html; charset=utf-8',
+      'content-type': type,
       // Short, so an edit going live is visible quickly, but long enough to absorb a refresh.
       'cache-control': 'public, max-age=60, s-maxage=300',
     },

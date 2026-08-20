@@ -26,6 +26,8 @@ export interface PublishResult {
   version: number
   bytes: number
   assetsRewritten: number
+  /** How many HTML pages are now live on this hostname. */
+  pages: number
 }
 
 /**
@@ -58,15 +60,21 @@ export async function publishSite(args: {
   version: number
   html: string
   facts: BuildFacts
+  /** The rest of the set. Home comes in as `html` because it is the page the caller already had. */
+  extraPages?: Array<{ path: string; html: string }>
+  /** sitemap.xml and robots.txt, served as they are. */
+  extraFiles?: Array<{ path: string; content: string; contentType: string }>
 }): Promise<PublishResult> {
   const cfg = config()
   const store = storage()
   const db = await getDb()
 
+  const goPolar = web3formsKey(cfg)
   // The last line of defence for the customer's leads. Whatever route got us here, a document
-  // that still posts to Go Polar's Web3Forms account does not go on the public internet. See
-  // DECISIONS.md D29.
-  assertNoGoPolarKey(args.html, web3formsKey(cfg))
+  // that still posts to Go Polar's Web3Forms account does not go on the public internet. Every
+  // page is checked, because the one nobody looks at is the one that leaks. See DECISIONS.md D29.
+  assertNoGoPolarKey(args.html, goPolar)
+  for (const page of args.extraPages ?? []) assertNoGoPolarKey(page.html, goPolar)
 
   const base = cfg.publicAppUrl.replace(/\/$/, '')
   // With Vercel Blob the stored object has its own public URL. Locally there is no CDN, so the
@@ -77,6 +85,18 @@ export async function publishSite(args: {
   const rewritten = rewriteAssetPaths(args.html, args.facts, urlFor)
   const blobKey = `sites/${args.hostname}/index.html`
   await store.put(blobKey, rewritten.html, 'text/html; charset=utf-8')
+
+  // Service pages, under the same path the links already use, so /services/<slug>/ resolves.
+  let pagesPublished = 1
+  for (const page of args.extraPages ?? []) {
+    const out = rewriteAssetPaths(page.html, args.facts, urlFor)
+    await store.put(`sites/${args.hostname}/${page.path}`, out.html, 'text/html; charset=utf-8')
+    pagesPublished++
+  }
+
+  for (const file of args.extraFiles ?? []) {
+    await store.put(`sites/${args.hostname}/${file.path}`, file.content, file.contentType)
+  }
 
   const existing = await db
     .select({ id: schema.sites.id })
@@ -103,6 +123,7 @@ export async function publishSite(args: {
     hostname: args.hostname,
     version: args.version,
     bytes: rewritten.html.length,
+    pages: pagesPublished,
   })
 
   return {
@@ -110,11 +131,34 @@ export async function publishSite(args: {
     version: args.version,
     bytes: rewritten.html.length,
     assetsRewritten: rewritten.count,
+    pages: pagesPublished,
   }
 }
 
+/**
+ * Turn a request path into the stored object that answers it.
+ *
+ * Pages are directories with an index.html inside, so /services/gutter-cleaning/ and
+ * /services/gutter-cleaning both resolve to the same file, and a trailing slash is not something a
+ * visitor has to get right. Anything with a .. in it is refused rather than normalised, because
+ * normalising a traversal attempt is how one gets through.
+ */
+export function siteObjectKey(hostname: string, requestPath: string): string | null {
+  const clean = decodeURIComponent(requestPath.split('?')[0] ?? '/')
+  if (clean.includes('..')) return null
+
+  const trimmed = clean.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (trimmed === '') return SITE_PREFIX + hostname + '/index.html'
+  if (trimmed === 'sitemap.xml' || trimmed === 'robots.txt') return SITE_PREFIX + hostname + '/' + trimmed
+  if (trimmed.endsWith('.html')) return SITE_PREFIX + hostname + '/' + trimmed
+  return SITE_PREFIX + hostname + '/' + trimmed + '/index.html'
+}
+
+const SITE_PREFIX = 'sites/'
+
 export async function findSiteByHostname(
   hostname: string,
+  requestPath = '/',
 ): Promise<{ jobId: string; version: number; blobKey: string } | null> {
   const db = await getDb()
   const host = hostname.toLowerCase().replace(/:\d+$/, '')
@@ -125,7 +169,9 @@ export async function findSiteByHostname(
     .limit(1)
   const row = rows[0]
   if (!row) return null
-  return { jobId: row.jobId, version: row.version, blobKey: `sites/${row.hostname}/index.html` }
+  const blobKey = siteObjectKey(row.hostname, requestPath)
+  if (!blobKey) return null
+  return { jobId: row.jobId, version: row.version, blobKey }
 }
 
 /**

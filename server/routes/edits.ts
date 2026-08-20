@@ -12,6 +12,7 @@ import { buildFacts } from '../lib/facts'
 import { diffPlans, generateEditedPlan, rebuildFromPlan, summariseDiff } from '../lib/edit'
 import { storage } from '../lib/storage'
 import { summarise, verifyAndRepair } from '../lib/verify'
+import { persistPageSet } from '../lib/buildSet'
 
 const app = new Hono()
 
@@ -262,22 +263,21 @@ app.post('/jobs/:jobId/edits', async (c) => {
           },
         })
 
-        const blobKey = `jobs/${jobId}/builds/v${toVersion}/index.html`
-        await storage().put(blobKey, outcome.html, 'text/html; charset=utf-8')
-
-        const diffSummary = summariseDiff(changes)
-
-        await db.insert(schema.builds).values({
-          id: id('bld'),
+        // The whole set is rebuilt from the revised plan, not just the page the customer named.
+        // The plan is the source of truth and the service pages are rendered from it, so a change
+        // to the business name or the phone number lands on every page at once. That is also why
+        // an edit spanning several pages still costs exactly one round.
+        const set = await persistPageSet({
           jobId,
           version: toVersion,
-          blobKey,
-          bytes: outcome.html.length,
-          pageWeightBytes: outcome.report.pageWeightBytes,
-          checks: outcome.report,
-          passed: outcome.report.passed,
+          plan: revisedPlan,
+          facts,
+          homeHtml: outcome.html,
+          homeReport: outcome.report,
           repairPasses: outcome.attempts,
         })
+
+        const diffSummary = summariseDiff(changes)
 
         await db.insert(schema.edits).values({
           id: id('edt'),
@@ -300,7 +300,7 @@ app.post('/jobs/:jobId/edits', async (c) => {
           })
           .where(eq(schema.jobs.id, jobId))
 
-        if (!outcome.report.passed) {
+        if (!set.passed) {
           await holdJob(
             jobId,
             `Edit verification failed after ${outcome.attempts} repair pass(es): ${summarise(outcome.report)}`,
@@ -324,7 +324,7 @@ app.post('/jobs/:jobId/edits', async (c) => {
           type: 'done',
           version: toVersion,
           bytes: outcome.html.length,
-          passed: outcome.report.passed,
+          passed: set.passed,
           pageWeightBytes: outcome.report.pageWeightBytes,
         })
       } catch (err) {

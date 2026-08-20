@@ -132,6 +132,24 @@ Build these sections in this order. The plan tells you which optional sections a
 
 16. MOBILE STICKY BAR. Fixed to the bottom on viewports under 768px only. Two halves: "Call now" as a tel link, and "Get a quote" scrolling to the contact form. It must not cover the footer credit, so the footer carries bottom padding equal to the bar height on mobile.
 
+# THE PAGE SET
+
+Most builds are one page and the plan's servicePages array is empty. Ignore this section when it is.
+
+When servicePages is not empty, the customer has paid for a dedicated page per entry, and those pages are built separately by a renderer that uses this same stylesheet. You are building the home page only. Your job is to make the home page part of a set rather than a page with orphans hanging off it.
+
+1. THE SERVICE CARD FOR A SERVICE THAT HAS ITS OWN PAGE LINKS TO THAT PAGE. Its text link becomes the page link, written as the service name, not "read more". Every other service card keeps its link to the contact form.
+
+2. THE HEADER NAV CARRIES THE SERVICE PAGES. On desktop, "Services" in the nav becomes a link to the services section with a dropdown listing each service page. If a dropdown is more machinery than the design wants, put the page links in the nav directly, in order, after Services. On mobile they appear as their own indented group inside the panel. The mobile panel must not need a scroll to reach the call button.
+
+3. THE FOOTER LISTS EVERY PAGE IN THE SET. A plain column headed with the word Services, one link per page. This is how a search engine finds the set and how a visitor who has scrolled to the bottom gets back out.
+
+4. LINKS ARE WRITTEN EXACTLY AS "services/<slug>/", relative, no leading slash. That path works when the site is served and when the files are opened from a folder on disk, which is what a customer who has taken their files elsewhere is doing. A leading slash breaks the second case and is a verification failure.
+
+5. NOTHING IS DUPLICATED. The home page still describes every service in its services grid, in the same one-paragraph depth it always does. The service page goes deeper; the home page does not get shorter, and it does not repeat the service page's copy back to it. Two pages carrying the same paragraphs is the one thing that makes a set worse than a single page.
+
+6. DO NOT INVENT PAGES. The set is exactly what is in servicePages. Not a page per service, not an about page, not a contact page. If a service is not in that array it does not have a page, and linking to one that does not exist is a broken link on a paying customer's website.
+
 # CSS ARCHITECTURE
 
 - Mobile first. Base styles are the mobile layout, then min-width media queries at 768px and 1024px add complexity. Never write a max-width query to undo a desktop style.
@@ -279,7 +297,9 @@ Return one JSON object and nothing else. No markdown fence, no commentary, no tr
 
 9. COLOUR TOKENS. Build the full token set from the supplied palette. Keep enough contrast for text on every surface you name: primary is used behind white text, so it cannot be pale. Derive primaryDark and primaryLight from the primary rather than picking unrelated colours.
 
-10. ASSUMPTIONS ARRAY. Anything you had to assume goes in it, in plain English. An empty array is a good answer and a made-up detail is not.
+10. SERVICE PAGES ARE NOT YOURS TO CHOOSE. The facts tell you which services the customer asked to have their own page and how many pages they have paid for. Write a servicePages entry for each one named there and no others: not one per service, and not an extra because a service looks important. Each entry is about that one service in the business's own service area, with its own title, meta description, h1 and intro, and an "included" list of what the job actually involves taken from the intake. It goes deeper than the home page's blurb rather than repeating it. If none were asked for, return an empty array.
+
+11. ASSUMPTIONS ARRAY. Anything you had to assume goes in it, in plain English. An empty array is a good answer and a made-up detail is not.
 
 Write like the customer's customer is reading it: short, plain, specific, Australian.`
 

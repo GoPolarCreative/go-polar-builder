@@ -83,23 +83,39 @@ function escapeXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function readmeText(args: { businessName: string; usedPlaceholder: boolean; hasLogo: boolean }): string {
+function readmeText(args: {
+  businessName: string
+  usedPlaceholder: boolean
+  hasLogo: boolean
+  /** Service page paths, if this build is a page set. */
+  extraPages?: string[]
+}): string {
   return `${args.businessName} website files
 Packaged by Go Polar Creative
 
 WHAT IS IN HERE
 
-  index.html          Your website. One file, no build step, no frameworks.
+  index.html          Your home page. Plain HTML, no build step, no frameworks.
   assets/             Your logo and photos, already resized and compressed for the web.
   favicon.svg         The little icon that shows in a browser tab.
-  PREVIEW.html        The same site with every image embedded, so you can open it by
+${
+  args.extraPages && args.extraPages.length > 0
+    ? `  services/           Your service pages, one folder each, every one with its own
+                      index.html inside. Keep the folder names as they are: they are the
+                      web addresses those pages live at.
+  sitemap.xml         A list of your pages for search engines.
+  robots.txt          Tells search engines where the sitemap is.
+`
+    : ''
+}  PREVIEW.html        The same home page with every image embedded, so you can open it by
                       double clicking without a web server. Do not upload this one, it is
                       only for looking at.
 
 HOW TO PUT IT ONLINE
 
-  Upload index.html, the assets folder and favicon.svg to any web host, keeping them in the
-  same structure. Nothing needs to be compiled or installed. Any host that serves static
+  Upload everything in this package to any web host, keeping the folder structure exactly as
+  it is. The pages link to each other using those folder names, so moving things around is
+  what breaks them. Nothing needs to be compiled or installed. Any host that serves static
   files will do.
 
 A NOTE ON THE IMAGES
@@ -120,7 +136,7 @@ ${
 
   Replace every one of those with your own access key. You can get one free in about a
   minute at https://web3forms.com by entering the email address you want enquiries sent
-  to. There are two forms on the page, so there are two places to change.
+  to. There are two forms on every page, so check each HTML file in this package.
 
   Until you do this, anyone who fills in your form will think they have contacted you and
   nobody will receive it.
@@ -154,16 +170,37 @@ export async function buildDischargePackage(args: {
   plan: ContentPlan
   facts: BuildFacts
   customerWeb3FormsKey: string | null
+  /**
+   * The rest of the page set: service pages, and the sitemap and robots files when there is more
+   * than one page. The home page is passed separately as `html` because it is the one that has
+   * been through the repair loop.
+   */
+  extraPages?: Array<{ path: string; html: string }>
+  extraFiles?: Array<{ path: string; content: string }>
 }): Promise<DischargePackage> {
   const store = storage()
   const encoder = new TextEncoder()
   const entries: ZipEntry[] = []
   const files: string[] = []
 
-  const swap = swapWeb3FormsKey(args.html, web3formsKey(config()), args.customerWeb3FormsKey)
+  const goPolar = web3formsKey(config())
+  const swap = swapWeb3FormsKey(args.html, goPolar, args.customerWeb3FormsKey)
 
   entries.push({ path: 'index.html', data: encoder.encode(swap.html) })
   files.push('index.html')
+
+  // Every other page of the set, each with the same key swap applied. A service page still
+  // pointing at the Go Polar account would send that page's enquiries to us after handover.
+  for (const page of args.extraPages ?? []) {
+    const pageSwap = swapWeb3FormsKey(page.html, goPolar, args.customerWeb3FormsKey)
+    entries.push({ path: page.path, data: encoder.encode(pageSwap.html) })
+    files.push(page.path)
+  }
+
+  for (const file of args.extraFiles ?? []) {
+    entries.push({ path: file.path, data: encoder.encode(file.content) })
+    files.push(file.path)
+  }
 
   // Every processed asset, under the exact relative path index.html already references.
   // Originals are deliberately not shipped: they are ten times the size and nothing points at
@@ -200,6 +237,7 @@ export async function buildDischargePackage(args: {
         businessName: args.facts.businessName,
         usedPlaceholder: swap.usedPlaceholder,
         hasLogo: Boolean(args.facts.logo),
+        extraPages: (args.extraPages ?? []).map((p) => p.path),
       }),
     ),
   })

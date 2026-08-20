@@ -16,6 +16,7 @@ import { readClaims, signClaims } from '../lib/signing'
 import { requireAdmin } from '../lib/auth'
 import { dischargeReadyEmail, sendSafely } from '../lib/email'
 import { storage, toBody } from '../lib/storage'
+import { loadPageSet } from '../lib/buildSet'
 
 const app = new Hono()
 
@@ -209,8 +210,32 @@ app.post('/jobs/:jobId/discharge/prepare', async (c) => {
   if (!buildRow[0] || !planRow[0]) {
     return c.json({ error: 'not_found', detail: 'The current build could not be loaded.' }, 404)
   }
-  const html = await storage().getText(buildRow[0].blobKey)
+  const store = storage()
+  const set = await loadPageSet(jobId, version)
+
+  const homeKey = set.find((pg) => pg.path === 'index.html')?.blobKey ?? buildRow[0].blobKey
+  const html = await store.getText(homeKey)
   if (html === null) return c.json({ error: 'not_found', detail: 'Build missing from storage.' }, 404)
+
+  // The rest of the set. A customer who paid for extra pages and got a zip with one page in it
+  // has not been handed their website, so a missing page stops the package rather than shrinking
+  // it quietly.
+  const extraPages: Array<{ path: string; html: string }> = []
+  for (const page of set.filter((pg) => pg.path !== 'index.html')) {
+    const pageHtml = await store.getText(page.blobKey)
+    if (pageHtml === null) {
+      return c.json({ error: 'not_found', detail: `${page.path} is missing from storage.` }, 404)
+    }
+    extraPages.push({ path: page.path, html: pageHtml })
+  }
+
+  const extraFiles: Array<{ path: string; content: string }> = []
+  if (extraPages.length > 0) {
+    for (const name of ['sitemap.xml', 'robots.txt']) {
+      const content = await store.getText(`jobs/${jobId}/builds/v${version}/${name}`)
+      if (content !== null) extraFiles.push({ path: name, content })
+    }
+  }
 
   const parsed = intakeSchema.safeParse(stored?.payload)
   if (!parsed.success) return c.json({ error: 'invalid_intake' }, 422)
@@ -224,6 +249,8 @@ app.post('/jobs/:jobId/discharge/prepare', async (c) => {
     plan,
     facts,
     customerWeb3FormsKey: row.customerWeb3formsKey,
+    extraPages,
+    extraFiles,
   })
 
   const expires = new Date(Date.now() + DOWNLOAD_TTL_DAYS * 86_400_000)

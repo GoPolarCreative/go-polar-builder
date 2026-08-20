@@ -12,8 +12,7 @@ import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/sh
 import { refForCheckout } from '../lib/products'
 import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains'
 import { buildFacts } from '../lib/facts'
-import { storage } from '../lib/storage'
-import { verify } from '../lib/verify'
+import { copyPageSet } from '../lib/buildSet'
 import {
   applyFormsKey,
   classifyWeb3FormsKey,
@@ -178,42 +177,46 @@ app.post('/jobs/:jobId/golive/forms-key', async (c) => {
   const build = current[0]
   if (!build) return c.json({ error: 'not_found', detail: 'The current build is missing.' }, 404)
 
-  const html = await storage().getText(build.blobKey)
-  if (html === null) return c.json({ error: 'not_found', detail: 'The current build is missing.' }, 404)
+  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
+  const parsedIntake = intakeSchema.safeParse(stored?.payload)
+  if (!parsedIntake.success) {
+    return c.json({ error: 'invalid_intake', detail: 'Your answers could not be read.' }, 422)
+  }
+  const facts = buildFacts(parsedIntake.data as IntakePayload, assets)
 
-  const swap = applyFormsKey(html, goPolar, shape.key)
-  if (swap.replaced < 1 || !swap.clean) {
-    // Better to refuse than to hand back a site that says its forms were switched over when one
-    // of them still is not.
+  const version = job.currentVersion + 1
+  const customerKey = shape.key
+  let formsUpdated = 0
+
+  // EVERY PAGE, not just the home page. A service page left pointing at the Go Polar account
+  // would quietly send that page's enquiries to us after the customer has gone live.
+  const copied = await copyPageSet({
+    jobId,
+    fromVersion: job.currentVersion,
+    toVersion: version,
+    facts,
+    transform: (pageHtml) => {
+      const swapped = applyFormsKey(pageHtml, goPolar, customerKey)
+      // Better to refuse than to hand back a site that says its forms were switched over when
+      // one of them still is not. Returning null aborts before anything is written.
+      if (swapped.replaced < 1 || !swapped.clean) return null
+      formsUpdated += swapped.replaced
+      return { html: swapped.html }
+    },
+  })
+
+  if ('error' in copied) {
     return c.json(
       {
         error: 'rebuild_failed',
-        detail: `Your key tested fine, but we could not switch it into the website cleanly, so nothing has been changed. This is our problem to fix, not yours. (${swap.replaced} of the forms were updated.)`,
+        detail: `Your key tested fine, but we could not switch it into the website cleanly, so nothing has been changed. This is our problem to fix, not yours. (${copied.error})`,
         saved: false,
       },
       500,
     )
   }
 
-  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
-  const parsedIntake = intakeSchema.safeParse(stored?.payload)
-  const facts = parsedIntake.success ? buildFacts(parsedIntake.data as IntakePayload, assets) : null
-  const report = facts ? await verify(swap.html, facts, { runRender: false }) : null
-
-  const version = job.currentVersion + 1
-  const blobKey = `jobs/${jobId}/builds/v${version}/index.html`
-  await storage().put(blobKey, swap.html, 'text/html; charset=utf-8')
-
-  await db.insert(schema.builds).values({
-    id: id('bld'),
-    jobId,
-    version,
-    blobKey,
-    bytes: swap.html.length,
-    pageWeightBytes: report?.pageWeightBytes ?? build.pageWeightBytes,
-    checks: report ?? build.checks,
-    passed: report ? report.passed : build.passed,
-  })
+  const swap = { replaced: formsUpdated }
 
   // Every version needs its plan alongside it. The plan is the source of truth that rollback and
   // the discharge package both read by version, and a build with no plan beside it is a version

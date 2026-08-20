@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-19T09:50:45.931Z",
+  "generatedAt": "2026-08-20T02:45:47.292Z",
   "generator": "offline fixture, not the Anthropic API",
   "business": "Cold Front Plumbing",
   "pages": [
@@ -8,7 +8,7 @@
       "path": "index.html",
       "title": "Blocked drains in Chermside | Cold Front Plumbing",
       "passed": true,
-      "pageWeightBytes": 1520823
+      "pageWeightBytes": 1522783
     },
     {
       "url": "/services/blocked-drains/",
@@ -25,9 +25,9 @@
       "pageWeightBytes": 53549
     }
   ],
-  "pageWeightBytes": 1520823,
+  "pageWeightBytes": 1522783,
   "pageWeightHuman": "1.5MB",
-  "originalImageBytes": 10612818,
+  "originalImageBytes": 10623042,
   "originalImageHuman": "10.1MB",
   "passed": true,
   "checks": [

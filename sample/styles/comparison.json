@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-19T09:50:45.972Z",
+  "generatedAt": "2026-08-20T02:45:47.339Z",
   "generator": "offline fixture, not the Anthropic API",
   "business": "Cold Front Plumbing",
   "note": "Same intake data, same photos, same copy. Only the design style differs.",
@@ -7,7 +7,7 @@
     {
       "style": "industrial",
       "label": "Heavy and industrial",
-      "weight": 1520682,
+      "weight": 1522642,
       "passed": true,
       "failed": [],
       "signals": {
@@ -29,7 +29,7 @@
     {
       "style": "modern",
       "label": "Clean and modern",
-      "weight": 1520787,
+      "weight": 1522747,
       "passed": true,
       "failed": [],
       "signals": {
@@ -51,7 +51,7 @@
     {
       "style": "established",
       "label": "Warm and established",
-      "weight": 1520823,
+      "weight": 1522783,
       "passed": true,
       "failed": [],
       "signals": {
@@ -73,7 +73,7 @@
     {
       "style": "direct",
       "label": "Bold and direct",
-      "weight": 1520838,
+      "weight": 1522798,
       "passed": true,
       "failed": [],
       "signals": {

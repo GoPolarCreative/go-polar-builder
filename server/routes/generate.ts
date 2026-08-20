@@ -7,7 +7,7 @@ import { getIntake, getJob, holdJob, listAssets, nextVersion, recordEvent, setJo
 import { id } from '../lib/ids'
 import { buildFacts, generateHtml, generatePlan } from '../lib/generate'
 import { summarise, verifyAndRepair } from '../lib/verify'
-import { storage } from '../lib/storage'
+import { persistPageSet } from '../lib/buildSet'
 import { previewLink, notifyGhlSafely } from '../lib/ghl'
 import { buildCompleteEmail, sendSafely } from '../lib/email'
 import { getUserForJob } from '../lib/db'
@@ -73,6 +73,9 @@ app.post('/jobs/:jobId/generate', async (c) => {
           assets,
           auditFlags: stored.auditFlags,
           emit,
+          // What they actually bought. The build token includes the home page; each additional
+          // page product adds one. See server/lib/orders.ts.
+          pagesAllowed: job.pagesAllowed,
         })
         await emit({ type: 'plan', plan })
 
@@ -95,28 +98,33 @@ app.post('/jobs/:jobId/generate', async (c) => {
           },
         })
 
-        // ---- Store ------------------------------------------------------------------------
-        const blobKey = `jobs/${jobId}/builds/v${version}/index.html`
-        await storage().put(blobKey, outcome.html, 'text/html; charset=utf-8')
-
-        await db.insert(schema.builds).values({
-          id: id('bld'),
+        // ---- Store the whole page set -------------------------------------------------------
+        // The home page above, plus one service page per additional page the customer bought.
+        // Every page is verified on its own and the version passes only if all of them do.
+        const set = await persistPageSet({
           jobId,
           version,
-          blobKey,
-          bytes: outcome.html.length,
-          pageWeightBytes: outcome.report.pageWeightBytes,
-          checks: outcome.report,
-          passed: outcome.report.passed,
+          plan,
+          facts,
+          homeHtml: outcome.html,
+          homeReport: outcome.report,
           repairPasses: outcome.attempts,
         })
+
+        if (set.pages.length > 1) {
+          await emit({
+            type: 'status',
+            stage: 'verifying',
+            message: `Checked all ${set.pages.length} pages`,
+          })
+        }
 
         await db
           .update(schema.jobs)
           .set({ currentVersion: version, updatedAt: new Date() })
           .where(eq(schema.jobs.id, jobId))
 
-        if (outcome.report.passed) {
+        if (set.passed) {
           await setJobStatus(jobId, 'preview')
           await recordEvent(jobId, 'build.complete', {
             version,
@@ -167,7 +175,7 @@ app.post('/jobs/:jobId/generate', async (c) => {
           type: 'done',
           version,
           bytes: outcome.html.length,
-          passed: outcome.report.passed,
+          passed: set.passed,
           pageWeightBytes: outcome.report.pageWeightBytes,
         })
       } catch (err) {

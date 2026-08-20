@@ -39,6 +39,11 @@ export async function generatePlan(args: {
     assets: AssetRecord[]
     auditFlags: AuditFlag[]
     emit: Emit
+    /**
+     * How many pages this job has paid for, home page included. Passed through to the invariants
+     * so a first build cannot produce a page nobody bought, exactly as an edit cannot.
+     */
+    pagesAllowed: number
   },
 ): Promise<ContentPlan> {
   const { intake, facts, assets, auditFlags, emit } = args
@@ -69,7 +74,9 @@ export async function generatePlan(args: {
           .join('\n')}`,
       )
     }
-    return enforcePlanInvariants(parsed.data, intake, facts, usablePhotos)
+    return enforcePlanInvariants(parsed.data, intake, facts, usablePhotos, {
+      pagesAllowed: args.pagesAllowed,
+    })
   }
 
   const style = resolveDesignStyle({
@@ -125,7 +132,9 @@ export async function generatePlan(args: {
       continue
     }
 
-    return enforcePlanInvariants(parsed.data, intake, facts, usablePhotos)
+    return enforcePlanInvariants(parsed.data, intake, facts, usablePhotos, {
+      pagesAllowed: args.pagesAllowed,
+    })
   }
 
   throw new Error(`Content plan did not validate after 2 attempts.\n${lastError}`)

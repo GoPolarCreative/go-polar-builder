@@ -59,8 +59,8 @@ export default function Preview() {
   }, [jobId])
 
   const loadPreview = useCallback(
-    async (version: number) => {
-      const res = await fetch(previewUrl(jobId, version))
+    async (version: number, path?: string) => {
+      const res = await fetch(previewUrl(jobId, version, path))
       if (!res.ok) throw new ApiCallError('Could not load the preview', res.status)
       setSrcDoc(await res.text())
     },
@@ -77,7 +77,7 @@ export default function Preview() {
           navigate(`/build/${jobId}`)
           return
         }
-        await loadPreview(v.currentVersion)
+        await loadPreview(v.currentVersion, pages.find((p) => p.url === activePage)?.path)
         const e = await api.extraEdits(jobId)
         if (!cancelled) setExtra(e)
       } catch (err) {
@@ -96,6 +96,20 @@ export default function Preview() {
   useEffect(() => {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight
   }, [liveHtml])
+
+  // Show whichever page the customer picked. Looking at a page is not an edit and costs nothing.
+  const showPage = async (url: string) => {
+    const page = pages.find((p) => p.url === url)
+    if (!page || !versions) return
+    setActivePage(url)
+    try {
+      await loadPreview(versions.currentVersion, page.path)
+    } catch (err) {
+      setError(
+        err instanceof ApiCallError ? (err.detail ?? err.message) : 'Could not load that page',
+      )
+    }
+  }
 
   const submitEdit = async () => {
     const text = request.trim()
@@ -176,7 +190,7 @@ export default function Preview() {
     const done = sawDone as { version: number; passed: boolean }
     try {
       const v = await loadVersions()
-      await loadPreview(v.currentVersion)
+      await loadPreview(v.currentVersion, pages.find((p) => p.url === activePage)?.path)
       setRequest('')
 
       const applied = v.currentVersion > (before?.currentVersion ?? 0)
@@ -209,7 +223,7 @@ export default function Preview() {
     try {
       await api.rollback(jobId, version)
       const v = await loadVersions()
-      await loadPreview(v.currentVersion)
+      await loadPreview(v.currentVersion, pages.find((p) => p.url === activePage)?.path)
       setOutcome({
         tone: 'ok',
         title: `Back on version ${version}`,
@@ -257,7 +271,7 @@ export default function Preview() {
                 <button
                   key={pg.url}
                   className={pg.url === activePage ? 'chip-on' : 'chip-off'}
-                  onClick={() => setActivePage(pg.url)}
+                  onClick={() => void showPage(pg.url)}
                 >
                   {pg.url === '/' ? 'Home' : (pg.service ?? pg.url)}
                 </button>

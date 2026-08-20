@@ -3,6 +3,12 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client'
 import { requireAdmin } from '../lib/auth'
 import { config } from '../config'
+import { attachDomain, publishSite } from '../lib/publish'
+import { loadPageSet } from '../lib/buildSet'
+import { storage } from '../lib/storage'
+import { buildFacts } from '../lib/facts'
+import { getIntake, listAssets } from '../lib/db'
+import { intakeSchema, type IntakePayload } from '../../shared/intake'
 
 const app = new Hono()
 
@@ -274,6 +280,146 @@ app.get('/admin/trace', async (c) => {
  *
  *   GET /api/admin/events?limit=50&type=email.failed&job=job_xxx
  */
+/**
+ * Put a paid site on the internet.
+ *
+ *   POST /api/admin/publish  { "jobId": "...", "hostname": "example.com.au" }
+ *
+ * The operator step between "they paid for hosting" and "their website answers on their domain".
+ * It is deliberately not automatic: the hostname has to be one somebody has actually pointed at
+ * us, and nothing here can check that a DNS record exists before it is made.
+ *
+ * THREE THINGS ARE REFUSED RATHER THAN WARNED ABOUT.
+ *   1. Hosting not paid. Publishing first means serving a site nobody is being billed for.
+ *   2. The Web3Forms key not verified. A live site posting to the Go Polar account sends the
+ *      customer's enquiries to us, which is the single worst failure this product can have.
+ *      publishSite asserts this again per page; this is the earlier, friendlier refusal.
+ *   3. A build that did not pass its checks. Passing is what "finished" means here.
+ *
+ * The whole page set goes live together, along with its sitemap and robots file, because half a
+ * site is worse than none: internal links would 404 on the pages that did not make it.
+ */
+app.post('/admin/publish', async (c) => {
+  type PublishBody = { jobId?: string; hostname?: string; force?: boolean }
+  const body = await c.req.json<PublishBody>().catch(() => ({}) as PublishBody)
+  const jobId = (body.jobId ?? '').trim()
+  const hostname = (body.hostname ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+
+  if (!jobId || !hostname) {
+    return c.json({ error: 'bad_request', detail: 'Send both jobId and hostname.' }, 400)
+  }
+
+  const db = await getDb()
+  const [jobRow] = await db.select().from(schema.jobs).where(eq(schema.jobs.id, jobId)).limit(1)
+  if (!jobRow) return c.json({ error: 'not_found', detail: `No job ${jobId}` }, 404)
+
+  const [goliveRow] = await db.select().from(schema.golive).where(eq(schema.golive.jobId, jobId)).limit(1)
+  if (!goliveRow?.paidAt && !body.force) {
+    return c.json(
+      { error: 'not_paid', detail: 'Hosting has not been paid for on this job. Pass force:true only if you have taken payment another way.' },
+      409,
+    )
+  }
+
+  if (!jobRow.web3formsVerifiedAt) {
+    return c.json(
+      {
+        error: 'forms_key_unverified',
+        detail:
+          'This job has no verified Web3Forms key, so its forms still post to the Go Polar account. The customer completes this on the go-live screen. Publishing is blocked until they do.',
+      },
+      409,
+    )
+  }
+
+  const version = jobRow.currentVersion
+  const [buildRow] = await db
+    .select()
+    .from(schema.builds)
+    .where(and(eq(schema.builds.jobId, jobId), eq(schema.builds.version, version)))
+    .limit(1)
+  if (!buildRow) return c.json({ error: 'not_found', detail: `Job ${jobId} has no build at version ${version}.` }, 404)
+  if (!buildRow.passed && !body.force) {
+    return c.json(
+      { error: 'checks_failed', detail: `Version ${version} did not pass its checks. Fix it, or pass force:true to publish anyway.` },
+      409,
+    )
+  }
+
+  const [planRow] = await db
+    .select({ plan: schema.plans.plan })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, version)))
+    .limit(1)
+  if (!planRow) return c.json({ error: 'not_found', detail: 'That version has no plan stored beside it.' }, 404)
+
+  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
+  const parsed = intakeSchema.safeParse(stored?.payload)
+  if (!parsed.success) return c.json({ error: 'invalid_intake', detail: 'The stored answers could not be read.' }, 422)
+  const facts = buildFacts(parsed.data as IntakePayload, assets)
+
+  const set = await loadPageSet(jobId, version)
+  const store = storage()
+
+  const home = set.find((p) => p.path === 'index.html')
+  const homeHtml = await store.getText(home ? home.blobKey : buildRow.blobKey)
+  if (homeHtml === null) return c.json({ error: 'not_found', detail: 'The home page is missing from storage.' }, 404)
+
+  const extraPages: Array<{ path: string; html: string }> = []
+  for (const page of set.filter((p) => p.path !== 'index.html')) {
+    const html = await store.getText(page.blobKey)
+    if (html === null) {
+      return c.json({ error: 'page_missing', detail: `${page.path} is missing from storage, so nothing was published.` }, 409)
+    }
+    extraPages.push({ path: page.path, html })
+  }
+
+  const extraFiles: Array<{ path: string; content: string; contentType: string }> = []
+  if (extraPages.length > 0) {
+    for (const [path, contentType] of [
+      ['sitemap.xml', 'application/xml; charset=utf-8'],
+      ['robots.txt', 'text/plain; charset=utf-8'],
+    ] as const) {
+      const content = await store.getText(`jobs/${jobId}/builds/v${version}/${path}`)
+      if (content !== null) extraFiles.push({ path, content, contentType })
+    }
+  }
+
+  try {
+    const result = await publishSite({
+      jobId,
+      hostname,
+      version,
+      html: homeHtml,
+      facts,
+      extraPages,
+      extraFiles,
+    })
+
+    const attached = await attachDomain(hostname, jobId)
+
+    return c.json({
+      ok: true,
+      ...result,
+      urls: [`https://${hostname}/`, ...extraPages.map((p) => `https://${hostname}/${p.path.replace(/index.html$/, '')}`)],
+      domain: attached,
+      note: attached.ok
+        ? 'Published. The domain still needs its DNS pointed here before anyone can reach it.'
+        : `Published, but the domain was not attached: ${attached.detail}`,
+    })
+  } catch (err) {
+    // assertNoGoPolarKey throws here. That is the whole point of it and it must not be softened.
+    return c.json(
+      { error: 'publish_refused', detail: err instanceof Error ? err.message : 'Publishing was refused.' },
+      409,
+    )
+  }
+})
+
 app.get('/admin/events', async (c) => {
   const db = await getDb()
   const limit = Math.min(Number(c.req.query('limit') ?? 50), 200)

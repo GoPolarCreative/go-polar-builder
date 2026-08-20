@@ -21,6 +21,18 @@
 
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+
+    {
+      "source": "/((?!assets/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(build\\.itscold\\.com\\.au|.*\\.vercel\\.app|localhost(:\\d+)?)"
+        }
+      ],
+      "destination": "/index.html"
+    },
+
+    { "source": "/((?!assets/).*)", "destination": "/api/index" }
   ]
 }

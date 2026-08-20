@@ -356,8 +356,10 @@ export function assetUrl(assetId: string, variant: 'web' | 'thumb' | 'original' 
   return `/api/assets/${assetId}/raw?variant=${variant}`
 }
 
-export function previewUrl(jobId: string, version: number): string {
-  return `/api/jobs/${jobId}/builds/${version}/preview`
+export function previewUrl(jobId: string, version: number, path?: string): string {
+  // No path means the home page, which is what every existing caller wants.
+  const query = path && path !== 'index.html' ? `?path=${encodeURIComponent(path)}` : ''
+  return `/api/jobs/${jobId}/builds/${version}/preview${query}`
 }
 
 /**

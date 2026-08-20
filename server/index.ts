@@ -4,6 +4,8 @@ import { recordEvent } from './lib/db'
 import { assertProductConfig, productConfigReport } from './lib/products'
 import { checkStoreProducts } from './lib/shopify'
 import { requireSession } from './lib/auth'
+import { findSiteByHostname } from './lib/publish'
+import { storage } from './lib/storage'
 import auth from './routes/auth'
 import jobs from './routes/jobs'
 import intake from './routes/intake'
@@ -100,9 +102,56 @@ api.route('/', discharge)
 api.route('/', demo)
 api.route('/', dev)
 
-api.notFound((c) =>
-  c.json({ error: 'not_found', detail: `No route for ${c.req.method} ${c.req.path}` }, 404),
-)
+/**
+ * Published customer websites.
+ *
+ * A request that matched no API route and did not arrive on a Go Polar hostname is a visitor on a
+ * customer's own domain, so it is answered from that site's published files. Vercel rewrites send
+ * those hostnames here (see vercel.json), and this is the only place that decides what a customer
+ * domain serves. A page set is served path by path, which is why the whole path is passed through
+ * rather than only the home page.
+ */
+api.notFound(async (c) => {
+  const host = (c.req.header('host') ?? '').toLowerCase().replace(/:d+$/, '')
+  const builderHost = (() => {
+    try {
+      return new URL(config().publicAppUrl).hostname.toLowerCase()
+    } catch {
+      return ''
+    }
+  })()
+
+  const isGoPolarHost =
+    host === '' ||
+    host === builderHost ||
+    host.startsWith('localhost') ||
+    host.startsWith('127.0.0.1') ||
+    host.endsWith('.vercel.app')
+
+  if (!isGoPolarHost) {
+    const site = await findSiteByHostname(host, c.req.path)
+    if (site) {
+      const body = await storage().getText(site.blobKey)
+      if (body !== null) {
+        const type = site.blobKey.endsWith('.xml')
+          ? 'application/xml; charset=utf-8'
+          : site.blobKey.endsWith('.txt')
+            ? 'text/plain; charset=utf-8'
+            : 'text/html; charset=utf-8'
+        return new Response(body, {
+          headers: {
+            'content-type': type,
+            'cache-control': 'public, max-age=60, s-maxage=300',
+          },
+        })
+      }
+    }
+    // A live site with nothing at this path. Say so as a website would, not as an API would.
+    return c.html('<!doctype html><meta charset="utf-8"><title>Page not found</title><p>Page not found.', 404)
+  }
+
+  return c.json({ error: 'not_found', detail: `No route for ${c.req.method} ${c.req.path}` }, 404)
+})
 
 // Brief s14: every external call is wrapped and surfaces a real error to the UI, never a silent
 // fail. This is the backstop for anything that got past a local try/catch.
