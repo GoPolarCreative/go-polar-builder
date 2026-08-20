@@ -156,7 +156,12 @@ Before building any checkout link it reads the store through the Admin API and *
   store charged $5.50 a year, and nobody finds out for twelve months.
 
 `GET /api/health` shows the same report. With `ENABLE_LIVE_PAYMENTS=1` the API refuses to boot while
-anything is outstanding, and names every item.
+anything is outstanding **that a customer could actually reach**, and names every item.
+
+An unpriced product is not one of those. The app never offers a product with no price: no figure, no
+button, no checkout. So `extra-edits` being undecided does not stop a launch, and is reported rather
+than thrown. Everything with a price attached does stop it, because a price means the app will try
+to sell it.
 
 ---
 

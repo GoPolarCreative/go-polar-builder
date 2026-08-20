@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PRICING } from '../shared/pricing'
+import { PRICING, blocksPayments, productConfigProblems } from '../shared/pricing'
 
 /**
  * The page allowance, which is money.
@@ -185,5 +185,72 @@ describe('a page nobody paid for is never granted', () => {
     await processPaidOrder(order({ email, lines: [{ variantId: BUILD_VARIANT, price: '220.00' }] }))
     await processPaidOrder(order({ email, lines: [{ variantId: PRICING.hosting.variantId ?? '999', price: '33.00' }] }))
     expect(await allowanceFor(email)).toBe(1)
+  })
+})
+
+/**
+ * Going live with a known gap.
+ *
+ * `extra-edits` has never been priced, and the app is built to degrade honestly when it is
+ * reached: no figure, no button, a conversation offered instead. The boot guard must not turn that
+ * deliberate gap into a launch blocker, and must still refuse over a gap that would put a customer
+ * at a checkout that does not work.
+ */
+describe('what stops the app taking payments', () => {
+  it('an unpriced product does not block, because it is never offered', () => {
+    const problems = productConfigProblems({})
+    const unpriced = problems.filter((p) => PRICING[p.key].incGstCents === null)
+    expect(unpriced.length).toBeGreaterThan(0)
+    for (const problem of unpriced) {
+      expect(blocksPayments(problem), `${problem.key} should not block a launch`).toBe(false)
+    }
+  })
+
+  it('a gap on a product that IS priced does block', () => {
+    const priced = (Object.keys(PRICING) as Array<keyof typeof PRICING>).find(
+      (key) => PRICING[key].incGstCents !== null,
+    )!
+    expect(
+      blocksPayments({
+        key: priced,
+        label: PRICING[priced].label,
+        missing: 'a variant id',
+        detail: '',
+        breaks: '',
+      }),
+    ).toBe(true)
+  })
+
+  it('the only things left to paste in are the six subscription ids', () => {
+    // These six are the whole gap between this repo and taking money. Everything else about the
+    // store is recorded in shared/pricing.ts and needs nothing at deploy time. If this list ever
+    // grows, the runbook is out of date and somebody is going to hit it at 9pm on a launch night.
+    const blocking = productConfigProblems({}).filter(blocksPayments)
+    expect(blocking.map((p) => p.missing).sort()).toEqual(
+      [
+        'SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR',
+        'SHOPIFY_SELLING_PLAN_EMAIL_HOSTING',
+        'SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA',
+        'SHOPIFY_VARIANT_DOMAIN_1_YEAR',
+        'SHOPIFY_VARIANT_EMAIL_HOSTING',
+        'SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA',
+      ].sort(),
+    )
+  })
+
+  it('with those six set, nothing blocks a launch', () => {
+    const env = {
+      SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA: '1',
+      SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA: '2',
+      SHOPIFY_VARIANT_DOMAIN_1_YEAR: '3',
+      SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR: '4',
+      SHOPIFY_VARIANT_EMAIL_HOSTING: '5',
+      SHOPIFY_SELLING_PLAN_EMAIL_HOSTING: '6',
+    }
+    const blocking = productConfigProblems(env).filter(blocksPayments)
+    expect(blocking.map((p) => `${p.key}: ${p.missing}`)).toEqual([])
+
+    // And the unpriced add-on is still reported, just not as a blocker.
+    expect(productConfigProblems(env).length).toBeGreaterThan(0)
   })
 })

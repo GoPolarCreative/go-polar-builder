@@ -404,6 +404,20 @@ export interface ProductConfigProblem {
 }
 
 /**
+ * Does this gap stop a customer reaching a checkout that does not work?
+ *
+ * No, when the product has no price at all. The app never offers an unpriced product: there is no
+ * button, no figure and no checkout, and the screens that would have shown one say so in words
+ * instead. That is the designed behaviour for `extra-edits` and it is covered by tests.
+ *
+ * Yes, for everything else. A product with a price is a product the app will try to sell, and a
+ * missing id on one of those is a customer at a broken checkout.
+ */
+export function blocksPayments(problem: ProductConfigProblem): boolean {
+  return PRICING[problem.key].incGstCents !== null
+}
+
+/**
  * What is not configured yet, and what each gap costs.
  *
  * `env` is passed in so this stays pure and the client bundle never touches process.env.

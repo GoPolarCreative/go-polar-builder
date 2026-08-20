@@ -4,6 +4,7 @@ import {
   checkoutRef,
   productConfigProblems,
   type PriceKey,
+  blocksPayments,
   type ProductConfigProblem,
 } from '../../shared/pricing'
 import { config } from '../config'
@@ -60,7 +61,11 @@ export function assertProductConfig(env: Record<string, string | undefined> = pr
     return
   }
 
-  if (problems.length > 0 && cfg.live.payments) throw new ProductConfigError(problems)
+  // A product with no price is never offered anywhere, so a gap on one cannot put a customer at a
+  // broken checkout. Refusing to boot over it would mean the app could not go live until every
+  // optional add-on had been priced, which is not what this guard is for. It is still reported.
+  const blocking = problems.filter(blocksPayments)
+  if (blocking.length > 0 && cfg.live.payments) throw new ProductConfigError(blocking)
 
   if (!reported) {
     reported = true
@@ -70,7 +75,9 @@ export function assertProductConfig(env: Record<string, string | undefined> = pr
     }
     console.warn(
       [
-        `Products: ${problems.length} item(s) not configured on ${STORE.domain}. Payments are off, so this install runs, but each of these fails loudly if reached:`,
+        cfg.live.payments
+          ? `Products: ${problems.length} item(s) not configured on ${STORE.domain}. None of them blocks a checkout, because an unpriced product is never offered, but each fails loudly if somehow reached:`
+          : `Products: ${problems.length} item(s) not configured on ${STORE.domain}. Payments are off, so this install runs, but each of these fails loudly if reached:`,
         ...problems.map((p) => `  - ${p.missing} (${p.label}). ${p.breaks}`),
         '  Checklist: SHOPIFY-SETUP.md',
       ].join('\n'),
@@ -99,9 +106,13 @@ export function refForCheckout(key: PriceKey): string {
 /** For the health endpoint and for Chris, without needing the logs. */
 export function productConfigReport(env: Record<string, string | undefined> = process.env) {
   const problems = productConfigProblems(env)
+  const blocking = problems.filter(blocksPayments)
   return {
     store: STORE,
     configured: problems.length === 0,
+    /** Nothing outstanding would put a customer at a checkout that does not work. */
+    canTakePayments: blocking.length === 0,
+    blocking,
     problems,
     checklist: 'SHOPIFY-SETUP.md',
   }
