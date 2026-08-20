@@ -1,7 +1,7 @@
-import type { GhlPayload } from '../ghl'
-import type { CheckoutRequest } from '../shopify'
-import type { DomainReport } from '../domains'
-import { config } from '../../config'
+import type { GhlPayload } from '../ghl.js'
+import type { CheckoutRequest } from '../shopify.js'
+import type { DomainReport } from '../domains.js'
+import { config } from '../../config.js'
 
 /**
  * Local fakes for every outbound integration.

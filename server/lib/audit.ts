@@ -1,5 +1,5 @@
-import type { AssetRecord, AuditFlag } from '../../shared/types'
-import type { IntakePayload } from '../../shared/intake'
+import type { AssetRecord, AuditFlag } from '../../shared/types.js'
+import type { IntakePayload } from '../../shared/intake.js'
 
 /**
  * Server-side gap audit. Brief s4.

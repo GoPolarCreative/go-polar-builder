@@ -1,5 +1,5 @@
-import type { BuildFacts } from '../../shared/plan'
-import { storage } from './storage'
+import type { BuildFacts } from '../../shared/plan.js'
+import { storage } from './storage.js'
 
 /**
  * Produce a standalone copy of a build with every image replaced by a data URI.

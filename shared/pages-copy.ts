@@ -1,4 +1,4 @@
-import { formatPrice } from './pricing'
+import { formatPrice } from './pricing.js'
 
 /**
  * Everything the builder says to a customer about additional pages, in one place.

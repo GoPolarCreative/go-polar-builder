@@ -1,7 +1,7 @@
-import { assertLiveEnabled, config, LiveActionBlockedError } from '../config'
-import { recordEvent } from './db'
-import { formatPrice } from '../../shared/pricing'
-import { fakeResend } from './integrations/fakes'
+import { assertLiveEnabled, config, LiveActionBlockedError } from '../config.js'
+import { recordEvent } from './db.js'
+import { formatPrice } from '../../shared/pricing.js'
+import { fakeResend } from './integrations/fakes.js'
 
 /**
  * Transactional email through Resend.

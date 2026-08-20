@@ -1,12 +1,12 @@
 import { and, eq } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import type { BuildFacts } from '../../shared/plan'
-import { config, web3formsKey } from '../config'
-import { storage } from './storage'
-import { assertNoGoPolarKey } from './web3forms'
-import { id } from './ids'
-import { recordEvent } from './db'
-import { fakeDomainAttach } from './integrations/fakes'
+import { getDb, schema } from '../db/client.js'
+import type { BuildFacts } from '../../shared/plan.js'
+import { config, web3formsKey } from '../config.js'
+import { storage } from './storage.js'
+import { assertNoGoPolarKey } from './web3forms.js'
+import { id } from './ids.js'
+import { recordEvent } from './db.js'
+import { fakeDomainAttach } from './integrations/fakes.js'
 
 /**
  * Publishing a finished site so visitors can reach it. Brief s2: hosting is $30/month.

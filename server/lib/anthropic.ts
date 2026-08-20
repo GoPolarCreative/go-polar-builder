@@ -1,4 +1,4 @@
-import { config, modelFor, type AppConfig } from '../config'
+import { config, modelFor, type AppConfig } from '../config.js'
 
 /**
  * Minimal Anthropic Messages client.

@@ -1,12 +1,12 @@
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import type { VerificationReport } from '../../shared/types'
-import { getDb, schema } from '../db/client'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import type { VerificationReport } from '../../shared/types.js'
+import { getDb, schema } from '../db/client.js'
 import { and, eq } from 'drizzle-orm'
-import { id } from './ids'
-import { storage } from './storage'
-import { pagesFor, robotsTxt, sitemapXml, type SitePage } from './pages'
-import { renderServicePage } from './render/servicePage'
-import { verify } from './verify'
+import { id } from './ids.js'
+import { storage } from './storage.js'
+import { pagesFor, robotsTxt, sitemapXml, type SitePage } from './pages.js'
+import { renderServicePage } from './render/servicePage.js'
+import { verify } from './verify.js'
 
 /**
  * Render, verify and persist a whole page set for one version.

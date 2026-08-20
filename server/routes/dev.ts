@@ -1,13 +1,13 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
-import { closeDb, getDb, schema } from '../db/client'
-import type { CheckId } from '../../shared/types'
-import { intakeSchema, type IntakePayload } from '../../shared/intake'
-import { config } from '../config'
-import { getIntake, listAssets } from '../lib/db'
-import { buildFacts } from '../lib/facts'
-import { runStaticChecks } from '../lib/checks/static'
-import { storage } from '../lib/storage'
+import { closeDb, getDb, schema } from '../db/client.js'
+import type { CheckId } from '../../shared/types.js'
+import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
+import { config } from '../config.js'
+import { getIntake, listAssets } from '../lib/db.js'
+import { buildFacts } from '../lib/facts.js'
+import { runStaticChecks } from '../lib/checks/static.js'
+import { storage } from '../lib/storage.js'
 
 const app = new Hono()
 

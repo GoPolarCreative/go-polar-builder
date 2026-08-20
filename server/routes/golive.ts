@@ -1,24 +1,24 @@
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { PRICING, ProductNotOnStoreError, formatPrice } from '../../shared/pricing'
-import { intakeSchema, type IntakePayload } from '../../shared/intake'
-import { isValidAbn } from '../../shared/abn'
-import type { Job } from '../../shared/types'
-import { config, web3formsKey } from '../config'
-import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db'
-import { id } from '../lib/ids'
-import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify'
-import { refForCheckout } from '../lib/products'
-import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains'
-import { buildFacts } from '../lib/facts'
-import { copyPageSet } from '../lib/buildSet'
+import { getDb, schema } from '../db/client.js'
+import { PRICING, ProductNotOnStoreError, formatPrice } from '../../shared/pricing.js'
+import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
+import { isValidAbn } from '../../shared/abn.js'
+import type { Job } from '../../shared/types.js'
+import { config, web3formsKey } from '../config.js'
+import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db.js'
+import { id } from '../lib/ids.js'
+import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify.js'
+import { refForCheckout } from '../lib/products.js'
+import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains.js'
+import { buildFacts } from '../lib/facts.js'
+import { copyPageSet } from '../lib/buildSet.js'
 import {
   applyFormsKey,
   classifyWeb3FormsKey,
   maskKey,
   verifyWeb3FormsKey,
-} from '../lib/web3forms'
+} from '../lib/web3forms.js'
 
 const app = new Hono()
 

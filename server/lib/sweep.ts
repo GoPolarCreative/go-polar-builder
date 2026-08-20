@@ -1,11 +1,11 @@
 import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { recordEvent } from './db'
-import { buildLink, createBuildToken } from './auth'
-import { buildLinkEmail, sendSafely } from './email'
-import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl'
-import { listPaidOrdersSince, ShopifyConfigError } from './shopify'
-import { processPaidOrder } from './orders'
+import { getDb, schema } from '../db/client.js'
+import { recordEvent } from './db.js'
+import { buildLink, createBuildToken } from './auth.js'
+import { buildLinkEmail, sendSafely } from './email.js'
+import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl.js'
+import { listPaidOrdersSince, ShopifyConfigError } from './shopify.js'
+import { processPaidOrder } from './orders.js'
 
 /**
  * The scheduled sweep. Vercel Cron, hourly (DECISIONS.md D12).

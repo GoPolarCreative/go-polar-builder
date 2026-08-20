@@ -1,5 +1,5 @@
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import { factsBlock } from './messages'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import { factsBlock } from './messages.js'
 
 /**
  * Edit prompts. See DECISIONS.md D3: an edit revises the plan first, then the HTML is rebuilt

@@ -6,7 +6,7 @@
 // malformed site, and the customer is watching.
 
 import { z } from 'zod'
-import { DESIGN_STYLES, NAMED_STYLES } from './styles'
+import { DESIGN_STYLES, NAMED_STYLES } from './styles.js'
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 

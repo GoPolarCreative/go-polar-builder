@@ -113,7 +113,17 @@ export function loadConfig(): AppConfig {
     cronSecret: env('CRON_SECRET'),
 
     databaseUrl: env('DATABASE_URL'),
-    databaseDriver: (env('DATABASE_DRIVER') as AppConfig['databaseDriver']) ?? (env('DATABASE_URL') ? 'postgres' : 'pglite'),
+    /*
+     * PGlite is the local convenience, not a fallback.
+     *
+     * On Vercel with no DATABASE_URL this used to choose the embedded database, which then spent
+     * three minutes failing to mkdir inside a read-only function before saying anything. An
+     * unconfigured deployment should say "DATABASE_URL is not set" immediately, so anywhere the
+     * platform sets VERCEL the answer is postgres and the absence of a URL is a loud error.
+     */
+    databaseDriver:
+      (env('DATABASE_DRIVER') as AppConfig['databaseDriver']) ??
+      (env('DATABASE_URL') || env('VERCEL') ? 'postgres' : 'pglite'),
     pgliteDir: env('PGLITE_DIR') ?? '.local/pglite',
 
     blobToken: env('BLOB_READ_WRITE_TOKEN'),

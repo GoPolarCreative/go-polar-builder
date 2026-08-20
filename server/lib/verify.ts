@@ -1,11 +1,11 @@
-import type { CheckResult, VerificationReport } from '../../shared/types'
-import type { BuildFacts } from '../../shared/plan'
-import { measurePageWeight, runStaticChecks } from './checks/static'
-import { renderChecksSkipped, runRenderChecks } from './checks/render'
-import { inlineAssets } from './inline'
-import { callMessage, isTruncated, stripCodeFence, MAX_TOKENS_BUILD } from './anthropic'
-import { REPAIR_SYSTEM } from '../prompts/houseRules'
-import { config } from '../config'
+import type { CheckResult, VerificationReport } from '../../shared/types.js'
+import type { BuildFacts } from '../../shared/plan.js'
+import { measurePageWeight, runStaticChecks } from './checks/static.js'
+import { renderChecksSkipped, runRenderChecks } from './checks/render.js'
+import { inlineAssets } from './inline.js'
+import { callMessage, isTruncated, stripCodeFence, MAX_TOKENS_BUILD } from './anthropic.js'
+import { REPAIR_SYSTEM } from '../prompts/houseRules.js'
+import { config } from '../config.js'
 
 /** Brief s6: maximum 2 repair attempts, then hold the job and notify Chris. */
 export const MAX_REPAIR_ATTEMPTS = 2

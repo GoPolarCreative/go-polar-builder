@@ -1,7 +1,7 @@
-import type { BuildFacts, ContentPlan } from '../../../shared/plan'
-import { pagesFor, robotsTxt, sitemapXml, type SitePage } from '../pages'
-import { renderSite } from './site'
-import { renderServicePage } from './servicePage'
+import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
+import { pagesFor, robotsTxt, sitemapXml, type SitePage } from '../pages.js'
+import { renderSite } from './site.js'
+import { renderServicePage } from './servicePage.js'
 
 /**
  * Render the whole page set.

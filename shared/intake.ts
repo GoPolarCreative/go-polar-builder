@@ -5,10 +5,10 @@
 // submissions. Where that is the reason for a rule, the comment says which failure.
 
 import { z } from 'zod'
-import { TRADES } from './trades'
-import { isValidAbn } from './abn'
-import { normaliseAuPhone } from './phone'
-import { DESIGN_STYLES } from './styles'
+import { TRADES } from './trades.js'
+import { isValidAbn } from './abn.js'
+import { normaliseAuPhone } from './phone.js'
+import { DESIGN_STYLES } from './styles.js'
 
 // ---------------------------------------------------------------------------------------------
 // Shared leaf types

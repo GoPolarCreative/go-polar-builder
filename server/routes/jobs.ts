@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import { desc, eq } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { config } from '../config'
-import { createUserAndJob, getIntake, getJob, listAssets, recordEvent } from '../lib/db'
-import { SESSION_TTL_DAYS, buildLink, createBuildToken, sessionCookie } from '../lib/auth'
-import { signClaims } from '../lib/signing'
+import { getDb, schema } from '../db/client.js'
+import { config } from '../config.js'
+import { createUserAndJob, getIntake, getJob, listAssets, recordEvent } from '../lib/db.js'
+import { SESSION_TTL_DAYS, buildLink, createBuildToken, sessionCookie } from '../lib/auth.js'
+import { signClaims } from '../lib/signing.js'
 
 const app = new Hono()
 

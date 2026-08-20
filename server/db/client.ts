@@ -1,7 +1,7 @@
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { drizzle as drizzlePglite, type PgliteDatabase } from 'drizzle-orm/pglite'
-import * as schema from '../../db/schema'
-import { config } from '../config'
+import * as schema from '../../db/schema.js'
+import { config } from '../config.js'
 
 /**
  * The database handle.
@@ -57,7 +57,10 @@ export async function getDb(): Promise<Database> {
    * The old process is gone within a second or so, so a few short retries cover it. If it still
    * cannot open, that is a real problem and it says so rather than exiting into nothing.
    */
-  const attempts = 5
+  // The retry below is for one specific LOCAL race, so it is skipped where that race cannot
+  // happen. In a serverless function the directory is not writable and never will be: retrying
+  // turns an instant, obvious failure into a three minute hang that ends in the same error.
+  const attempts = process.env.VERCEL ? 1 : 5
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const client = new PGlite(cfg.pgliteDir)

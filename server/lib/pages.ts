@@ -1,4 +1,4 @@
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
 
 /**
  * The page set.

@@ -1,5 +1,5 @@
-import type { CheckResult } from '../../../shared/types'
-import { config } from '../../config'
+import type { CheckResult } from '../../../shared/types.js'
+import { config } from '../../config.js'
 
 /**
  * Render verification. Brief s6, checks 13 to 16.

@@ -1,8 +1,8 @@
 // Types shared by the server and the client. Plain types only, so nothing server side can leak
 // into the browser bundle.
 
-import type { Trade } from './trades'
-import type { IntakePayload } from './intake'
+import type { Trade } from './trades.js'
+import type { IntakePayload } from './intake.js'
 
 export type JobStatus =
   | 'paid'

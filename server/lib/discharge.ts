@@ -1,8 +1,8 @@
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import { config, web3formsKey } from '../config'
-import { createZip, type ZipEntry } from './zip'
-import { inlineAssets } from './inline'
-import { storage } from './storage'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import { config, web3formsKey } from '../config.js'
+import { createZip, type ZipEntry } from './zip.js'
+import { inlineAssets } from './inline.js'
+import { storage } from './storage.js'
 
 /**
  * Discharge packaging. Brief s9.
@@ -19,8 +19,8 @@ export const PLACEHOLDER_KEY = 'YOUR-WEB3FORMS-ACCESS-KEY-GOES-HERE'
 
 // Validation lives in one place, shared with the go-live flow, so the two paths cannot drift into
 // one strict and one lenient version of the same rule. See DECISIONS.md D29.
-export { UUID_RE, isValidWeb3FormsKey } from './web3forms'
-import { applyFormsKey, isValidWeb3FormsKey } from './web3forms'
+export { UUID_RE, isValidWeb3FormsKey } from './web3forms.js'
+import { applyFormsKey, isValidWeb3FormsKey } from './web3forms.js'
 
 export interface DischargePackage {
   zip: Uint8Array

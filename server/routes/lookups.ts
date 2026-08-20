@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { SeedSuburbProvider } from '../../shared/suburbs'
-import { formatAbn, isValidAbn, normaliseAbn } from '../../shared/abn'
-import { normaliseAuPhone, phoneKind } from '../../shared/phone'
+import { SeedSuburbProvider } from '../../shared/suburbs.js'
+import { formatAbn, isValidAbn, normaliseAbn } from '../../shared/abn.js'
+import { normaliseAuPhone, phoneKind } from '../../shared/phone.js'
 
 const app = new Hono()
 

@@ -1,9 +1,9 @@
-import type { AssetRecord } from '../../shared/types'
-import type { BuildFacts } from '../../shared/plan'
-import { DAYS, DAY_LABELS, type Day, type IntakePayload } from '../../shared/intake'
-import { formatAuPhone, normaliseAuPhone } from '../../shared/phone'
-import { planAssets } from './assets'
-import { config, web3formsKey, type AppConfig } from '../config'
+import type { AssetRecord } from '../../shared/types.js'
+import type { BuildFacts } from '../../shared/plan.js'
+import { DAYS, DAY_LABELS, type Day, type IntakePayload } from '../../shared/intake.js'
+import { formatAuPhone, normaliseAuPhone } from '../../shared/phone.js'
+import { planAssets } from './assets.js'
+import { config, web3formsKey, type AppConfig } from '../config.js'
 
 /**
  * BuildFacts are the things the model is not allowed to reword: phone numbers, the Web3Forms

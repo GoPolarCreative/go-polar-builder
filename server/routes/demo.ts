@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import { config } from '../config'
-import { processPaidOrder } from '../lib/orders'
-import { runSweep } from '../lib/sweep'
-import { getJob, recordEvent } from '../lib/db'
-import { id } from '../lib/ids'
-import { fakeLog } from '../lib/integrations/fakes'
-import type { ShopifyOrder } from '../lib/shopify'
+import { config } from '../config.js'
+import { processPaidOrder } from '../lib/orders.js'
+import { runSweep } from '../lib/sweep.js'
+import { getJob, recordEvent } from '../lib/db.js'
+import { id } from '../lib/ids.js'
+import { fakeLog } from '../lib/integrations/fakes.js'
+import type { ShopifyOrder } from '../lib/shopify.js'
 
 const app = new Hono()
 

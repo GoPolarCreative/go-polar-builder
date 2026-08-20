@@ -1,4 +1,4 @@
-import type { Trade } from './trades'
+import type { Trade } from './trades.js'
 
 /**
  * Design styles.

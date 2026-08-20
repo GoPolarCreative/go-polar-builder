@@ -1,5 +1,5 @@
-import type { BuildFacts, ContentPlan } from '../../../shared/plan'
-import { styleSpec } from '../../../shared/styles'
+import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
+import { styleSpec } from '../../../shared/styles.js'
 import {
   ICON_CHEVRON,
   ICON_CLOCK,
@@ -19,14 +19,14 @@ import {
   sectionHead,
   stylesheet,
   twoTone,
-} from './site'
+} from './site.js'
 import {
   breadcrumbSchema,
   canonicalFor,
   relativeLink,
   serviceSchema,
   type SitePage,
-} from '../pages'
+} from '../pages.js'
 
 /**
  * A dedicated service page.

@@ -1,9 +1,9 @@
-import type { AuditFlag } from '../../shared/types'
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import type { IntakePayload } from '../../shared/intake'
-import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades'
-import { formatAuPhone } from '../../shared/phone'
-import { styleDirective, styleSpec, type NamedStyleId } from '../../shared/styles'
+import type { AuditFlag } from '../../shared/types.js'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import type { IntakePayload } from '../../shared/intake.js'
+import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades.js'
+import { formatAuPhone } from '../../shared/phone.js'
+import { styleDirective, styleSpec, type NamedStyleId } from '../../shared/styles.js'
 
 /**
  * User-message builders for both generation calls.

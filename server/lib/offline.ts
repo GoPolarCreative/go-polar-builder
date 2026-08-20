@@ -1,10 +1,10 @@
-import type { AuditFlag } from '../../shared/types'
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import type { IntakePayload } from '../../shared/intake'
-import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades'
-import { resolveDesignStyle } from '../../shared/styles'
-import { slugify } from './pages'
-import { renderSite } from './render/site'
+import type { AuditFlag } from '../../shared/types.js'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import type { IntakePayload } from '../../shared/intake.js'
+import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades.js'
+import { resolveDesignStyle } from '../../shared/styles.js'
+import { slugify } from './pages.js'
+import { renderSite } from './render/site.js'
 
 /**
  * OFFLINE FIXTURE GENERATOR. NOT THE PRODUCT.

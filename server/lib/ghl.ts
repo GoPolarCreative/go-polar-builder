@@ -1,6 +1,6 @@
-import { assertLiveEnabled, config, LiveActionBlockedError } from '../config'
-import { fakeGhl } from './integrations/fakes'
-import { recordEvent } from './db'
+import { assertLiveEnabled, config, LiveActionBlockedError } from '../config.js'
+import { fakeGhl } from './integrations/fakes.js'
+import { recordEvent } from './db.js'
 
 /**
  * GoHighLevel. Brief s12: POST to a GHL inbound webhook on every one of these state changes.

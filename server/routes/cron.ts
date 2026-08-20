@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { config } from '../config'
-import { runSweep } from '../lib/sweep'
+import { config } from '../config.js'
+import { runSweep } from '../lib/sweep.js'
 
 const app = new Hono()
 

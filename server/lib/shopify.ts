@@ -5,10 +5,10 @@ import {
   sellingPlanEnvKey,
   variantEnvKey,
   variantIdFor,
-} from '../../shared/pricing'
-import { assertLiveEnabled, config, type AppConfig } from '../config'
-import { ShopifyAuthError, adminApiToken } from './shopifyAuth'
-import { fakeCheckoutUrl } from './integrations/fakes'
+} from '../../shared/pricing.js'
+import { assertLiveEnabled, config, type AppConfig } from '../config.js'
+import { ShopifyAuthError, adminApiToken } from './shopifyAuth.js'
+import { fakeCheckoutUrl } from './integrations/fakes.js'
 
 /**
  * Shopify. Brief s3a. Shopify is the front door: the customer never sees the app until they have
@@ -568,7 +568,7 @@ export function refForLineItem(item: ShopifyLineItem): string | null {
   return null
 }
 
-export { kindForRef } from '../../shared/pricing'
+export { kindForRef } from '../../shared/pricing.js'
 
 export function centsFromPrice(price: string | undefined): number {
   const value = Number(price ?? '0')

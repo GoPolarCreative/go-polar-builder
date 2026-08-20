@@ -1,6 +1,6 @@
 import net from 'node:net'
-import { config } from '../config'
-import { fakeAvailability, fakeDomainReport } from './integrations/fakes'
+import { config } from '../config.js'
+import { fakeAvailability, fakeDomainReport } from './integrations/fakes.js'
 
 /**
  * Domain intelligence for the go-live flow. Brief s8 screen 2.

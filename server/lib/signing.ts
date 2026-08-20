@@ -1,4 +1,4 @@
-import { config, type AppConfig } from '../config'
+import { config, type AppConfig } from '../config.js'
 
 /**
  * HMAC signing for build tokens, session cookies and signed download links.

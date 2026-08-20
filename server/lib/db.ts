@@ -1,10 +1,10 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import type { AssetRecord, AssetStats, AssetVariant, AuditFlag, Job, JobStatus } from '../../shared/types'
-import type { IntakePayload } from '../../shared/intake'
-import type { Trade } from '../../shared/trades'
-import { id } from './ids'
-import { maskKey } from './web3forms'
+import { getDb, schema } from '../db/client.js'
+import type { AssetRecord, AssetStats, AssetVariant, AuditFlag, Job, JobStatus } from '../../shared/types.js'
+import type { IntakePayload } from '../../shared/intake.js'
+import type { Trade } from '../../shared/trades.js'
+import { id } from './ids.js'
+import { maskKey } from './web3forms.js'
 
 /**
  * Data access. Drizzle over Postgres, replacing the raw D1 prepare/bind calls.

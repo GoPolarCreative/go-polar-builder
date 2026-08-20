@@ -19,9 +19,9 @@ loadEnvFiles({ path: '.env', quiet: true })
 
 const port = Number(process.env.PORT ?? 8787)
 
-const { default: api } = await import('./index')
-const { config } = await import('./config')
-const { migrate } = await import('./db/migrate')
+const { default: api } = await import('./index.js')
+const { config } = await import('./config.js')
+const { migrate } = await import('./db/migrate.js')
 
 const cfg = config()
 
@@ -39,7 +39,7 @@ if (cfg.databaseDriver === 'pglite') {
  * anyone running this will eventually press Ctrl+C, an unflushed shutdown is the normal case
  * rather than the rare one.
  */
-const { closeDb } = await import('./db/client')
+const { closeDb } = await import('./db/client.js')
 let shuttingDown = false
 
 const shutdown = async (signal: string) => {

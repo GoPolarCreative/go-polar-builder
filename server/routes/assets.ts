@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
-import type { AssetStats, AssetVariant } from '../../shared/types'
-import { deleteAsset, getAsset, getJob, insertAsset, listAssets, recordEvent, reorderAssets } from '../lib/db'
-import { id, nowIso, slug } from '../lib/ids'
-import { readSession } from '../lib/auth'
-import { storage, toBody } from '../lib/storage'
-import { formatBytes, processImage, savingSummary } from '../lib/images'
+import type { AssetStats, AssetVariant } from '../../shared/types.js'
+import { deleteAsset, getAsset, getJob, insertAsset, listAssets, recordEvent, reorderAssets } from '../lib/db.js'
+import { id, nowIso, slug } from '../lib/ids.js'
+import { readSession } from '../lib/auth.js'
+import { storage, toBody } from '../lib/storage.js'
+import { formatBytes, processImage, savingSummary } from '../lib/images.js'
 
 const app = new Hono()
 

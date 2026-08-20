@@ -1,4 +1,4 @@
-import { config, type AppConfig } from '../config'
+import { config, type AppConfig } from '../config.js'
 
 /**
  * Getting an Admin API token, however this install is configured to get one.

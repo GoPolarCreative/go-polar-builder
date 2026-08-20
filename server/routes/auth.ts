@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { buildLink, clearCookie, createBuildToken, exchangeToken, readSession, sessionCookie } from '../lib/auth'
-import { resendLinkEmail, sendSafely } from '../lib/email'
-import { getJob, recordEvent } from '../lib/db'
+import { getDb, schema } from '../db/client.js'
+import { buildLink, clearCookie, createBuildToken, exchangeToken, readSession, sessionCookie } from '../lib/auth.js'
+import { resendLinkEmail, sendSafely } from '../lib/email.js'
+import { getJob, recordEvent } from '../lib/db.js'
 
 const app = new Hono()
 

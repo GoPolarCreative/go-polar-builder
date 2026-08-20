@@ -6,8 +6,8 @@ import {
   type PriceKey,
   blocksPayments,
   type ProductConfigProblem,
-} from '../../shared/pricing'
-import { config } from '../config'
+} from '../../shared/pricing.js'
+import { config } from '../config.js'
 
 /**
  * The startup statement about what can actually be sold.

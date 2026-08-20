@@ -1,11 +1,11 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { EXTRA_EDITS_QUANTITY } from '../../shared/pricing'
-import { createUserAndJob, recordEvent, setJobStatus } from './db'
-import { id } from './ids'
-import { buildLink, createBuildToken } from './auth'
-import { buildLinkEmail, sendSafely } from './email'
-import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl'
+import { getDb, schema } from '../db/client.js'
+import { EXTRA_EDITS_QUANTITY } from '../../shared/pricing.js'
+import { createUserAndJob, recordEvent, setJobStatus } from './db.js'
+import { id } from './ids.js'
+import { buildLink, createBuildToken } from './auth.js'
+import { buildLinkEmail, sendSafely } from './email.js'
+import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl.js'
 import {
   centsFromPrice,
   refForLineItem,
@@ -14,7 +14,7 @@ import {
   orderJobIdAttribute,
   type ShopifyLineItem,
   type ShopifyOrder,
-} from './shopify'
+} from './shopify.js'
 
 /**
  * Turning a paid order into work.

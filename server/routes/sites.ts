@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import { storage, toBody } from '../lib/storage'
-import { findSiteByHostname } from '../lib/publish'
+import { storage, toBody } from '../lib/storage.js'
+import { findSiteByHostname } from '../lib/publish.js'
 
 const app = new Hono()
 

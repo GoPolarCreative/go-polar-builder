@@ -1,10 +1,10 @@
-import type { AssetRecord, AuditFlag, GenerationEvent } from '../../shared/types'
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import { planSchema } from '../../shared/plan'
-import { config } from '../config'
-import type { IntakePayload } from '../../shared/intake'
-import { TRADE_SCHEMA_TYPE } from '../../shared/trades'
-import { constraintsFor, resolveDesignStyle } from '../../shared/styles'
+import type { AssetRecord, AuditFlag, GenerationEvent } from '../../shared/types.js'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import { planSchema } from '../../shared/plan.js'
+import { config } from '../config.js'
+import type { IntakePayload } from '../../shared/intake.js'
+import { TRADE_SCHEMA_TYPE } from '../../shared/trades.js'
+import { constraintsFor, resolveDesignStyle } from '../../shared/styles.js'
 import {
   callMessage,
   extractJson,
@@ -14,18 +14,18 @@ import {
   MAX_TOKENS_BUILD,
   MAX_TOKENS_PLAN,
   MAX_TOKENS_SECTION,
-} from './anthropic'
-import { HOUSE_RULES, PLAN_SYSTEM } from '../prompts/houseRules'
+} from './anthropic.js'
+import { HOUSE_RULES, PLAN_SYSTEM } from '../prompts/houseRules.js'
 import {
   SECTION_SPECS,
   buildUserMessage,
   planUserMessage,
   sectionUserMessage,
-} from '../prompts/messages'
-import { buildFacts } from './facts'
-import { isUsablePhoto } from './audit'
-import { offlinePlan, offlineHtml } from './offline'
-import { enforcePagesAllowed } from './pages'
+} from '../prompts/messages.js'
+import { buildFacts } from './facts.js'
+import { isUsablePhoto } from './audit.js'
+import { offlinePlan, offlineHtml } from './offline.js'
+import { enforcePagesAllowed } from './pages.js'
 
 export type Emit = (e: GenerationEvent) => void | Promise<void>
 

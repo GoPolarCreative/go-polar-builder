@@ -1,6 +1,6 @@
-import type { AssetRecord, AssetVariant } from '../../shared/types'
-import type { LogoRef, PhotoRef } from '../../shared/plan'
-import { isUsablePhoto } from './audit'
+import type { AssetRecord, AssetVariant } from '../../shared/types.js'
+import type { LogoRef, PhotoRef } from '../../shared/plan.js'
+import { isUsablePhoto } from './audit.js'
 
 /**
  * Turning stored assets into the file paths a generated site will reference.

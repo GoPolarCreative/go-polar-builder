@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { desc, eq, and } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { intakeSchema, type IntakePayload } from '../../shared/intake'
-import type { VerificationReport } from '../../shared/types'
-import { getIntake, getJob, listAssets } from '../lib/db'
-import { buildFacts } from '../lib/facts'
-import { inlineAssets } from '../lib/inline'
-import { storage } from '../lib/storage'
-import { verify } from '../lib/verify'
-import { loadPageSet } from '../lib/buildSet'
+import { getDb, schema } from '../db/client.js'
+import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
+import type { VerificationReport } from '../../shared/types.js'
+import { getIntake, getJob, listAssets } from '../lib/db.js'
+import { buildFacts } from '../lib/facts.js'
+import { inlineAssets } from '../lib/inline.js'
+import { storage } from '../lib/storage.js'
+import { verify } from '../lib/verify.js'
+import { loadPageSet } from '../lib/buildSet.js'
 
 const app = new Hono()
 

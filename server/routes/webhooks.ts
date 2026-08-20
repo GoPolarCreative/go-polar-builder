@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { config } from '../config'
-import { verifyShopifyHmac } from '../lib/signing'
-import { recordEvent } from '../lib/db'
-import { processPaidOrder } from '../lib/orders'
-import type { ShopifyOrder } from '../lib/shopify'
+import { config } from '../config.js'
+import { verifyShopifyHmac } from '../lib/signing.js'
+import { recordEvent } from '../lib/db.js'
+import { processPaidOrder } from '../lib/orders.js'
+import type { ShopifyOrder } from '../lib/shopify.js'
 
 const app = new Hono()
 

@@ -1,7 +1,7 @@
-import type { AssetRecord } from '../../shared/types'
-import type { BuildFacts, ContentPlan } from '../../shared/plan'
-import { planSchema } from '../../shared/plan'
-import type { IntakePayload } from '../../shared/intake'
+import type { AssetRecord } from '../../shared/types.js'
+import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
+import { planSchema } from '../../shared/plan.js'
+import type { IntakePayload } from '../../shared/intake.js'
 import {
   MAX_TOKENS_BUILD,
   MAX_TOKENS_PLAN,
@@ -10,17 +10,17 @@ import {
   isTruncated,
   streamMessage,
   stripCodeFence,
-} from './anthropic'
-import { HOUSE_RULES, PLAN_SYSTEM } from '../prompts/houseRules'
+} from './anthropic.js'
+import { HOUSE_RULES, PLAN_SYSTEM } from '../prompts/houseRules.js'
 import {
   EDIT_BUILD_SYSTEM,
   EDIT_PLAN_SYSTEM,
   editBuildUserMessage,
   editPlanUserMessage,
-} from '../prompts/edit'
-import { enforcePlanInvariants } from './generate'
-import { isUsablePhoto } from './audit'
-import type { Emit } from './generate'
+} from '../prompts/edit.js'
+import { enforcePlanInvariants } from './generate.js'
+import { isUsablePhoto } from './audit.js'
+import type { Emit } from './generate.js'
 
 /**
  * The edit loop. One submitted request is one edit, however many changes it contains, so the

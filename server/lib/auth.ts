@@ -1,9 +1,9 @@
 import type { Context, Next } from 'hono'
 import { and, eq } from 'drizzle-orm'
-import { getDb, schema } from '../db/client'
-import { config, type AppConfig } from '../config'
-import { TOKEN_TTL_DAYS, hashToken, mintToken, readClaims, signClaims } from './signing'
-import { id } from './ids'
+import { getDb, schema } from '../db/client.js'
+import { config, type AppConfig } from '../config.js'
+import { TOKEN_TTL_DAYS, hashToken, mintToken, readClaims, signClaims } from './signing.js'
+import { id } from './ids.js'
 
 /**
  * Auth. Brief s3a: token link by email, no passwords.

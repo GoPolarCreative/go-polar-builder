@@ -1,5 +1,5 @@
-import type { BuildFacts, ContentPlan } from '../../../shared/plan'
-import { paletteCarriesDarkSurfaces, styleSpec, type StyleSpec } from '../../../shared/styles'
+import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
+import { paletteCarriesDarkSurfaces, styleSpec, type StyleSpec } from '../../../shared/styles.js'
 
 /**
  * The site renderer.

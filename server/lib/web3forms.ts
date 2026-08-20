@@ -1,5 +1,5 @@
-import { config, assertLiveEnabled, type AppConfig } from '../config'
-import { fakeLog } from './integrations/fakes'
+import { config, assertLiveEnabled, type AppConfig } from '../config.js'
+import { fakeLog } from './integrations/fakes.js'
 
 /**
  * The customer's own Web3Forms access key.

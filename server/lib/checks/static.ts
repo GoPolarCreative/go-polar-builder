@@ -1,8 +1,8 @@
 import { parse, type HTMLElement } from 'node-html-parser'
-import type { CheckResult } from '../../../shared/types'
-import type { BuildFacts } from '../../../shared/plan'
-import { pageWeight } from '../assets'
-import { formatBytes } from '../images'
+import type { CheckResult } from '../../../shared/types.js'
+import type { BuildFacts } from '../../../shared/plan.js'
+import { pageWeight } from '../assets.js'
+import { formatBytes } from '../images.js'
 
 /**
  * Static verification. Brief s6 checks 1 to 12, plus check 17, page weight.

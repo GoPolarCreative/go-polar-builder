@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { intakeSchema, type IntakePayload } from '../../shared/intake'
-import { SeedSuburbProvider, suburbKey } from '../../shared/suburbs'
-import { normaliseAuPhone } from '../../shared/phone'
-import { getJob, listAssets, recordEvent, saveIntakeDraft, submitIntake } from '../lib/db'
-import { runGapAudit } from '../lib/audit'
+import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
+import { SeedSuburbProvider, suburbKey } from '../../shared/suburbs.js'
+import { normaliseAuPhone } from '../../shared/phone.js'
+import { getJob, listAssets, recordEvent, saveIntakeDraft, submitIntake } from '../lib/db.js'
+import { runGapAudit } from '../lib/audit.js'
 
 const app = new Hono()
 const suburbs = new SeedSuburbProvider()
