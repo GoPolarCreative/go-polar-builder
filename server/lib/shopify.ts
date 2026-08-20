@@ -7,6 +7,7 @@ import {
   variantIdFor,
 } from '../../shared/pricing'
 import { assertLiveEnabled, config, type AppConfig } from '../config'
+import { ShopifyAuthError, adminApiToken } from './shopifyAuth'
 import { fakeCheckoutUrl } from './integrations/fakes'
 
 /**
@@ -341,17 +342,25 @@ export async function checkStoreProducts(force = false): Promise<CachedChecks> {
     return productCache
   }
 
-  const token = cfg.shopify.adminApiToken
+  let token: string | null = null
+  let authProblem: string | null = null
+  try {
+    token = await adminApiToken(cfg)
+  } catch (err) {
+    // A misconfigured Dev Dashboard app is a different problem from an absent one, and the fix is
+    // different too, so the reason travels with the report instead of being flattened.
+    authProblem =
+      err instanceof ShopifyAuthError ? err.message + ' ' + err.fix : String(err)
+  }
+
   if (!token) {
     // Not a pass. Reported as unverifiable so it can never read as verified.
+    const detail =
+      authProblem ??
+      'Cannot verify: no Admin API credentials are set, so the store cannot be read. Set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET from the app in the Dev Dashboard.'
     for (const product of Object.values(PRICING)) {
       if (!product.ref) continue
-      results.push({
-        ref: product.ref,
-        label: product.label,
-        ok: false,
-        detail: 'Cannot verify: SHOPIFY_ADMIN_API_TOKEN is not set, so the store cannot be read.',
-      })
+      results.push({ ref: product.ref, label: product.label, ok: false, detail })
     }
     productCache = { at: now, results, problems }
     return productCache
@@ -578,11 +587,11 @@ export async function listPaidOrdersSince(sinceIso: string): Promise<ShopifyOrde
   const cfg = config()
   if (cfg.demoMode) return []
 
-  const token = cfg.shopify.adminApiToken
+  const token = await adminApiToken(cfg)
   if (!token) {
     throw new ShopifyConfigError(
-      'SHOPIFY_ADMIN_API_TOKEN is not set, so missed orders cannot be reconciled. Create a custom app in Shopify with read_orders scope and add the token to the Vercel project environment variables.',
-      ['SHOPIFY_ADMIN_API_TOKEN'],
+      'No Shopify Admin API credentials are set, so missed orders cannot be reconciled. Create an app in the Shopify Dev Dashboard with the read_orders scope, install it on the store, and set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET.',
+      ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET'],
     )
   }
 

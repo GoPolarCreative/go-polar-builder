@@ -57,7 +57,11 @@ export interface AppConfig {
   shopify: {
     storeDomain?: string
     webhookSecret?: string
+    /** Legacy admin-created custom app. Permanent, and Shopify no longer issues these. */
     adminApiToken?: string
+    /** Dev Dashboard app. Exchanged for a 24 hour token. See server/lib/shopifyAuth.ts. */
+    clientId?: string
+    clientSecret?: string
     storefrontToken?: string
   }
   resendApiKey?: string
@@ -134,6 +138,8 @@ export function loadConfig(): AppConfig {
       storeDomain: env('SHOPIFY_STORE_DOMAIN'),
       webhookSecret: env('SHOPIFY_WEBHOOK_SECRET'),
       adminApiToken: env('SHOPIFY_ADMIN_API_TOKEN'),
+      clientId: env('SHOPIFY_CLIENT_ID'),
+      clientSecret: env('SHOPIFY_CLIENT_SECRET'),
       storefrontToken: env('SHOPIFY_STOREFRONT_TOKEN'),
     },
     resendApiKey: env('RESEND_API_KEY'),

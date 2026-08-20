@@ -3,6 +3,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client'
 import { requireAdmin } from '../lib/auth'
 import { config } from '../config'
+import { ShopifyAuthError, ensureStorefrontToken } from '../lib/shopifyAuth'
 import { attachDomain, publishSite } from '../lib/publish'
 import { loadPageSet } from '../lib/buildSet'
 import { storage } from '../lib/storage'
@@ -417,6 +418,42 @@ app.post('/admin/publish', async (c) => {
       { error: 'publish_refused', detail: err instanceof Error ? err.message : 'Publishing was refused.' },
       409,
     )
+  }
+})
+
+/**
+ * Mint or fetch the Storefront API token.
+ *
+ *   POST /api/admin/storefront-token
+ *
+ * In the Dev Dashboard world there is no page showing a Storefront token, so it has to be created
+ * through the Admin API. It inherits the app's unauthenticated scopes, which is why the app version
+ * has to carry unauthenticated_write_checkouts before this can work. See DEPLOY.md section 6.
+ *
+ * The token is returned so it can be pasted into Vercel. It is not stored: a value read from the
+ * environment on every boot is one that can be rotated by changing one setting, and a value this
+ * app wrote into its own database is one nobody can find later.
+ */
+app.post('/admin/storefront-token', async (c) => {
+  try {
+    const result = await ensureStorefrontToken()
+    return c.json({
+      ok: true,
+      token: result.token,
+      created: result.created,
+      scopes: result.scopes,
+      detail: result.created
+        ? 'Created a new Storefront access token. Set it in Vercel as SHOPIFY_STOREFRONT_TOKEN and redeploy.'
+        : 'This app already had a Storefront access token, so it was reused rather than spending another of the 100 allowed. Set it in Vercel as SHOPIFY_STOREFRONT_TOKEN and redeploy.',
+      warning: result.scopes.includes('unauthenticated_write_checkouts')
+        ? null
+        : `This token's scopes are "${result.scopes}", which does not include unauthenticated_write_checkouts. Multi-subscription checkouts will still be refused. Release a new app version with that scope, approve it on the store, then delete this token in Shopify and run this again.`,
+    })
+  } catch (err) {
+    if (err instanceof ShopifyAuthError) {
+      return c.json({ error: 'shopify_auth', detail: err.message, fix: err.fix }, 409)
+    }
+    return c.json({ error: 'failed', detail: err instanceof Error ? err.message : String(err) }, 500)
   }
 })
 

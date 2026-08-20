@@ -45,16 +45,15 @@ Full instructions are in **SHOPIFY-SETUP.md**. Do that document first.
 
 ## 1. Put the repo on GitHub
 
-From the project folder:
+**Done.** The repo is https://github.com/GoPolarCreative/go-polar-builder and `main` is pushed.
+
+For reference, or to redo it elsewhere: create the repo empty, with no README, no .gitignore and no
+licence, then
 
 ```bash
-git remote add origin https://github.com/GoPolarCreative/website-builder.git
+git remote add origin https://github.com/GoPolarCreative/go-polar-builder.git
 git push -u origin main
 ```
-
-Create the repo as **private** at github.com/organizations/GoPolarCreative/repositories/new first,
-named `website-builder`, with no README, no .gitignore and no licence, so it is empty and the push
-is clean.
 
 `.env` and `.env.local` are gitignored and always have been. Check nothing secret went up:
 
@@ -68,7 +67,7 @@ That must print nothing.
 
 ## 2. Import to Vercel
 
-1. vercel.com → **Add New** → **Project** → **Import Git Repository** → `website-builder`.
+1. vercel.com → **Add New** → **Project** → **Import Git Repository** → `go-polar-builder`.
 2. Framework preset: **Other**. Do not let it guess Vite: `vercel.json` already sets the build.
 3. Leave the build and output settings alone. `vercel.json` sets `npm run vercel:build` and `dist`.
 4. **Do not deploy yet.** Click **Environment Variables** first and work through section 4 below.
@@ -156,8 +155,10 @@ error and finish SHOPIFY-SETUP.md.
 | --- | --- |
 | `SHOPIFY_STORE_DOMAIN` | Settings → Domains. The **myshopify.com** one, which may be numeric like `473724-9e.myshopify.com` rather than anything resembling the brand |
 | `SHOPIFY_WEBHOOK_SECRET` | Shown once when you create the webhook in section 7 |
-| `SHOPIFY_ADMIN_API_TOKEN` | Section 6. Scopes `read_orders` and `read_products`, nothing else |
-| `SHOPIFY_STOREFRONT_TOKEN` | Section 6. Scope `unauthenticated_write_checkouts` |
+| `SHOPIFY_CLIENT_ID` | Section 6. Dev Dashboard app, Settings page |
+| `SHOPIFY_CLIENT_SECRET` | Section 6. Same page. The app exchanges these two for a 24 hour token and refreshes it itself |
+| `SHOPIFY_STOREFRONT_TOKEN` | Section 6. Minted through `/api/admin/storefront-token`, because the Dev Dashboard does not show one |
+| `SHOPIFY_ADMIN_API_TOKEN` | **Only if you are carrying over a pre-existing app.** Shopify no longer issues these. Setting it takes precedence over the two above |
 | `SHOPIFY_VARIANT_*` and `SHOPIFY_SELLING_PLAN_*` | Ten variables, listed in full below. **Numeric ids only, never the `gid://` string**, and the names are derived rather than free text |
 
 All three subscription products have `requiresSellingPlan: true`, so a checkout without the selling
@@ -220,54 +221,100 @@ Then delete `.env.production.local`. It is gitignored, but it holds every secret
 
 ---
 
-## 6. Create the Shopify custom app
+## 6. Create the Shopify app
 
-This is where the two API tokens come from. You have not done this before, so here it is click by
-click.
+This is where the API credentials come from.
 
-**Shopify admin → Settings → Apps and sales channels → Develop apps.**
+**The flow you may have read about is gone.** Settings → Apps and sales channels → Develop apps used
+to hand you a permanent `shpat_` token. Shopify has removed admin-created custom apps: the page now
+just points at the Dev Dashboard. Existing apps keep working, but you cannot make a new one that
+way, which is why this section changed and why the app has two ways of authenticating.
 
-If you see a button saying **Allow custom app development**, click it and confirm. It appears once,
-the first time anyone in the store does this.
+The replacement is a **Dev Dashboard app using the client credentials grant**. Instead of a token
+you paste once, you get a **client id and a client secret**, and the app exchanges them for a token
+that **expires every 24 hours** and refreshes itself. That is handled in
+`server/lib/shopifyAuth.ts` and there is nothing to maintain.
 
-1. **Create an app**. Name it `Go Polar Website Builder`. App developer: you.
-2. Open it and click **Configure Admin API scopes**.
-3. Tick **exactly two**, and nothing else:
+### Create it
+
+1. From **Settings → Apps and sales channels → App development**, click **Build apps in Dev
+   Dashboard**. Or go to the Dev Dashboard directly.
+2. **Apps** in the left panel → **Create app** (top right) → **Start from Dev Dashboard**.
+3. Name it `Go Polar Website Builder`. Create.
+
+### Release a version with the scopes
+
+An app has no permissions until a version is released. This trips people up: you can create the app,
+install it, and get a 403 on everything, because there is no released version.
+
+1. Open the app → **Versions** → fill in the fields.
+2. **App URL**: `https://build.itscold.com.au`. The app is not embedded in the Shopify admin, so
+   this is only ever a link back to it.
+3. **Webhooks API version**: the newest offered.
+4. **Scopes.** Tick **exactly these three**, and nothing else:
 
    | Scope | What the app does with it | What breaks without it |
    | --- | --- | --- |
    | `read_orders` | The hourly sweep lists recently paid orders and processes any whose webhook never arrived | A dropped webhook stays dropped forever. The customer paid, got no build link, and nothing ever notices |
    | `read_products` | Reads each product's status and its selling plan billing policy before building any checkout link | The store checks report "cannot verify" instead of passing. A product that has been unpublished, or a subscription silently billing yearly, is no longer caught |
+   | `unauthenticated_write_checkouts` | Builds a real cart through the Storefront API | A cart permalink carries only **one** selling plan, so a customer taking hosting **and** email cannot be expressed as a link. The app refuses that checkout and says why rather than dropping a line from their order |
 
-   **No write scopes at all.** This app never creates, edits or deletes anything on the store, and
-   it never touches customer records. If a scope is not one of those two, leave it unticked.
+   **No write scopes on the Admin API.** This app never creates, edits or deletes anything on the
+   store and never reads a customer record. Anything not in that table stays unticked.
 
-4. Click **Save**.
-5. Click **Configure Storefront API scopes** and tick **`unauthenticated_write_checkouts`**.
+   Those three are what the code actually calls: `orders`, `productByHandle` / `productById` /
+   `sellingPlanGroups`, and `cartCreate`. Not a generous guess.
 
-   That one exists so the app can build a proper cart. A Shopify cart permalink carries only **one**
-   selling plan, so a customer taking hosting **and** a custom email is two subscriptions and the
-   permalink cannot express it. Rather than quietly dropping a line from their cart, the app refuses
-   and says why. With this token it builds a real cart instead.
+5. **Release.**
 
-6. **Install app**, top right, and confirm.
-7. Go to the **API credentials** tab. Two things to copy:
+### Install it on the store
 
-   - **Admin API access token**. Click **Reveal token once**. It starts `shpat_`. **You get one
-     look at it**, so paste it straight into Vercel as `SHOPIFY_ADMIN_API_TOKEN`. If you lose it,
-     uninstall the app and start again.
-   - **Storefront API access token**, further down the same page. Paste into Vercel as
-     `SHOPIFY_STOREFRONT_TOKEN`.
+1. **Home** in the left panel → scroll down → **Install app**.
+2. Select **Go Polar Creative** and install.
 
-8. Redeploy so the functions pick up the new variables.
+### Copy the credentials
 
-Check both landed:
+**Settings** page of the app. Two values:
+
+- **Client ID** → Vercel as `SHOPIFY_CLIENT_ID`
+- **Client secret** → Vercel as `SHOPIFY_CLIENT_SECRET`
+
+Unlike the old token, you can come back and read these again. Rotating the secret invalidates every
+token already issued from it, immediately.
+
+### The Storefront token
+
+The Storefront API needs its own token, and it is not shown on the Settings page. It is created
+through the Admin API and inherits the unauthenticated scopes of the app that creates it, which is
+why `unauthenticated_write_checkouts` had to be on the version you just released.
+
+Once `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are set in Vercel and deployed:
 
 ```bash
-curl -s https://build.itscold.com.au/api/health | grep -o '"storeChecks":[^]]*]'
+curl -s -X POST https://build.itscold.com.au/api/admin/storefront-token \
+  -H "x-admin-token: $ADMIN_TOKEN"
 ```
 
-Every product should report `ok: true`. "Cannot verify" means the admin token is missing or wrong.
+It reuses an existing token if this app already made one, creates one if not, and prints it. Put it
+in Vercel as `SHOPIFY_STOREFRONT_TOKEN` and redeploy.
+
+If it reports that the app has no unauthenticated scopes, the version was released without
+`unauthenticated_write_checkouts`. Release a new version with it, approve the change on the store,
+and run it again.
+
+### Check it worked
+
+```bash
+curl -s https://build.itscold.com.au/api/health
+```
+
+Look at `shopify.auth`. It should say `client-credentials` with `scopes ok`. Then every product in
+`storeChecks` should report `ok: true`. "Cannot verify" means the credentials are missing or wrong,
+and the message says which.
+
+If you see **`shop_not_permitted`**, the app and the store are not in the same Shopify organisation.
+Owning a store does not put it in one. Open the Dev Dashboard, confirm the app is under **Apps** and
+that Go Polar Creative is listed under **Stores** in the same organisation.
 
 ---
 

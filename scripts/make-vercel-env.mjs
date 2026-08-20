@@ -62,22 +62,66 @@ const SECTIONS = [
       { key: 'SHOPIFY_VARIANT_EMAIL_HOSTING', carry: true },
       { key: 'SHOPIFY_SELLING_PLAN_EMAIL_HOSTING', carry: true },
       { key: 'SHOPIFY_WEBHOOK_SECRET', needed: 'shown once when you create the webhook, DEPLOY.md section 7' },
-      { key: 'SHOPIFY_ADMIN_API_TOKEN', needed: 'custom app, read_orders + read_products, DEPLOY.md section 6' },
-      { key: 'SHOPIFY_STOREFRONT_TOKEN', needed: 'same custom app, unauthenticated_write_checkouts' },
+      { key: 'SHOPIFY_CLIENT_ID', needed: 'Dev Dashboard app, Settings page, DEPLOY.md section 6' },
+      { key: 'SHOPIFY_CLIENT_SECRET', needed: 'Dev Dashboard app, Settings page. Keep it secret' },
+      { key: 'SHOPIFY_STOREFRONT_TOKEN', needed: 'DEPLOY.md section 6, unauthenticated_write_checkouts' },
     ],
   },
   {
     title: 'Email, CRM and domains.',
     vars: [
       { key: 'RESEND_API_KEY', carry: true, needed: 'resend.com, after verifying itscold.com.au' },
-      { key: 'EMAIL_FROM', carry: true, fallback: 'Go Polar Creative <hello@itscold.com.au>' },
-      { key: 'GHL_WEBHOOK_URL', carry: true, optional: true },
+      { key: 'RESEND_FROM', carry: true, fallback: 'Go Polar Creative <build@itscold.com.au>' },
+      { key: 'GHL_INBOUND_WEBHOOK_URL', carry: true, optional: true },
       { key: 'VERCEL_API_TOKEN', needed: 'only for attaching customer domains automatically' },
       { key: 'VERCEL_PROJECT_ID', needed: 'Vercel project settings, once the project exists' },
       { key: 'CRON_SECRET', carry: true, needed: 'any random string; guards the hourly sweep' },
     ],
   },
 ]
+
+/*
+ * Every key emitted here must be one the app actually reads.
+ *
+ * The first version of this file emitted EMAIL_FROM and GHL_WEBHOOK_URL. The app reads RESEND_FROM
+ * and GHL_INBOUND_WEBHOOK_URL. Both would have been pasted into Vercel, looked completely correct
+ * in the dashboard, and done nothing at all. That is the exact failure this file exists to
+ * prevent, so it now checks itself against the one thing that decides: server/config.ts.
+ */
+const sources = ['server/config.ts', 'shared/pricing.ts'].map((f) => readFileSync(f, 'utf8')).join('\n')
+
+// A name counts as read if it appears literally in either file. That covers env('X'),
+// process.env.X and bare string keys without having to model each one.
+const literal = (key) => sources.includes(key)
+
+/*
+ * The six subscription ids are built at runtime from the product ref, so no whole name appears in
+ * either file. Rather than loosen the check, rebuild the exact same names the app builds: take
+ * every kebab-case string in pricing.ts and apply the transform from variantEnvKey and
+ * sellingPlanEnvKey. If a name is not in this set, the app will never look for it.
+ */
+const refs = [...sources.matchAll(/'([a-z][a-z0-9]*(?:-[a-z0-9]+)+)'/g)].map((m) => m[1])
+const derivedNames = new Set(
+  refs.flatMap((ref) => {
+    const suffix = ref.replace(/-/g, '_').toUpperCase()
+    return [`SHOPIFY_VARIANT_${suffix}`, `SHOPIFY_SELLING_PLAN_${suffix}`]
+  }),
+)
+const derived = (key) => derivedNames.has(key)
+
+// Read by their own libraries rather than by our config: Drizzle and Vercel Blob.
+const readElsewhere = new Set(['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN'])
+
+const unknown = SECTIONS.flatMap((section) => section.vars)
+  .map((spec) => spec.key)
+  .filter((key) => !literal(key) && !derived(key) && !readElsewhere.has(key))
+
+if (unknown.length > 0) {
+  console.error('These variables are not read anywhere in server/config.ts:')
+  for (const key of unknown) console.error(`  ${key}`)
+  console.error('\nEither the name is wrong, or the app never reads it. Setting it would do nothing.')
+  process.exit(1)
+}
 
 const lines = []
 const gaps = []

@@ -3,6 +3,7 @@ import { config } from './config'
 import { recordEvent } from './lib/db'
 import { assertProductConfig, productConfigReport } from './lib/products'
 import { checkStoreProducts } from './lib/shopify'
+import { adminAuthMode, grantedScopes, missingScopes } from './lib/shopifyAuth'
 import { requireSession } from './lib/auth'
 import { findSiteByHostname } from './lib/publish'
 import { storage } from './lib/storage'
@@ -48,6 +49,20 @@ api.get('/health', async (c) => {
   return c.json({
     products: productConfigReport(),
     storeChecks: store.results,
+    // How this install talks to the Admin API, and whether the scopes chosen on the app's version
+    // actually cover what it calls. A forgotten scope otherwise shows up as a 403 on a call that
+    // used to work, weeks later, with nothing pointing at the cause.
+    shopifyAuth: {
+      mode: adminAuthMode(cfg),
+      scopes: grantedScopes(),
+      missingScopes: missingScopes(),
+      detail:
+        adminAuthMode(cfg) === 'none'
+          ? 'No Admin API credentials. Set SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET from the app in the Dev Dashboard. See DEPLOY.md section 6.'
+          : missingScopes().length > 0
+            ? `The app is missing ${missingScopes().join(' and ')}. Release a new version in the Dev Dashboard with the scope added and approve it on the store.`
+            : 'Scopes ok.',
+    },
     ok: true,
     // Presence only, never values.
     demoMode: cfg.demoMode,
