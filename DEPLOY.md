@@ -464,6 +464,49 @@ Useful types: `webhook.received`, `webhook.rejected`, `webhook.refused`, `order.
 
 ---
 
+## If the first deploy fails on function size
+
+The error reads something like *"A Serverless Function has exceeded the unzipped maximum size of
+250 MB"*. It is not a code problem and nothing is broken.
+
+The API function carries some genuinely large things, all of them on purpose:
+
+| Package | Roughly | Why it is there |
+| --- | --- | --- |
+| `@sparticuz/chromium` | 67 MB | The four render checks open the page in a real browser |
+| `@electric-sql/pglite` | 25 MB | The local embedded database. **Never used in production** |
+| `playwright-core` | 14 MB | Drives the above. `-core`, so it ships no browsers of its own |
+| `sharp` | ~30 MB on Linux | Resizes and compresses every uploaded photo |
+
+Two fixes, cheapest first.
+
+**1. Drop PGlite from the bundle.** It is only imported when `DATABASE_DRIVER=pglite`, which is a
+local-development setting, so in production it is 25 MB of nothing. In `vercel.json`:
+
+```json
+"functions": {
+  "api/index.ts": {
+    "runtime": "nodejs22.x",
+    "memory": 2048,
+    "maxDuration": 300,
+    "excludeFiles": "node_modules/@electric-sql/pglite/**"
+  }
+}
+```
+
+If you do this, **`DATABASE_URL` must be set in production**, because the fallback is now gone. It
+already must be, so this is safe, but it is the thing that would break.
+
+**2. Turn the render checks off.** Set `RENDER_DRIVER=none`. That removes the need for Chromium
+entirely, and the 13 static checks keep running on every page. You lose the four checks that need a
+real browser: layout overflow, tap target size, contrast and the mobile viewport. The build still
+reports honestly, saying those four were skipped rather than passed.
+
+Do the first one before the second. Losing four verification checks to save disk is a bad trade if
+there is another way, and there is.
+
+---
+
 ## What runs on a schedule
 
 One cron, registered in `vercel.json`, hourly on the hour:
