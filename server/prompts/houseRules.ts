@@ -69,6 +69,26 @@ Testimonials, opening hours, service areas and contact details are the usual sus
 
 12. LANGUAGE. <html lang="en-AU">. Australian spelling throughout: colour, metre, licence as a noun, organisation, specialise, neighbourhood. Suburb, not neighborhood.
 
+# CONTRAST. EVERY PIECE OF TEXT MUST BE READABLE ON WHAT IS BEHIND IT.
+
+This is not a polish item and it is not a matter of taste. A customer cannot read their own website
+and the only word they have for it is that it looks broken.
+
+- Body text and any text under 24px: at least 4.5:1 against its actual background.
+- Headings 24px and over, and bold text 19px and over: at least 3:1.
+- TEXT ON A BUTTON OR A FILLED BAND. Work out which of the light or dark tokens actually contrasts
+  with that fill and use it. Do not default to the dark text token because it is the body colour.
+  Dark text on a mid-blue button is the single most common way this goes wrong.
+- LARGE DECORATIVE NUMERALS still have to be read. The numbers on the "why choose us" cards and the
+  step numbers in the process section are content, not texture. A tint of the brand colour on white
+  is usually somewhere near 1.5:1, which is invisible. If you want the number to sit back, make it
+  large and set it at a legible weight of the colour, or put it on a filled chip where the
+  contrast is under your control. Never let it fall below 3:1.
+- Text over a photo always has an overlay under it, and the ratio is judged against the overlay
+  result, not against the photo's average.
+- If a token pair cannot meet the ratio, add a token that can. The palette comes from the
+  customer's logo and there is nothing precious about adding a darker or lighter step to it.
+
 # DESIGN STYLE
 
 Every build carries a design style, supplied with the plan as a block of concrete values: type
@@ -111,6 +131,8 @@ Build these sections in this order. The plan tells you which optional sections a
 5. SERVICES GRID. One card per service from the plan. Each card: inline SVG icon in a tinted circle, service name as an h3, the blurb, and a text link to the contact form. Three across on desktop, two on tablet, one on mobile. Cards lift slightly on hover with a transform and shadow transition. The primary service card is visually emphasised.
 
 6. OUR WORK GALLERY. Only when the plan says gallery.enabled is true. A grid of the supplied client photos using the exact paths given in the facts, each with real alt text. First image eager, the rest loading="lazy" with width and height attributes set so nothing shifts as they load. Optional lightbox: if you build one it must be keyboard closable with Escape.
+
+EVERY TILE IS THE SAME SHAPE. Photos come off a phone in whatever aspect the tradesperson happened to hold it, and a grid that honours each one is a ragged mess. Give every tile one aspect-ratio and use object-fit: cover so they crop to match. Portrait and landscape shots must sit in the grid without changing its rhythm. The grid is a fixed number of columns per breakpoint, not a masonry layout and not a single row that squashes as photos are added.
 
 7. WHY CHOOSE US. Numbered cards, the number set large in a tinted colour behind or beside the title. Three to six items from the plan.
 
@@ -157,7 +179,7 @@ When servicePages is not empty, the customer has paid for a dedicated page per e
 - Fluid type with clamp() for headings.
 - Layout with grid and flexbox. No floats. No absolute positioning for layout, only for decoration.
 - box-sizing: border-box on everything via a reset at the top.
-- Fonts: Barlow Condensed for headings and the wordmark, Inter for body, loaded from Google Fonts with preconnect and display=swap. These are the only external requests the document is allowed to make.
+- Fonts: use the Google Fonts query given in the design style block, exactly as supplied, loaded with preconnect and display=swap. The style decides the typeface and it differs for each of the four looks, so do not substitute a favourite. That query is the only external request the document is allowed to make.
 - Nothing may cause horizontal overflow at 390px. Watch: wide grids without min-width: 0 on children, long unbroken words, elements with fixed pixel widths, 100vw on anything inside a padded container, and negative margins on decoration.
 - Respect prefers-reduced-motion: disable transforms, counters animate straight to the final value, no scroll-triggered movement.
 - Visible focus states on every interactive element. Do not remove outlines without replacing them.
