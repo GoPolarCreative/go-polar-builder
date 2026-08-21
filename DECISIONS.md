@@ -1160,3 +1160,40 @@ again — a customer should not wait on a browser starting up.
 thinking, for a plan call, a build call and two repair passes. The brief sells watching the site
 being written, so this is not dead time, but it is longer than the wording anywhere implies and the
 copy should not promise otherwise.
+
+## D47. Sonnet 5 writes the websites, measured against Opus 5
+
+**Decided 2026-08-21, on the live deployment, from measurements rather than vendor tables.**
+
+Same job, same intake, same photos, same prompts. Only `ANTHROPIC_MODEL` differed.
+
+| | Sonnet 5 | Opus 5 |
+| --- | --- | --- |
+| Time | 393s | 603s |
+| Cost | $0.77 | $1.93 |
+| Output tokens | 46,945 | 66,328 |
+| API calls | 2 | 4 |
+| Repair passes | 0 | 1 |
+| HTML | 63,711 bytes | 66,378 bytes |
+| Page weight | 1.53MB | 1.54MB |
+| All checks passed | yes | yes |
+
+**Opus 5 costs 2.51x and takes 53% longer.** Chris compared the two finished sites side by side and
+called the difference extremely marginal.
+
+**The hypothesis was wrong, and that is the useful part.** The case for Opus was that it would get
+it right first time and drop the repair passes, partly paying for itself. It did the opposite:
+Sonnet needed no repair pass on this run, Opus needed one, so Opus was more expensive, slower, AND
+needed more correction. One run each, and Sonnet has been seen to need two repairs on another run,
+so the noise is real — but there is no evidence Opus reduces rework, which was the entire argument
+for it.
+
+**Run to run variance, from two identical Sonnet runs:** about 7% on time and 2% on cost. Read no
+single-run difference smaller than that as signal.
+
+**Fable 5 was not tested.** At $10/$50 per million it is 3.3x Sonnet on output, it is slower rather
+than faster, and this task — writing a trade website from a detailed content plan against house
+rules — is well-specified work rather than the open-ended reasoning it is built for.
+
+**Revisit when** the house rules change materially, or if repair passes start firing regularly on
+Sonnet. `npm run compare -- <jobId> <versionA> <versionB>` reruns this comparison from the meter.
