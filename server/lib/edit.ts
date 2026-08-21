@@ -162,6 +162,9 @@ export async function rebuildFromPlan(args: {
     facts: BuildFacts
     previousHtml: string
     changes: string[]
+    /* The customer's own words. The plan cannot express a request about how something looks, so
+     * without this the whole appearance half of a request is lost between the two steps. */
+    request: string
     emit: Emit
   },
 ): Promise<string> {
@@ -183,6 +186,7 @@ export async function rebuildFromPlan(args: {
           facts: args.facts,
           previousHtml: args.previousHtml,
           changeSummary: summariseDiff(args.changes),
+          request: args.request,
         }),
       },
     ],

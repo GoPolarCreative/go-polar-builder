@@ -28,6 +28,18 @@ Rules:
   the scope of the request exactly.
 - One request can contain several changes. Apply all of them.
 
+YOU ARE NOT THE ONLY STEP. A second step rebuilds the document afterwards and it is given the
+customer's request in full. Anything about how the site LOOKS rather than what it SAYS — the
+colour of text on a button, how many images sit in a row, whether a numeral is dark enough to
+read, putting steps on cards, star icons on a review — is that step's job, not yours. Leave those
+alone entirely.
+
+That means a request can be mostly or even entirely about appearance, and the correct revised plan
+is then the plan you were given, unchanged. Returning it identical is a valid and complete answer.
+Do NOT reword a heading, a stat or an FAQ to show willing. That happened: a customer asked for
+nine changes, every one about appearance, and got back ten silent re-wordings of things they never
+mentioned and none of what they asked for. Untouched is better than busy.
+
 CHANGING THE LOOK. The plan carries a design style in \`style.resolved\`, one of industrial,
 modern, established or refined. If the customer asks for something that is really a style change,
 "make it feel more upmarket", "this is too plain", "can it look tougher", set \`style.resolved\` to
@@ -63,26 +75,58 @@ Return the complete revised plan as JSON. Nothing else.`
 }
 
 /** Appended to the cached HOUSE_RULES block for an edit rebuild. */
-export const EDIT_BUILD_SYSTEM = `You are rebuilding a site you have already built, because the content plan changed.
+export const EDIT_BUILD_SYSTEM = `You are rebuilding a site you have already built, because the customer asked for changes.
 
-You will be given the previous document and the revised plan. Produce the new document.
+You are given the previous document, the revised content plan, and THE CUSTOMER'S REQUEST IN THEIR
+OWN WORDS. You produce the new document.
 
-Everything the plan did not change must come out byte for byte identical to the previous
-document. Same classes, same structure, same copy, same order, same whitespace. The customer is
-comparing the two versions side by side, and anything that moves without being asked to move
-reads as the tool breaking their website.
+TWO SOURCES OF TRUTH, AND YOU NEED BOTH.
 
-Change only what the plan changed. Then check the house rules still hold, because they still do
-apply: one h1, colour tokens only in :root, no em dashes, no emoji, the exact Go Polar footer
-credit, valid JSON-LD, Web3Forms form actions, alt text on every image.`
+The plan is the source of truth for CONTENT: headings, body copy, lists, which sections exist.
+
+The request is the source of truth for EVERYTHING ELSE, and this is the part that used to get
+lost. The plan has no field for the colour of button text, for how many images sit in a row, for
+whether a numeral is dark enough to read, for putting steps on cards, or for star icons in a
+review. Those requests are yours to carry out, here, by editing the document directly. If the
+customer asked for it and the plan does not express it, that does not mean it was handled
+somewhere else. It means nobody has done it yet and you are the one who can.
+
+Read the request line by line and satisfy every line of it. A request with nine sentences in it is
+nine changes, not one.
+
+WHAT NOT TO TOUCH. Everything neither the plan nor the request asks to change comes out byte for
+byte identical to the previous document: same classes, same structure, same copy, same order, same
+whitespace. The customer is comparing the two versions side by side, and anything that moves
+without being asked to move reads as the tool breaking their website.
+
+STYLING GOES IN THE RIGHT PLACE. Colour values live in :root as tokens and nowhere else. If a
+request needs a colour that has no token, add a token and use it. Do not put a hex value on an
+element.
+
+IF YOU CANNOT DO SOMETHING, SAY SO IN THE DOCUMENT'S HTML COMMENT AT THE TOP, in one line
+beginning "UNAPPLIED:". Never silently drop part of a request. Never invent a fact to satisfy one:
+no testimonials, ratings, licence numbers, job counts or response times you were not given. Adding
+star icons to reviews that exist is presentation. Inventing a review is not.
+
+Then check the house rules still hold, because they still do apply: one h1, colour tokens only in
+:root, no em dashes, no emoji, the exact Go Polar footer credit, valid JSON-LD, Web3Forms form
+actions, alt text on every image.`
 
 export function editBuildUserMessage(args: {
   plan: ContentPlan
   facts: BuildFacts
   previousHtml: string
   changeSummary: string
+  request: string
 }): string {
   return `${factsBlock(args.facts, args.plan)}
+
+# WHAT THE CUSTOMER ASKED FOR, IN THEIR WORDS
+
+This is the request. Satisfy every part of it, including the parts about how things look, which
+the plan below cannot express.
+
+${args.request}
 
 # WHAT CHANGED IN THE PLAN
 

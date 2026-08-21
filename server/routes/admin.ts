@@ -895,6 +895,36 @@ app.get('/admin/jobs/:jobId/files', async (c) => {
   })
 })
 
+/**
+ * What a customer actually asked for, and what changed when they did.
+ *
+ *   GET /api/admin/jobs/:jobId/edits
+ *
+ * "I asked for a change and nothing happened" is unanswerable without the request itself. The
+ * first time it was said out loud, the request was in a column nothing could read, and the whole
+ * diagnosis came down to guessing from a diff summary. Support needs the sentence they typed.
+ */
+app.get('/admin/jobs/:jobId/edits', requireAdmin, async (c) => {
+  const db = await getDb()
+  const jobId = c.req.param('jobId') ?? ''
+
+  const rows = await db
+    .select({
+      versionFrom: schema.edits.versionFrom,
+      versionTo: schema.edits.versionTo,
+      prompt: schema.edits.prompt,
+      diffSummary: schema.edits.diffSummary,
+      counted: schema.edits.counted,
+      createdAt: schema.edits.createdAt,
+    })
+    .from(schema.edits)
+    .where(eq(schema.edits.jobId, jobId))
+    .orderBy(schema.edits.createdAt)
+
+  return c.json({ jobId, edits: rows })
+})
+
+
 app.get('/admin/events', async (c) => {
   const db = await getDb()
   const limit = Math.min(Number(c.req.query('limit') ?? 50), 200)

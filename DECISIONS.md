@@ -1296,3 +1296,50 @@ followed by digits: `gpc1258` → `1258`, and `6m2egnica` → nothing.
 **This is only known because the failure was logged with the input.** D49 added the reason and the
 typed value to `auth.claim.failed`. Without it this was two shrugs and a working third attempt, and
 every customer after would have hit the same wall in private.
+
+## D51
+
+**The customer's own words reach the step that can act on them.**
+
+First real edit. Nine requests, itemised: white text on the blue buttons, gallery images all one
+size on one row, darker numerals on "why choose us", the "01 02" steps on cards, yellow stars in
+the review cards, a heading renamed, two contact forms made to match, twenty Brisbane suburbs
+added. What came back was ten silent re-wordings of the FAQ, the stats and a hero heading, none of
+which were asked for, and not one of the nine.
+
+**The cause.** An edit ran in two steps and only the first one ever saw the request.
+`generateEditedPlan` got the customer's words and returned a revised content plan.
+`rebuildFromPlan` then wrote the document from that plan and a summary of *how the plan changed* —
+it was never given the request at all.
+
+The plan holds content: headings, body copy, lists, which sections exist. It has no field for the
+colour of text on a button, for how many images sit in a row, for whether a numeral is legible, for
+star icons. So every request about appearance had nowhere to land. The planner, told to return a
+revised plan and unable to express any of it, did the only thing it could and reworded some copy.
+The renderer was then told "the FAQ wording changed" and faithfully changed the FAQ wording.
+
+Nothing errored. Every layer reported success. The customer got their own site back.
+
+**The fix.** `rebuildFromPlan` now receives `request` and the prompt says plainly that the plan is
+the source of truth for content and the request is the source of truth for everything else — and
+that if the plan does not express something the customer asked for, that does not mean it was
+handled elsewhere, it means nobody has done it yet.
+
+The planner is told the opposite half: a second step gets the full request and owns appearance, so
+leave it alone. **Returning the plan unchanged is explicitly a valid and complete answer.** Untouched
+is better than busy.
+
+**Which removes the only signal that work happened**, since an empty plan diff is now normal. So
+the document is compared instead: if the plan did not move and the page comes back byte for byte
+identical, the customer asked for something and received their own site back. No version, no
+increment of `edits_used`, and a reason naming how to phrase it better. Same rule this route
+already had for the offline fixture, applied to the case that actually turned up.
+
+**Unapplied parts are declared.** The renderer writes a one-line `UNAPPLIED:` HTML comment rather
+than dropping part of a request in silence. Inventing a fact to satisfy a request stays forbidden:
+putting stars on reviews that exist is presentation, writing a review is not.
+
+**Found only because the request was recoverable.** The prompt was in a column nothing could read.
+`GET /api/admin/jobs/:jobId/edits` now returns what they asked for beside what changed, and
+`edit.applied` carries the request. "I asked for a change and nothing happened" is unanswerable
+without the sentence they typed.

@@ -254,6 +254,7 @@ app.post('/jobs/:jobId/edits', async (c) => {
           facts,
           previousHtml: currentHtml,
           changes,
+          request,
           emit,
         })
 
@@ -268,6 +269,42 @@ app.post('/jobs/:jobId/edits', async (c) => {
             await emit(e)
           },
         })
+
+        /*
+         * Did anything actually happen?
+         *
+         * An edit is now allowed to leave the plan completely untouched, because a request about
+         * how the site looks is carried out on the document instead. That makes an empty plan diff
+         * normal rather than suspicious, and it removes the only signal we had that a round of
+         * work produced something.
+         *
+         * So compare the document itself. If the plan did not move AND the page came back byte for
+         * byte identical, the customer asked for something and received their own site back. That
+         * is the exact case this route already refuses to charge for. No version, no increment, and
+         * a reason they can act on.
+         */
+        const planChanged = changes.length > 0
+        const htmlChanged = outcome.html.trim() !== currentHtml.trim()
+
+        if (!planChanged && !htmlChanged) {
+          await recordEvent(jobId, 'edit.noop', {
+            request: request.slice(0, 500),
+            fromVersion,
+            editCharged: false,
+            notify: 'chris',
+          })
+          await emit({
+            type: 'error',
+            message: 'Nothing changed',
+            detail:
+              'We could not work out what to change from that, so your website has been left exactly as it was and this has not used up one of your changes. Try naming the section and what you want done to it, for example "make the text on the blue buttons white".',
+          })
+          // Back to where they were: something is built and they can still change it.
+          await setJobStatus(jobId, 'preview')
+          closed = true
+          controller.close()
+          return
+        }
 
         // The whole set is rebuilt from the revised plan, not just the page the customer named.
         // The plan is the source of truth and the service pages are rendered from it, so a change
@@ -323,7 +360,12 @@ app.post('/jobs/:jobId/edits', async (c) => {
               'That change hit a snag on the last few checks. One of our team has been notified. Your previous version is still safe and you can roll back to it.',
           })
         } else {
-          await recordEvent(jobId, 'edit.applied', { fromVersion, toVersion, summary: diffSummary })
+          await recordEvent(jobId, 'edit.applied', {
+          request: request.slice(0, 500),
+          fromVersion,
+          toVersion,
+          summary: diffSummary,
+        })
         }
 
         await emit({
