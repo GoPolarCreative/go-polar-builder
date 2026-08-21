@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { GenerationEvent, VerificationReport } from '../../shared/types'
+import type { GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamEdit } from '../lib/api'
 import { Banner, Eyebrow, Spinner, Wordmark } from '../components/ui'
+import { BuildProgress } from '../components/BuildProgress'
 import {
   PAGE_CAVEAT,
   PAGE_MECHANISM_SHORT,
@@ -39,7 +40,8 @@ export default function Preview() {
 
   const [request, setRequest] = useState('')
   const [running, setRunning] = useState(false)
-  const [statusMessage, setStatusMessage] = useState('')
+  const [stage, setStage] = useState<GenerationStage | null>(null)
+  const [editStartedAt, setEditStartedAt] = useState<number | null>(null)
   const [liveHtml, setLiveHtml] = useState('')
   const [report, setReport] = useState<VerificationReport | null>(null)
   const [outcome, setOutcome] = useState<{ tone: 'ok' | 'warn' | 'error'; title: string; body: string } | null>(
@@ -121,7 +123,8 @@ export default function Preview() {
     setOutcome(null)
     setLiveHtml('')
     setReport(null)
-    setStatusMessage('Sending it through')
+    setStage(null)
+    setEditStartedAt(Date.now())
 
     // Every path out of here sets one of these, so the submission can never end in silence.
     let sawDone: { version: number; passed: boolean } | null = null
@@ -131,7 +134,7 @@ export default function Preview() {
       await streamEdit(jobId, text, (event: GenerationEvent) => {
         switch (event.type) {
           case 'status':
-            setStatusMessage(event.message)
+            setStage(event.stage)
             break
           case 'html_chunk':
             setLiveHtml((h) => h + event.text)
@@ -162,7 +165,6 @@ export default function Preview() {
 
     setRunning(false)
     setLiveHtml('')
-    setStatusMessage('')
 
     if (sawError) {
       setOutcome({
@@ -339,7 +341,7 @@ export default function Preview() {
 
           {running ? (
             <div className="space-y-2">
-              <Spinner label={statusMessage || 'Working'} />
+              {editStartedAt ? <BuildProgress stage={stage} done={false} startedAt={editStartedAt} /> : null}
               {liveHtml ? (
                 <pre
                   ref={streamRef}
