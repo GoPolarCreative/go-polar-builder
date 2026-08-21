@@ -21,6 +21,9 @@ export default defineConfig({
      */
     testTimeout: 30_000,
     hookTimeout: 90_000,
-    poolOptions: { forks: { singleFork: true } },
+    // fileParallelism, not poolOptions. poolOptions was REMOVED in Vitest 4 and silently ignored,
+    // so the serial run this was meant to produce never happened and the suite kept failing in
+    // random groups under load.
+    fileParallelism: false,
   },
 })

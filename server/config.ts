@@ -67,6 +67,8 @@ export interface AppConfig {
   resendApiKey?: string
   resendFrom: string
   ghlWebhookUrl?: string
+  /** Which GHL events are worth sending. Empty means all of them. See server/lib/ghl.ts. */
+  ghlEvents: string[]
   vercelApiToken?: string
   vercelProjectId?: string
   vercelTeamId?: string
@@ -155,6 +157,10 @@ export function loadConfig(): AppConfig {
     resendApiKey: env('RESEND_API_KEY'),
     resendFrom: env('RESEND_FROM') ?? 'Go Polar Creative <build@itscold.com.au>',
     ghlWebhookUrl: env('GHL_INBOUND_WEBHOOK_URL'),
+    ghlEvents: (env('GHL_EVENTS') ?? '')
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean),
     vercelApiToken: env('VERCEL_API_TOKEN'),
     vercelProjectId: env('VERCEL_PROJECT_ID'),
     vercelTeamId: env('VERCEL_TEAM_ID'),

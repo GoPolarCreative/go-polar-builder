@@ -1,4 +1,4 @@
-import { assertLiveEnabled, config, LiveActionBlockedError } from '../config.js'
+import { assertLiveEnabled, config, LiveActionBlockedError, type AppConfig } from '../config.js'
 import { fakeGhl } from './integrations/fakes.js'
 import { recordEvent } from './db.js'
 
@@ -89,7 +89,38 @@ export async function notifyGhl(payload: GhlPayload): Promise<void> {
 }
 
 /** Notify, and record the failure rather than throwing into a payment webhook. */
+/**
+ * Is this event one the CRM has been told to care about?
+ *
+ * GoHighLevel's inbound webhook trigger is a PREMIUM trigger: every delivery costs an execution,
+ * whether or not the workflow does anything with it. This app sends seven different event types to
+ * one URL, so a customer whose workflow only handles payment_received was costing seven executions
+ * to deliver one useful message, and six of those landed in an empty branch and stopped.
+ *
+ * GHL_EVENTS is a comma separated allow list. Unset means send everything, which is the right
+ * default for anyone who has not thought about it and matches how this behaved before.
+ *
+ * This is a spend control, not a correctness control. Nothing downstream depends on a CRM
+ * notification: the email, the build and the operator queue all work whether or not one is sent.
+ */
+export function ghlEventEnabled(event: GhlEvent, cfg: AppConfig = config()): boolean {
+  if (cfg.ghlEvents.length === 0) return true
+  return cfg.ghlEvents.includes(event)
+}
+
 export async function notifyGhlSafely(payload: GhlPayload): Promise<boolean> {
+  const cfg = config()
+  if (!ghlEventEnabled(payload.event, cfg)) {
+    // Recorded, not silent. "Nothing arrived in GHL" must always be answerable, and a filtered
+    // event looks identical to a broken webhook from the outside.
+    await recordEvent(payload.jobId, 'ghl.skipped', {
+      event: payload.event,
+      reason: 'not in GHL_EVENTS',
+      allowed: cfg.ghlEvents.join(','),
+    })
+    return false
+  }
+
   try {
     await notifyGhl(payload)
     await recordEvent(payload.jobId, 'ghl.sent', { event: payload.event })
