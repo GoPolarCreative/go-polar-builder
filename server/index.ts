@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { config } from './config.js'
+import { config, modelFor } from './config.js'
 import { recordEvent } from './lib/db.js'
 import { assertProductConfig, productConfigReport } from './lib/products.js'
 import { checkStoreProducts } from './lib/shopify.js'
@@ -67,6 +67,10 @@ api.get('/health', async (c) => {
     // Presence only, never values.
     demoMode: cfg.demoMode,
     anthropicKeyPresent: Boolean(cfg.anthropicApiKey),
+    // Which model this deployment will actually use. Not a secret, and without it there is no way
+    // to tell from outside whether an ANTHROPIC_MODEL change took effect — which is exactly how a
+    // model comparison ended up measuring the same model twice.
+    model: modelFor(cfg),
     offlineGeneration: cfg.offlineGeneration,
     renderDriver: cfg.renderDriver,
     databaseDriver: cfg.databaseDriver,

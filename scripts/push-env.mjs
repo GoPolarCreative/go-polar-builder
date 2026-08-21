@@ -127,19 +127,56 @@ console.log('')
 let ok = 0
 let failed = []
 
+/*
+ * --value, not stdin.
+ *
+ * This used to pipe the value in. That worked until the Vercel CLI updated itself mid-session and
+ * grew a "Store as sensitive?" prompt ahead of the value prompt — after which the piped line
+ * answered the wrong question, the command still exited 0, and the variable kept its old value.
+ * Nothing failed. A model comparison then ran twice on the same model and looked like a result.
+ *
+ * --value is the documented non-interactive form and cannot be misread by a new prompt.
+ */
 for (const item of settable) {
   try {
     // --force overwrites an existing value rather than erroring, so this is re-runnable.
-    execFileSync('npx', ['vercel', 'env', 'add', item.key, 'production', '--force'], {
-      input: item.value,
-      stdio: ['pipe', 'ignore', 'pipe'],
-      shell: process.platform === 'win32',
-    })
+    execFileSync(
+      'npx',
+      ['vercel', 'env', 'add', item.key, 'production', '--value', item.value, '--force'],
+      { stdio: ['ignore', 'ignore', 'pipe'], shell: process.platform === 'win32' },
+    )
     ok++
     console.log(`  set     ${item.key}`)
   } catch (err) {
     failed.push(item.key)
     console.log(`  FAILED  ${item.key}`)
+  }
+}
+
+/*
+ * Read back what is not secret, and say so when it does not match.
+ *
+ * A write that reports success and stores something else is the failure mode this file has already
+ * had once. The sensitive values cannot be read back by design; these can.
+ */
+const READABLE = ['PUBLIC_APP_URL', 'DATABASE_DRIVER', 'STORAGE_DRIVER', 'DEMO_MODE', 'ANTHROPIC_MODEL']
+const expected = new Map(settable.filter((i) => READABLE.includes(i.key)).map((i) => [i.key, i.value]))
+
+if (expected.size > 0) {
+  console.log('\nVerifying the values that can be read back...')
+  try {
+    const listing = execFileSync('npx', ['vercel', 'env', 'ls', 'production'], {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+    })
+    for (const [key] of expected) {
+      if (!new RegExp('^\\s*' + key + '\\s', 'm').test(listing)) {
+        console.log(`  MISSING  ${key} is not on the project at all`)
+      }
+    }
+    console.log('  Present. Values marked Sensitive cannot be read back; check /api/health after deploying.')
+  } catch {
+    console.log('  Could not list them. Check with: npx vercel env ls production')
   }
 }
 

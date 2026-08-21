@@ -39,3 +39,6 @@ vercel-env.txt
 
 .vercel
 .env*
+
+# Model comparison output. Generated sites, not source.
+compare/
