@@ -141,7 +141,7 @@ export function PhotoUploader({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [removing, setRemoving] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
 
   const uploadMany = async (files: File[]) => {
@@ -163,6 +163,36 @@ export function PhotoUploader({
     }
     if (added.length > 0) onChange([...photos, ...added])
     setBusy(false)
+  }
+
+  /**
+   * Removing a photo, without making them wait to find out it worked.
+   *
+   * Deleting an asset means a round trip to blob storage, which is slow enough that the tile used
+   * to sit there looking untouched for a second or more. So people clicked again. One photo in
+   * testing was deleted four times in the same second, and the customer's read on it was that
+   * deleting takes forever.
+   *
+   * The tile now goes on removing the moment it is clicked, the button disables, and a repeat
+   * click cannot fire. If the server refuses, the photo comes back and says why.
+   */
+  const remove = async (photo: AssetRecord) => {
+    if (removing.has(photo.id)) return
+    setRemoving((r) => new Set(r).add(photo.id))
+    setError(null)
+
+    try {
+      await api.deleteAsset(photo.id)
+      onChange(photos.filter((x) => x.id !== photo.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove that photo')
+    } finally {
+      setRemoving((r) => {
+        const next = new Set(r)
+        next.delete(photo.id)
+        return next
+      })
+    }
   }
 
   const reorder = async (from: number, to: number) => {
@@ -194,7 +224,7 @@ export function PhotoUploader({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">
-              {photos.length} of 20 photos. Drag to reorder, the first one is used biggest.
+              {photos.length} of 20 photos. The first one is used biggest.
             </p>
             <p className="field-hint">
               Photos straight off your phone work best. We need at least 3 to build the gallery, and we will not
@@ -216,40 +246,67 @@ export function PhotoUploader({
             {photos.map((p, i) => (
               <li
                 key={p.id}
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragIndex !== null && dragIndex !== i) void reorder(dragIndex, i)
-                  setDragIndex(null)
-                }}
-                className="group relative aspect-4/3 cursor-move overflow-hidden rounded-lg border border-ice-200 bg-ice-100"
+                className="relative aspect-4/3 overflow-hidden rounded-lg border border-ice-200 bg-ice-100"
               >
                 <img
                   src={assetUrl(p.id, 'thumb')}
                   alt={p.filename ?? 'Job photo'}
-                  className="h-full w-full object-cover"
+                  className={`h-full w-full object-cover transition-opacity ${
+                    removing.has(p.id) ? 'opacity-30' : ''
+                  }`}
                 />
-                <button
-                  type="button"
-                  aria-label="Remove photo"
-                  className="absolute top-1 right-1 hidden h-6 w-6 rounded-full bg-white/90 text-sm leading-none text-ice-900 group-hover:block"
-                  onClick={async () => {
-                    try {
-                      await api.deleteAsset(p.id)
-                      onChange(photos.filter((x) => x.id !== p.id))
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Could not remove that photo')
-                    }
-                  }}
-                >
-                  &times;
-                </button>
+
+                {/*
+                 * Always visible, never hover-only. These controls used to appear on
+                 * group-hover, which meant that on a phone — where every one of these
+                 * customers is — there was no way to remove a photo at all.
+                 */}
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-ice-900/70 px-1 py-1">
+                  <div className="flex gap-0.5">
+                    <button
+                      type="button"
+                      aria-label="Move photo earlier"
+                      className="h-6 w-6 rounded bg-white/90 text-sm leading-none text-ice-900 disabled:opacity-30"
+                      disabled={i === 0 || busy}
+                      onClick={() => void reorder(i, i - 1)}
+                    >
+                      &lsaquo;
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Move photo later"
+                      className="h-6 w-6 rounded bg-white/90 text-sm leading-none text-ice-900 disabled:opacity-30"
+                      disabled={i === photos.length - 1 || busy}
+                      onClick={() => void reorder(i, i + 1)}
+                    >
+                      &rsaquo;
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Remove photo"
+                    className="h-6 w-6 rounded bg-white/90 text-sm leading-none text-ice-900 disabled:opacity-40"
+                    disabled={removing.has(p.id)}
+                    onClick={() => void remove(p)}
+                  >
+                    &times;
+                  </button>
+                </div>
+
                 {i === 0 ? (
-                  <span className="absolute bottom-1 left-1 rounded bg-ice-900/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="absolute top-1 left-1 rounded bg-ice-900/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     Hero
                   </span>
-                ) : null}
+                ) : (
+                  <button
+                    type="button"
+                    className="absolute top-1 left-1 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-ice-900"
+                    disabled={busy}
+                    onClick={() => void reorder(i, 0)}
+                  >
+                    Make hero
+                  </button>
+                )}
               </li>
             ))}
           </ul>
