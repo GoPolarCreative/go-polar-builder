@@ -1197,3 +1197,41 @@ rules — is well-specified work rather than the open-ended reasoning it is buil
 
 **Revisit when** the house rules change materially, or if repair passes start firing regularly on
 Sonnet. `npm run compare -- <jobId> <versionA> <versionB>` reruns this comparison from the meter.
+
+## D48. Klaviyo sends every customer email. GoHighLevel is deleted
+
+**Decided 2026-08-21, after a day of email that never arrived.**
+
+**What was wrong.** Two email systems, one wired. Klaviyo sent the purchase email through a flow
+built by hand. Everything the app sent itself went through a Resend transport that was never
+configured, failed, and returned a deliberately vague "if we have your email we've sent it" — so
+nothing distinguished sent from silently discarded. The "email me my link again" form, which is the
+second most important message in the product, went nowhere for every customer who used it.
+
+**Why GoHighLevel could never have worked.** The root domain authorises only `spf.ax.email`:
+
+```
+itscold.com.au   v=spf1 +a +mx +include:spf.ax.email ~all
+```
+
+No GHL DKIM on the root, so GHL sending as `hello@itscold.com.au` failed SPF and had no aligned
+signature. DMARC is `p=none`, so nothing was rejected — Gmail simply binned it. That is why the
+symptom was silence rather than a bounce, and why it went unnoticed on a lead flow since July.
+
+A GHL-authenticated subdomain did exist (`sales.itscold.com.au`, with `spf.leadconnectorhq.com` and
+DKIM) but nothing was configured to send from it.
+
+**Why Klaviyo.** `hello.itscold.com.au` is delegated to Klaviyo's nameservers with `s1` and `s2`
+DKIM already published, and it is already used for real campaigns. The sending path was proven
+before this app touched it.
+
+**The design.** The app emits events and owns no templates, no copy and no send timing. Every event
+carries its own link, because a flow that looks one up can send an email with a dead button. The
+API revision is pinned, since Klaviyo versions by date and an unpinned client breaks on a morning
+nobody deployed. 202 Accepted is the only status treated as success.
+
+**Also removed:** the `ENABLE_LIVE_CRM` capability. Nothing read it once GHL was gone, and a flag
+that does nothing is worse than no flag.
+
+**What this cost.** Most of a day, and it was two things: one missing Email field in a GHL action,
+and one SPF record. Neither announced itself, because every layer answered 200.

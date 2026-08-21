@@ -1,10 +1,9 @@
 # Handover
 
-Last updated 2026-08-20, end of day. Written for someone with no memory of today.
+Last updated 2026-08-21. Written for someone with no memory of the days it describes.
 
-**It is deployed and it works.** A real customer journey has run end to end on production, against
-the real Anthropic API, and produced a real website. What is left is three pieces of wiring, none
-of which is code.
+**It is live and the whole customer path works.** A real order has gone through end to end: paid on
+Shopify, job created, email delivered, website generated, files downloadable.
 
 ---
 
@@ -12,180 +11,163 @@ of which is code.
 
 | | |
 | --- | --- |
-| **App** | https://go-polar-builder.vercel.app |
+| **App** | https://build.itscold.com.au |
 | **Repo** | https://github.com/GoPolarCreative/go-polar-builder |
-| **Vercel project** | `go-polar-builder`, Pro plan, region syd1 |
-| **Database** | Neon Postgres, 15 tables, all migrations applied |
-| **File storage** | Vercel Blob, **private**, syd1 |
-
-Everything below was verified against production, not read off a config file:
-
-- Deployment reachable, protection off
-- Database reads and writes
-- Blob write → read back → compare → delete
-- Photo upload and `sharp` processing (2.2MB → 413KB)
-- **A real generation: 12m13s, two repair passes, 63,548 bytes, all checks passed**
-- Shopify `orders/paid` webhook registered, HMAC verification confirmed active
-- `/api/admin/*` refuses without the token, accepts with it
+| **Vercel** | `go-polar-builder`, Pro, syd1 |
+| **Database** | Neon Postgres, 15 tables |
+| **Files** | Vercel Blob, private, syd1 |
+| **Email** | **Klaviyo.** Not GoHighLevel, not Resend. See below |
+| **Model** | `claude-sonnet-5` — measured against Opus 5, see DECISIONS D47 |
 
 ---
 
-## What is left. Three things, in order.
-
-### 1. The customer never receives their link — THE BLOCKER
-
-Nothing sends it. A customer would pay $220 and hear nothing.
-
-Get the GHL inbound webhook URL (**Automation → Workflows → new workflow → trigger "Inbound
-Webhook"**), then:
-
-```bash
-cd /d "C:\Users\Chris\Desktop\GO POLAR WEBSITE" && npx vercel env add GHL_INBOUND_WEBHOOK_URL production --force
-```
-
-Then `ENABLE_LIVE_CRM=1` the same way, and redeploy. On payment the app fires:
+## The flow, as it actually runs
 
 ```
-event: payment_received
-contact: { email, phone, firstName }
-customValues: { builder_login_link: "https://.../start?t=..." }
+Facebook ad
+  → itscold.com.au/products/diy-website-build
+  → pays $220 inc GST
+  → Shopify fires orders/paid  →  app verifies HMAC, creates the job
+  → app emits Klaviyo event "Website Build Purchased" with builder_login_link
+  → Klaviyo flow sends the email
+  → they land on build.itscold.com.au and build their site
+  → Chris downloads the files and hosts them like any other client site
 ```
 
-Build the GHL workflow that emails `builder_login_link`. The same already happens for
-`build_complete`, `intake_abandoned` and `editing_stalled`, each with the right link attached.
-
-**Until this is connected, do not send traffic to the product page.** Nothing is lost if one slips
-through — paid jobs appear in `/api/admin/queue` with the customer's email and the link can be sent
-by hand — but they will be sitting there wondering.
-
-### 2. The custom domain
-
-CNAME `build` → `cname.vercel-dns.com`, then add `build.itscold.com.au` in Vercel → Settings →
-Domains. `PUBLIC_APP_URL` already points there, so **every emailed link is currently dead** until
-this exists. The Shopify webhook deliberately points at the `vercel.app` URL and needs no change.
-
-### 3. Then, and only then
-
-- `ENABLE_LIVE_PAYMENTS=1`, `ENABLE_LIVE_EMAIL=1` — deliberately still off. A half-configured
-  deployment that is allowed to take money is worse than one that refuses.
-- A real purchase with a real card. Check `/api/admin/trace?email=…` afterwards — it reports each
-  of the four steps separately instead of "nothing happened".
+Lost their link? The form on the landing page emits **"Website Link Requested"**, same shape, and a
+second Klaviyo flow sends it again.
 
 ---
 
-## Optional, blocks nothing
+## Email: Klaviyo, and only Klaviyo
 
-- **Shopify Dev Dashboard app** (`SHOPIFY_CLIENT_ID` + `SHOPIFY_CLIENT_SECRET`). Without it you
-  lose the hourly sweep that catches dropped webhooks, and the store-verification checks. Payments,
-  jobs, builds and links all work without it. DEPLOY.md section 6 has the click-by-click.
-- **`extra-edits` price.** Never decided. Degrades honestly and does not block a launch.
+**The app never sends email.** It emits events; Klaviyo owns every template, every subject line and
+every send. Copy changes without a deploy.
+
+Seven metrics, all in `server/lib/klaviyo.ts`:
+
+| Metric | Fires when | Carries |
+| --- | --- | --- |
+| `Website Build Purchased` | build token paid | `builder_login_link` |
+| `Website Link Requested` | "lost your link" form | `builder_login_link` |
+| `Website Build Complete` | generation finished | `preview_link` |
+| `Website Go Live Requested` | hosting purchased | `preview_link` |
+| `Website Files Ready` | discharge purchased | — |
+| `Website Intake Abandoned` | started, stopped 24h | `builder_login_link` |
+| `Website Editing Stalled` | built, untouched 72h | `preview_link` |
+
+**Every event carries its own link.** A flow that has to look one up is a flow that can send an
+email with a dead button, and the whole product is one link in one email.
+
+**The API revision is pinned** in `klaviyo.ts`. Klaviyo versions by date; unpinned means a working
+integration breaks on a morning nobody deployed. Bump it deliberately.
+
+**202 Accepted is the only success.** Anything else, including 200, is treated as a failure.
+
+**Klaviyo will not offer a metric that has never fired.** A new metric is invisible in the flow
+trigger picker until one event of that name arrives. Fire one with
+`POST /api/admin/test-email?email=…` before trying to build its flow.
+
+**GoHighLevel is gone** — deleted from the code on 2026-08-21, not disabled. Two flows were built
+there and neither ever delivered: the root domain `itscold.com.au` authorises only `spf.ax.email`,
+so GHL could not send as `hello@itscold.com.au` and Gmail binned everything. Klaviyo already owned a
+verified sending subdomain, which is why it works.
+
+---
+
+## What is left
+
+**Nothing blocking.** These are improvements, not gaps:
+
+- **`ENABLE_LIVE_PAYMENTS=1`** — still off. It only gates the app *creating* checkout links, which
+  happens at go-live for hosting. The purchase path does not touch it. Needed before testing go-live.
+- **Shopify Dev Dashboard app** (`SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET`) — never created.
+  Without it: no hourly sweep for dropped webhooks, and store checks report "cannot verify".
+  Payments, jobs, builds and emails all work without it. DEPLOY.md section 6.
+- **`extra-edits` price** — never decided. Degrades honestly, blocks nothing.
 - **Copy sign-off:** D28, D31, D35, D44 in DECISIONS.md.
-- **The builder UI has never been opened in a browser on production.** The API is thoroughly
-  tested; the React app builds clean and the bundle scan passes, but "builds clean" is not "works".
-  Worth ten minutes.
+- **The builder UI has never been properly exercised in a browser.** The API is well tested and the
+  page loads, but that is not the same as clicking through the whole wizard.
+- **Duplicate `_dmarc` record** on itscold.com.au. Two exist, only one is valid. Unrelated to this
+  app but it weakens every email you send.
 
 ---
 
-## Numbers worth knowing
+## Numbers
 
 | | |
 | --- | --- |
-| Generation time | **12 minutes**, measured. Longer than any of the copy implies |
-| Anthropic cost per build | ~$1–2 |
-| Typical cost per customer incl. a few edits | ~$5–8. All ten edits, ~$15–20 |
+| Generation | 6–12 minutes, depending on whether a repair pass fires |
+| Anthropic cost | **$0.77 per build**, measured |
+| Per customer, few edits | ~$3.85. All ten edits, ~$8.50 |
 | Vercel | $20/month. Neon and Blob on free tiers |
 
-Against $220 inc GST, running cost is 3–10% of revenue.
+Against $200 ex GST, running cost is under 2%.
 
 ---
 
-## Decisions made today
+## Operator endpoints
 
-- **D46: render checks are off in production** (`RENDER_DRIVER=none`). The four browser-based
-  checks launch Chromium inside the function and that is what was killing the run. They report as
-  **skipped, never passed**. The thirteen static checks still run on every page, and all seventeen
-  still run locally through `npm run sample`.
-- **`maxDuration` is 800 seconds**, which Fluid compute allows on Pro. 300 was not enough.
-- **Blob is private**, and objects are written private to match. Everything is read server-side.
-- **The webhook points at `go-polar-builder.vercel.app`**, not the custom domain, so it works today
-  and never needs changing.
+All behind `x-admin-token: $ADMIN_TOKEN` (value in `.env.local`).
+
+| | |
+| --- | --- |
+| `GET /api/admin/queue` | Who is waiting and what blocks them. Paid-but-blocked first |
+| `GET /api/admin/jobs/:id/files` | Their finished website as a zip, ready for GitHub |
+| `GET /api/admin/trace?email=` | Which of the four payment steps broke |
+| `POST /api/admin/test-email?email=` | Fires a real Klaviyo event to a real inbox |
+| `GET /api/admin/storage-check` | Round-trips a real file through Blob |
+| `POST /api/admin/migrate` | Applies migrations, idempotent |
+| `GET /api/health` | Config, model, store checks, Shopify auth mode |
 
 ---
 
-## Ten bugs fixed today, every one only findable by deploying
+## How a customer's website reaches them
 
-Local tests all passed throughout. These lived in the gap between this machine and the platform,
-and between the offline fixture and the real API. Do not reintroduce them:
+You are **not** hosting their site from this app. It builds; you collect the files and host them
+the way you already host every other client site.
 
-1. **Relative imports had no `.js` extensions.** `"type": "module"` plus per-file compilation meant
-   the function died on its first line. 317 imports across 60 files. `npm run check:imports` guards
-   it and runs at the front of every build.
-2. **Vercel changed the function signature.** `export default handle(api)` is now read as the old
-   `(req, res)` style. `api/index.ts` exports named HTTP methods instead.
-3. **PGlite was the production fallback.** With no `DATABASE_URL` it spent three minutes failing to
-   `mkdir` in a read-only function. Anywhere `VERCEL` is set the driver is postgres.
-4. **`db/migrations` never shipped.** Nothing imports a `.sql` file, so tracing skipped it.
-   `includeFiles` in vercel.json.
-5. **`vercel.json` named an invalid `runtime`.** Node version comes from `engines`.
-6. **Blob writes asked for public access on a private store.**
-7. **`temperature` is removed on Claude 5** and returns 400. Every generation failed. Replaced with
-   `effort` inside `output_config`.
-8. **`max_tokens` did not allow for thinking.** Adaptive thinking is on by default and its tokens
-   count against the ceiling, so the plan came back as JSON cut off mid-string.
-9. **Three arrays require exactly four entries** and the prompt said so for one of them.
-10. **A failed generation poisoned every retry.** `nextVersion` counts builds, so an orphaned plan
-    row collided forever and the job could never build again. All plan writes are upserts now.
+1. They finish, pay for hosting
+2. They verify their **own** Web3Forms key on the go-live screen. **This gates the download**,
+   because a site put live carrying the Go Polar key sends their enquiries to us
+3. They appear in `/api/admin/queue` with `readyForYou: true`
+4. `GET /api/admin/jobs/:id/files` gives the zip: every page, assets, favicon, a double-clickable
+   `PREVIEW.html`, sitemap, robots, README
+5. Unzip, `git init`, push, import to Vercel
+
+Verified: 22 files, 9.0MB, the Go Polar key appears nowhere in the archive.
 
 ---
 
 ## Running it
 
 ```bash
-npm run dev          # localhost:5173, demo mode, no accounts needed
+npm run dev          # localhost:5173, demo mode, no accounts
 npm run seed         # prints two signed-in links
-npm test             # 368 tests
-npm run sample       # rebuilds the committed sample, all 17 checks
+npm test             # 375 tests
+npm run sample       # rebuilds the committed sample
 npm run vercel:push  # push .env.local to Vercel (dry run; --apply to commit)
-npm run vercel:env   # write a paste-ready env block
 ```
 
-Stop the dev server with Ctrl-C, or `curl -X POST http://localhost:8787/api/dev/shutdown` if it is
+Stop the dev server with Ctrl-C, or `curl -X POST http://localhost:8787/api/dev/shutdown` if
 detached. A hard kill has corrupted the embedded database before.
 
-**Deploying:** `npx vercel deploy --prod`. Migrations run separately and afterwards:
-
-```bash
-curl -X POST https://go-polar-builder.vercel.app/api/admin/migrate -H "x-admin-token: $ADMIN_TOKEN"
-```
+Deploy with `npx vercel deploy --prod`. Migrations run separately, afterwards, via the admin
+endpoint — the Neon connection string is marked Sensitive and cannot be pulled locally.
 
 ---
 
-## Operator endpoints
+## Things that will bite you
 
-All behind `x-admin-token: $ADMIN_TOKEN` (the value is in `.env.local`).
-
-| | |
-| --- | --- |
-| `GET /api/admin/queue` | Who is waiting and what is blocking them. Paid-but-blocked first |
-| `GET /api/admin/jobs/:id/files` | Their finished website as a zip, ready for GitHub |
-| `GET /api/admin/trace?email=` | Which of the four payment steps broke |
-| `GET /api/admin/storage-check` | Round-trips a real file through Blob |
-| `POST /api/admin/migrate` | Applies migrations, idempotent |
-| `GET /api/health` | Config, store checks, Shopify auth mode |
-
----
-
-## How a customer's website reaches them
-
-You are **not** hosting their site from this app. The app builds it, you collect the files, you put
-them live the way you already do for every other client site.
-
-1. They finish building and pay for hosting
-2. They verify their own Web3Forms key on the go-live screen — **this gates the download**, because
-   a site put live carrying the Go Polar key sends their enquiries to us
-3. They appear in `/api/admin/queue` with `readyForYou: true`
-4. `GET /api/admin/jobs/:id/files` gives you the zip: every page, assets, favicon, a
-   double-clickable `PREVIEW.html`, sitemap, robots, README
-5. Unzip, `git init`, push, import to Vercel
-
-Verified end to end: 22 files, 9.0MB, the Go Polar key appears nowhere in the archive.
+- **The builder's own hostname is hardcoded once**, in `vercel.json`. It decides whether a request
+  gets the app or a published customer site.
+- **`RENDER_DRIVER=none` in production** (D46). Four browser-based checks do not run there; they
+  report as *skipped*, never passed. All thirteen static checks still run on every page.
+- **Klaviyo answers 202 to an event whose flow does not exist.** Acceptance is not delivery. The
+  profile's activity feed in Klaviyo is the only proof.
+- **The "lost your link" form always says the same thing**, whether or not the address exists. That
+  is deliberate, and it means only `/api/admin/events` can tell a real send from a failure.
+- **No performance claims in customer-facing copy.** No rankings, positions, traffic or timeframes.
+  Australian Consumer Law, and `test/pages.copy.test.ts` greps for it.
+- **Secrets go in via `npx vercel env add --value`**, never piped on stdin. The CLI grew a prompt
+  mid-session once and silently kept the old value.
