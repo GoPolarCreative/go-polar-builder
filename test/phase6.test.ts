@@ -9,7 +9,7 @@ import {
   resendLinkEmail,
   send,
 } from '../server/lib/email'
-import { GhlConfigError, builderLoginLink, notifyGhl, previewLink } from '../server/lib/ghl'
+import { KlaviyoConfigError, builderLoginLink, previewLink, trackKlaviyo } from '../server/lib/klaviyo'
 import { LiveActionBlockedError, assertLiveEnabled } from '../server/config'
 import { testConfig } from './fixtures/site'
 
@@ -91,22 +91,22 @@ describe('live action gating', () => {
   // The safety rail behind local preview: nothing charges, emails or touches DNS unless a flag
   // is explicitly on, and a blocked action throws rather than quietly doing nothing.
   it('blocks every capability by default', () => {
-    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
-    for (const capability of ['payments', 'email', 'crm', 'domains'] as const) {
+    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
+    for (const capability of ['payments', 'email', 'domains'] as const) {
       expect(() => assertLiveEnabled(capability, cfg)).toThrow(LiveActionBlockedError)
     }
     testConfig()
   })
 
   it('names the flag that would turn it on', () => {
-    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    const cfg = testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
     expect(() => assertLiveEnabled('email', cfg)).toThrow(/ENABLE_LIVE_EMAIL/)
     expect(() => assertLiveEnabled('domains', cfg)).toThrow(/ENABLE_LIVE_DOMAINS/)
     testConfig()
   })
 
   it('allows a capability once it is explicitly enabled', () => {
-    const cfg = testConfig({ demoMode: false, live: { payments: true, email: false, crm: false, domains: false } })
+    const cfg = testConfig({ demoMode: false, live: { payments: true, email: false, domains: false } })
     expect(() => assertLiveEnabled('payments', cfg)).not.toThrow()
     testConfig()
   })
@@ -120,7 +120,7 @@ describe('emails', () => {
   })
 
   it('refuses to send for real unless live email is switched on', async () => {
-    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
     await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/ENABLE_LIVE_EMAIL/)
     testConfig()
   })
@@ -128,7 +128,7 @@ describe('emails', () => {
   it('names RESEND_API_KEY when live email is on but the key is missing', async () => {
     testConfig({
       demoMode: false,
-      live: { payments: false, email: true, crm: false, domains: false },
+      live: { payments: false, email: true, domains: false },
       resendApiKey: undefined,
     })
     await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/RESEND_API_KEY/)
@@ -194,37 +194,37 @@ describe('emails', () => {
   })
 })
 
-describe('GoHighLevel', () => {
-  const payload = {
-    event: 'payment_received' as const,
-    contact: { email: 'a@b.com' },
+describe('Klaviyo', () => {
+  const event = {
+    metric: 'build_purchased' as const,
+    profile: { email: 'a@b.com' },
     jobId: 'job_1',
-    customValues: {},
+    properties: {},
   }
 
   it('posts nothing in demo mode', async () => {
     testConfig({ demoMode: true })
-    await expect(notifyGhl(payload)).resolves.toBeUndefined()
+    await expect(trackKlaviyo(event)).resolves.toBeUndefined()
   })
 
-  it('refuses to post for real unless live CRM is switched on', async () => {
-    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
-    await expect(notifyGhl(payload)).rejects.toThrow(/ENABLE_LIVE_CRM/)
+  it('refuses to post for real unless live email is switched on', async () => {
+    testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
+    await expect(trackKlaviyo(event)).rejects.toThrow(/ENABLE_LIVE_EMAIL/)
     testConfig()
   })
 
-  it('names the webhook variable when live CRM is on but the URL is missing', async () => {
+  it('names the API key when live email is on but the key is missing', async () => {
     testConfig({
       demoMode: false,
-      live: { payments: false, email: false, crm: true, domains: false },
-      ghlWebhookUrl: undefined,
+      live: { payments: false, email: true, domains: false },
+      klaviyoApiKey: undefined,
     })
-    await expect(notifyGhl(payload)).rejects.toBeInstanceOf(GhlConfigError)
-    await expect(notifyGhl(payload)).rejects.toThrow(/GHL_INBOUND_WEBHOOK_URL/)
+    await expect(trackKlaviyo(event)).rejects.toBeInstanceOf(KlaviyoConfigError)
+    await expect(trackKlaviyo(event)).rejects.toThrow(/KLAVIYO_API_KEY/)
     testConfig()
   })
 
-  it('builds the two custom values the brief asks us to add', () => {
+  it('builds the two links every flow needs', () => {
     expect(builderLoginLink('tok')).toBe('https://build.itscold.com.au/start?t=tok')
     expect(previewLink('job_1')).toBe('https://build.itscold.com.au/preview/job_1')
   })

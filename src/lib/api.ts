@@ -89,7 +89,7 @@ export const api = {
       emailConfigured: boolean
       ghlConfigured: boolean
       sessionsConfigured: boolean
-      live: { payments: boolean; email: boolean; crm: boolean; domains: boolean }
+      live: { payments: boolean; email: boolean; domains: boolean }
     }>('/api/health'),
 
   // --- Phase 6: auth --------------------------------------------------------------------------

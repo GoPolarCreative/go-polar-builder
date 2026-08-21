@@ -12,7 +12,7 @@
  *      to work. See `assertLiveEnabled` below.
  */
 
-export type LiveCapability = 'payments' | 'email' | 'crm' | 'domains'
+export type LiveCapability = 'payments' | 'email' | 'domains'
 
 export interface AppConfig {
   // --- runtime -------------------------------------------------------------------------------
@@ -66,9 +66,8 @@ export interface AppConfig {
   }
   resendApiKey?: string
   resendFrom: string
-  ghlWebhookUrl?: string
-  /** Which GHL events are worth sending. Empty means all of them. See server/lib/ghl.ts. */
-  ghlEvents: string[]
+  /** Klaviyo private API key. Klaviyo sends every customer email. See server/lib/klaviyo.ts. */
+  klaviyoApiKey?: string
   vercelApiToken?: string
   vercelProjectId?: string
   vercelTeamId?: string
@@ -156,11 +155,7 @@ export function loadConfig(): AppConfig {
     },
     resendApiKey: env('RESEND_API_KEY'),
     resendFrom: env('RESEND_FROM') ?? 'Go Polar Creative <build@itscold.com.au>',
-    ghlWebhookUrl: env('GHL_INBOUND_WEBHOOK_URL'),
-    ghlEvents: (env('GHL_EVENTS') ?? '')
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean),
+    klaviyoApiKey: env('KLAVIYO_API_KEY'),
     vercelApiToken: env('VERCEL_API_TOKEN'),
     vercelProjectId: env('VERCEL_PROJECT_ID'),
     vercelTeamId: env('VERCEL_TEAM_ID'),
@@ -170,7 +165,6 @@ export function loadConfig(): AppConfig {
       // Off unless explicitly enabled. A preview cannot become a live action by accident.
       payments: bool(process.env.ENABLE_LIVE_PAYMENTS) && !demoMode,
       email: bool(process.env.ENABLE_LIVE_EMAIL) && !demoMode,
-      crm: bool(process.env.ENABLE_LIVE_CRM) && !demoMode,
       domains: bool(process.env.ENABLE_LIVE_DOMAINS) && !demoMode,
     },
   }
@@ -203,7 +197,6 @@ export class LiveActionBlockedError extends Error {
 const FLAG_FOR: Record<LiveCapability, string> = {
   payments: 'ENABLE_LIVE_PAYMENTS',
   email: 'ENABLE_LIVE_EMAIL',
-  crm: 'ENABLE_LIVE_CRM',
   domains: 'ENABLE_LIVE_DOMAINS',
 }
 

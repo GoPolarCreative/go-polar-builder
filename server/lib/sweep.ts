@@ -1,9 +1,8 @@
 import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { recordEvent } from './db.js'
-import { buildLink, createBuildToken } from './auth.js'
-import { buildLinkEmail, sendSafely } from './email.js'
-import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl.js'
+import { createBuildToken } from './auth.js'
+import { builderLoginLink, previewLink, trackKlaviyoSafely } from './klaviyo.js'
 import { listPaidOrdersSince, ShopifyConfigError } from './shopify.js'
 import { processPaidOrder } from './orders.js'
 
@@ -127,20 +126,13 @@ async function retryMissingLinks(report: SweepReport): Promise<void> {
 
     for (const row of rows) {
       const token = await createBuildToken(row.jobId)
-      const sentOk = await sendSafely(row.jobId, 'build_link', {
-        ...buildLinkEmail({ link: buildLink(token) }),
-        to: row.email,
+      const sentOk = await trackKlaviyoSafely({
+        metric: 'build_purchased',
+        profile: { email: row.email },
+        jobId: row.jobId,
+        properties: { builder_login_link: builderLoginLink(token), recovered: true },
       })
-      if (sentOk) {
-        report.resentLinks++
-        await notifyGhlSafely({
-          event: 'payment_received',
-          contact: { email: row.email },
-          jobId: row.jobId,
-          customValues: { builder_login_link: builderLoginLink(token) },
-          data: { recovered: true },
-        })
-      }
+      if (sentOk) report.resentLinks++
     }
   } catch (err) {
     report.problems.push(`Link retry failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -179,11 +171,11 @@ async function flagAbandonedIntake(report: SweepReport): Promise<void> {
 
     for (const row of rows) {
       await recordEvent(row.jobId, 'intake.abandoned', { email: row.email })
-      await notifyGhlSafely({
-        event: 'intake_abandoned',
-        contact: { email: row.email, businessName: row.businessName },
+      await trackKlaviyoSafely({
+        metric: 'intake_abandoned',
+        profile: { email: row.email, businessName: row.businessName },
         jobId: row.jobId,
-        customValues: { builder_login_link: previewLink(row.jobId) },
+        properties: { builder_login_link: previewLink(row.jobId) },
       })
       report.abandonedIntake++
     }
@@ -217,11 +209,11 @@ async function flagStalledEditing(report: SweepReport): Promise<void> {
 
     for (const row of rows) {
       await recordEvent(row.jobId, 'editing.stalled', { email: row.email })
-      await notifyGhlSafely({
-        event: 'editing_stalled',
-        contact: { email: row.email, businessName: row.businessName },
+      await trackKlaviyoSafely({
+        metric: 'editing_stalled',
+        profile: { email: row.email, businessName: row.businessName },
         jobId: row.jobId,
-        customValues: { preview_link: previewLink(row.jobId) },
+        properties: { preview_link: previewLink(row.jobId) },
       })
       report.stalledEditing++
     }

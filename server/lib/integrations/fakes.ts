@@ -1,4 +1,4 @@
-import type { GhlPayload } from '../ghl.js'
+import type { KlaviyoEvent } from '../klaviyo.js'
 import type { CheckoutRequest } from '../shopify.js'
 import type { DomainReport } from '../domains.js'
 import { config } from '../../config.js'
@@ -31,11 +31,11 @@ export function fakeLog(system: string, action: string, detail?: Record<string, 
 
 // ---------------------------------------------------------------------------------------------
 
-export async function fakeGhl(payload: GhlPayload): Promise<void> {
-  fakeLog('ghl', `fire "${payload.event}" into the CRM`, {
-    contact: payload.contact.email,
-    jobId: payload.jobId,
-    ...payload.customValues,
+export async function fakeKlaviyo(event: KlaviyoEvent): Promise<void> {
+  fakeLog('klaviyo', `fire "${event.metric}" so Klaviyo emails them`, {
+    to: event.profile.email,
+    jobId: event.jobId,
+    ...event.properties,
   })
 }
 

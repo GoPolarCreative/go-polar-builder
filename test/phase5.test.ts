@@ -161,7 +161,7 @@ describe('checkout', () => {
   })
 
   it('refuses to build a real checkout unless live payments are switched on', async () => {
-    testConfig({ demoMode: false, live: { payments: false, email: false, crm: false, domains: false } })
+    testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
     await expect(
       createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ ref: 'discharge', quantity: 1 }] }),
     ).rejects.toThrow(/ENABLE_LIVE_PAYMENTS/)
@@ -171,7 +171,7 @@ describe('checkout', () => {
   it('names the exact missing variable when a product is not configured', async () => {
     testConfig({
       demoMode: false,
-      live: { payments: true, email: false, crm: false, domains: false },
+      live: { payments: true, email: false, domains: false },
       shopify: { storeDomain: 'itscold.myshopify.com' },
     })
     await expect(
@@ -183,7 +183,7 @@ describe('checkout', () => {
   it('builds a cart permalink carrying the job id and the selling plan', async () => {
     testConfig({
       demoMode: false,
-      live: { payments: true, email: false, crm: false, domains: false },
+      live: { payments: true, email: false, domains: false },
       shopify: { storeDomain: 'itscold.myshopify.com' },
     })
     process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY = '45012345678901'
@@ -208,7 +208,7 @@ describe('checkout', () => {
   it('refuses to silently drop an add-on a permalink cannot carry', async () => {
     testConfig({
       demoMode: false,
-      live: { payments: true, email: false, crm: false, domains: false },
+      live: { payments: true, email: false, domains: false },
       shopify: { storeDomain: 'itscold.myshopify.com' },
     })
     process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY = '1'
@@ -239,7 +239,7 @@ describe('checkout', () => {
   })
 
   it('config errors are a named type, so the UI can tell them from an outage', async () => {
-    testConfig({ demoMode: false, live: { payments: true, email: false, crm: false, domains: false } })
+    testConfig({ demoMode: false, live: { payments: true, email: false, domains: false } })
     await expect(
       createCheckout({ jobId: 'job_1', email: 'a@b.com', lines: [{ ref: 'discharge', quantity: 1 }] }),
     ).rejects.toBeInstanceOf(ShopifyConfigError)

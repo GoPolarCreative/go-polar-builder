@@ -77,7 +77,7 @@ api.get('/health', async (c) => {
     storageDriver: cfg.storageDriver,
     shopifyConfigured: Boolean(cfg.shopify.webhookSecret),
     emailConfigured: Boolean(cfg.resendApiKey),
-    ghlConfigured: Boolean(cfg.ghlWebhookUrl),
+    klaviyoConfigured: Boolean(cfg.klaviyoApiKey),
     sessionsConfigured: Boolean(cfg.appSecret),
     live: cfg.live,
   })

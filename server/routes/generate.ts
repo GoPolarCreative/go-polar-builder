@@ -9,8 +9,7 @@ import { id } from '../lib/ids.js'
 import { buildFacts, generateHtml, generatePlan } from '../lib/generate.js'
 import { summarise, verifyAndRepair } from '../lib/verify.js'
 import { persistPageSet } from '../lib/buildSet.js'
-import { previewLink, notifyGhlSafely } from '../lib/ghl.js'
-import { buildCompleteEmail, sendSafely } from '../lib/email.js'
+import { previewLink, trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { getUserForJob } from '../lib/db.js'
 
 const app = new Hono()
@@ -160,18 +159,11 @@ app.post('/jobs/:jobId/generate', async (c) => {
 
           const user = await getUserForJob(jobId)
           if (user) {
-            await sendSafely(jobId, 'build_complete', {
-              ...buildCompleteEmail({
-                businessName: intake.businessName,
-                previewLink: previewLink(jobId),
-              }),
-              to: user.email,
-            })
-            await notifyGhlSafely({
-              event: 'build_complete',
-              contact: { email: user.email, businessName: intake.businessName },
+            await trackKlaviyoSafely({
+              metric: 'build_complete',
+              profile: { email: user.email, businessName: intake.businessName },
               jobId,
-              customValues: { preview_link: previewLink(jobId) },
+              properties: { preview_link: previewLink(jobId) },
             })
           }
         } else {

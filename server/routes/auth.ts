@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { buildLink, clearCookie, createBuildToken, exchangeToken, readSession, sessionCookie } from '../lib/auth.js'
-import { resendLinkEmail, sendSafely } from '../lib/email.js'
+import { trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { getJob, recordEvent } from '../lib/db.js'
 
 const app = new Hono()
@@ -93,9 +93,16 @@ app.post('/auth/resend', async (c) => {
   }
 
   const token = await createBuildToken(rows[0].jobId)
-  const sent = await sendSafely(rows[0].jobId, 'resend_link', {
-    ...resendLinkEmail({ link: buildLink(token) }),
-    to: email,
+
+  // Klaviyo sends it, not this app. This is the path a customer takes when they have lost the
+  // link, so it is the second most important email in the product and it used to go nowhere: it
+  // was wired to a Resend transport that was never configured, and the generic reply below meant
+  // nobody could tell the difference between sent and silently discarded.
+  const sent = await trackKlaviyoSafely({
+    metric: 'link_requested',
+    profile: { email },
+    jobId: rows[0].jobId,
+    properties: { builder_login_link: buildLink(token) },
   })
 
   await recordEvent(rows[0].jobId, 'auth.resend', { email, sent })

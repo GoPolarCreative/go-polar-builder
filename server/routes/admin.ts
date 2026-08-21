@@ -3,7 +3,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { requireAdmin } from '../lib/auth.js'
 import { config } from '../config.js'
-import { notifyGhlSafely } from '../lib/ghl.js'
+import { KLAVIYO_METRICS, trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { ShopifyAuthError, ensureStorefrontToken } from '../lib/shopifyAuth.js'
 import { attachDomain, publishSite } from '../lib/publish.js'
 import { loadPageSet } from '../lib/buildSet.js'
@@ -503,78 +503,69 @@ app.post('/admin/storefront-token', async (c) => {
  * customer has answered every question and uploaded their photos, at the point the build is saved.
  */
 /**
- * Fire a real CRM notification, through the real code path.
+ * Send a real customer email, through the real code path.
  *
- *   POST /api/admin/test-ghl
+ *   POST /api/admin/test-email?email=you@yourdomain.com
  *
- * GoHighLevel answers 200 to anything posted at a webhook URL, including a URL with a missing
- * trigger id, so a successful response proves nothing on its own. What this proves is the half we
- * can actually check: that this deployment has a URL configured, that live CRM is switched on, and
- * that notifyGhl builds and sends the same shape a real payment does.
+ * Emits the same Klaviyo event a paid order emits, so this exercises the transport, the API key,
+ * the metric name and the flow behind it rather than a parallel implementation that could drift.
  *
- * The other half is yours: open the workflow's Execution Logs in GoHighLevel and confirm a run
- * appears. That is the only evidence the message arrived rather than being discarded.
- *
- * The contact is obviously fake and marked as a test, so it is easy to find and delete afterwards.
+ * Klaviyo answers 202 Accepted, which means it took the event, not that it sent anything. The flow
+ * has to exist and be live for an email to follow, so the response says so rather than claiming
+ * success on a status code.
  */
-app.post('/admin/test-ghl', async (c) => {
+app.post('/admin/test-email', async (c) => {
   const cfg = config()
 
-  if (!cfg.ghlWebhookUrl) {
+  if (!cfg.klaviyoApiKey) {
     return c.json(
       {
         error: 'not_configured',
-        detail: 'GHL_INBOUND_WEBHOOK_URL is not set on this deployment.',
-        fix: 'Create a workflow in GoHighLevel with an Inbound Webhook trigger, copy the URL it shows, and set it in Vercel.',
+        detail: 'KLAVIYO_API_KEY is not set on this deployment.',
+        fix: 'Klaviyo, Settings, API Keys, create a private key with write access to events, then set it in Vercel.',
       },
       409,
     )
   }
 
-  if (!cfg.live.crm) {
+  if (!cfg.live.email) {
     return c.json(
       {
-        error: 'crm_disabled',
+        error: 'email_disabled',
         detail: cfg.demoMode
-          ? 'This deployment is in demo mode, so CRM notifications are logged rather than sent.'
-          : 'ENABLE_LIVE_CRM is not set, so CRM notifications are refused rather than sent.',
-        fix: 'Set ENABLE_LIVE_CRM=1 in Vercel and redeploy.',
+          ? 'This deployment is in demo mode, so customer email is logged rather than sent.'
+          : 'ENABLE_LIVE_EMAIL is not set, so customer email is refused rather than sent.',
+        fix: 'Set ENABLE_LIVE_EMAIL=1 in Vercel and redeploy.',
       },
       409,
     )
   }
 
-  // Deliberately the same call the paid-order path makes, so this exercises the real thing rather
-  // than a parallel implementation that could drift away from it.
-  const sent = await notifyGhlSafely({
-    event: 'payment_received',
-    contact: {
-      email: 'ghl-connection-test@gopolar.test',
-      phone: '0400000000',
-      firstName: 'Connection',
-      businessName: 'Go Polar Test, safe to delete',
-    },
+  const to = (c.req.query('email') ?? '').trim()
+  if (!to.includes('@')) {
+    return c.json(
+      { error: 'bad_request', detail: 'Pass ?email= a real inbox you can check. There is no useful default.' },
+      400,
+    )
+  }
+
+  const sent = await trackKlaviyoSafely({
+    metric: 'build_purchased',
+    profile: { email: to, firstName: 'Connection', businessName: 'Go Polar Test, safe to delete' },
     jobId: 'job_connection_test',
-    customValues: {
+    properties: {
       builder_login_link: `${cfg.publicAppUrl.replace(/\/$/, '')}/start?t=CONNECTION-TEST`,
-      preview_link: `${cfg.publicAppUrl.replace(/\/$/, '')}/preview/job_connection_test`,
+      test: true,
     },
-    data: { test: true },
   })
 
   return c.json({
     ok: sent,
-    // Host only. The trigger id in the path is effectively a credential.
-    endpoint: (() => {
-      try {
-        return new URL(cfg.ghlWebhookUrl).host
-      } catch {
-        return 'unparseable URL'
-      }
-    })(),
+    sentTo: to,
+    metric: KLAVIYO_METRICS.build_purchased,
     detail: sent
-      ? 'The notification was accepted by GoHighLevel. That is not proof it arrived: GHL answers 200 to anything, including a URL with a missing trigger id. Open the workflow, then Execution Logs, and confirm a run appears for "Connection Go Polar Test".'
-      : 'The send failed. Check /api/admin/events for the ghl.failed entry, which carries the reason.',
+      ? `Klaviyo accepted the event. That is not the same as sending: a flow triggered by "${KLAVIYO_METRICS.build_purchased}" has to exist and be live. Check the inbox, then the profile's activity feed in Klaviyo.`
+      : 'The event was rejected. Check /api/admin/events for the klaviyo.failed entry, which carries the reason.',
   })
 })
 

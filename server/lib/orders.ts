@@ -3,9 +3,8 @@ import { getDb, schema } from '../db/client.js'
 import { EXTRA_EDITS_QUANTITY } from '../../shared/pricing.js'
 import { createUserAndJob, recordEvent, setJobStatus } from './db.js'
 import { id } from './ids.js'
-import { buildLink, createBuildToken } from './auth.js'
-import { buildLinkEmail, sendSafely } from './email.js'
-import { builderLoginLink, notifyGhlSafely, previewLink } from './ghl.js'
+import { createBuildToken } from './auth.js'
+import { builderLoginLink, previewLink, trackKlaviyoSafely } from './klaviyo.js'
 import {
   centsFromPrice,
   refForLineItem,
@@ -202,20 +201,23 @@ async function refBuildToken(
 
   // Database work is committed before anything that can fail on someone else's infrastructure.
   const token = await createBuildToken(jobId)
-  const link = buildLink(token)
 
-  await sendSafely(jobId, 'build_link', { ...buildLinkEmail({ link }), to: email })
-
-  await notifyGhlSafely({
-    event: 'payment_received',
-    contact: {
+  // The email that gets them into the builder. This is the one a paying customer depends on, so
+  // the link travels with the event rather than being looked up by whatever sends it.
+  await trackKlaviyoSafely({
+    metric: 'build_purchased',
+    profile: {
       email,
-      phone: order.customer?.phone ?? null,
       firstName: order.customer?.first_name ?? null,
+      lastName: order.customer?.last_name ?? null,
+      phone: order.customer?.phone ?? null,
     },
     jobId,
-    customValues: { builder_login_link: builderLoginLink(token) },
-    data: { orderId, amountExGstCents: amount },
+    properties: {
+      builder_login_link: builderLoginLink(token),
+      order_id: orderId,
+      amount_ex_gst_cents: amount,
+    },
   })
 
   await recordEvent(jobId, 'order.paid.build', { orderId, email })
@@ -258,11 +260,11 @@ async function refGoLivePayment(jobId: string, email: string): Promise<void> {
   await setJobStatus(jobId, 'go_live_pending')
   await recordEvent(jobId, 'golive.paid', { email, notify: 'chris' })
 
-  await notifyGhlSafely({
-    event: 'go_live_requested',
-    contact: { email },
+  await trackKlaviyoSafely({
+    metric: 'go_live_requested',
+    profile: { email },
     jobId,
-    customValues: { preview_link: previewLink(jobId) },
+    properties: { preview_link: previewLink(jobId) },
   })
 }
 
@@ -293,7 +295,7 @@ async function refDischargePayment(jobId: string, email: string): Promise<void> 
   }
 
   await recordEvent(jobId, 'discharge.paid', { email, notify: 'chris', action: 'package and release' })
-  await notifyGhlSafely({ event: 'discharge_requested', contact: { email }, jobId, customValues: {} })
+  await trackKlaviyoSafely({ metric: 'files_ready', profile: { email }, jobId, properties: {} })
 }
 
 async function refEditPayment(jobId: string, ref: string): Promise<void> {

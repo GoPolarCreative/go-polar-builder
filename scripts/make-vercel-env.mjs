@@ -68,11 +68,9 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Email, CRM and domains.',
+    title: 'Email and domains. Klaviyo sends every customer email.',
     vars: [
-      { key: 'RESEND_API_KEY', carry: true, needed: 'resend.com, after verifying itscold.com.au' },
-      { key: 'RESEND_FROM', carry: true, fallback: 'Go Polar Creative <build@itscold.com.au>' },
-      { key: 'GHL_INBOUND_WEBHOOK_URL', carry: true, optional: true },
+      { key: 'KLAVIYO_API_KEY', needed: 'Klaviyo, Settings, API Keys, private key with write access to events' },
       { key: 'VERCEL_API_TOKEN', needed: 'only for attaching customer domains automatically' },
       { key: 'VERCEL_PROJECT_ID', needed: 'Vercel project settings, once the project exists' },
       { key: 'CRON_SECRET', carry: true, needed: 'any random string; guards the hourly sweep' },
@@ -83,8 +81,8 @@ const SECTIONS = [
 /*
  * Every key emitted here must be one the app actually reads.
  *
- * The first version of this file emitted EMAIL_FROM and GHL_WEBHOOK_URL. The app reads RESEND_FROM
- * and GHL_INBOUND_WEBHOOK_URL. Both would have been pasted into Vercel, looked completely correct
+ * An early version of this file emitted variable names the app does not read. They would have been
+ * pasted into Vercel, looked completely correct
  * in the dashboard, and done nothing at all. That is the exact failure this file exists to
  * prevent, so it now checks itself against the one thing that decides: server/config.ts.
  */
