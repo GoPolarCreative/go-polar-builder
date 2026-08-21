@@ -349,7 +349,14 @@ everything rather than trusting it.
 
    | Type | Name | Value | TTL |
    | --- | --- | --- | --- |
-   | CNAME | `build` | `cname.vercel-dns.com` | Auto, or 300 |
+   | A | `build` | `76.76.21.21` | 600 |
+
+   Just `build` in the Name field. GoDaddy appends the domain itself. DNS for itscold.com.au is at
+   GoDaddy (`ns77`/`ns78.domaincontrol.com`), and the root and `www` stay pointed at Shopify.
+
+   **Do NOT accept Vercel's other offer to change the nameservers.** It presents that as an equal
+   option and it is not: it moves the whole domain's DNS off GoDaddy and takes the Shopify
+   storefront down with it. One A record, nothing else touched.
 
 3. Wait. Usually minutes, up to an hour. Vercel issues the certificate itself once it resolves.
 
