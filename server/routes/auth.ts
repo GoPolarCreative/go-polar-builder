@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import {
   SESSION_TTL_DAYS,
@@ -13,6 +13,7 @@ import {
 import { signClaims } from '../lib/signing.js'
 import { trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { getJob, recordEvent } from '../lib/db.js'
+import { orderNumberForms } from '../lib/orders.js'
 
 const app = new Hono()
 
@@ -43,10 +44,19 @@ app.post('/auth/claim', async (c) => {
     .catch(() => ({}) as { email?: string; orderNumber?: string })
 
   const email = (body.email ?? '').trim().toLowerCase()
-  // Customers type "#1234", "1234", and " 1234 ". All of them mean the same order.
-  const orderNumber = (body.orderNumber ?? '').trim().replace(/^#/, '')
+  const orderNumber = (body.orderNumber ?? '').trim()
 
-  if (!email.includes('@') || !orderNumber) {
+  /*
+   * The forms are computed here, before the guard, because an empty list is a security problem
+   * rather than a validation one. Drizzle's or() with no arguments is undefined, and an undefined
+   * inside and() is dropped silently: the order number would stop being a condition at all and
+   * email alone would open somebody's website. A submission of "#" is enough to do it.
+   *
+   * So the guard tests what will actually be matched on, not what was typed.
+   */
+  const forms = orderNumberForms(orderNumber)
+
+  if (!email.includes('@') || forms.length === 0) {
     return c.json(
       {
         error: 'bad_request',
@@ -71,7 +81,15 @@ app.post('/auth/claim', async (c) => {
     .where(
       and(
         eq(schema.users.email, email),
-        eq(schema.orders.shopifyOrderNumber, orderNumber),
+        // Any form the same order could be typed as. On a store with a custom prefix the receipt
+        // says "#GPC1258", and people type "GPC1258", "#gpc1258", or just "1258" because the
+        // prefix reads as decoration. Folded on both sides, and the digits alone accepted.
+        or(
+          ...forms.flatMap((form) => [
+            sql`lower(${schema.orders.shopifyOrderNumber}) = ${form}`,
+            sql`regexp_replace(coalesce(${schema.orders.shopifyOrderNumber}, ''), '[^0-9]', '', 'g') = ${form}`,
+          ]),
+        ),
         eq(schema.orders.kind, 'build'),
         eq(schema.orders.status, 'paid'),
       ),
@@ -80,7 +98,42 @@ app.post('/auth/claim', async (c) => {
 
   const jobId = rows[0]?.jobId
   if (!jobId) {
-    await recordEvent(null, 'auth.claim.failed', { email, orderNumber })
+    /*
+     * The customer gets one message either way. The log does not.
+     *
+     * "No match" has two very different causes: they mistyped, or we never stored the number
+     * against their order. The second is our fault and is invisible from the outside, which is
+     * exactly how a null column survived a deploy and made a paid order unclaimable. So find out
+     * which it was, and write it down where an operator will see it.
+     */
+    const paidBuilds = await db
+      .select({ stored: schema.orders.shopifyOrderNumber })
+      .from(schema.orders)
+      .innerJoin(schema.jobs, eq(schema.jobs.id, schema.orders.jobId))
+      .innerJoin(schema.users, eq(schema.users.id, schema.jobs.userId))
+      .where(
+        and(
+          eq(schema.users.email, email),
+          eq(schema.orders.kind, 'build'),
+          eq(schema.orders.status, 'paid'),
+        ),
+      )
+
+    const reason =
+      paidBuilds.length === 0
+        ? 'no_paid_build_for_email'
+        : paidBuilds.every((row) => !row.stored)
+          ? 'order_number_never_stored'
+          : 'order_number_mismatch'
+
+    await recordEvent(null, 'auth.claim.failed', {
+      email,
+      orderNumber,
+      reason,
+      paidBuilds: paidBuilds.length,
+      stored: paidBuilds.map((row) => row.stored),
+      notify: reason === 'order_number_never_stored' ? 'chris' : undefined,
+    })
     return c.json(
       {
         error: 'no_match',

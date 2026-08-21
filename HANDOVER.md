@@ -37,6 +37,12 @@ Facebook ad
 Lost their link? The form on the landing page emits **"Website Link Requested"**, same shape, and a
 second Klaviyo flow sends it again.
 
+**They do not need the email at all.** The card at the top of build.itscold.com.au takes the email
+they paid with plus the order number off their receipt — `#GPC1258` — and lets them straight in.
+Two factors, because email alone would open somebody else's website. This exists because the
+product spent a day unreachable behind an email that was not being delivered, and a door that
+depends on someone else's DNS is not a door. D49.
+
 ---
 
 ## Email: Klaviyo, and only Klaviyo
@@ -90,6 +96,9 @@ verified sending subdomain, which is why it works.
   page loads, but that is not the same as clicking through the whole wizard.
 - **Duplicate `_dmarc` record** on itscold.com.au. Two exist, only one is valid. Unrelated to this
   app but it weakens every email you send.
+- **The five existing paid build orders cannot be claimed.** Their `shopify_order_number` is NULL
+  because they predate the column. Not worth repairing — they are all test orders and the emailed
+  link still opens them. Every order placed from 2026-08-21 onward stores the number. D49.
 
 ---
 

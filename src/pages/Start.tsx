@@ -145,7 +145,7 @@ function ClaimBuild() {
         <h2 className="text-xl">Just paid? Start here.</h2>
         <p className="field-hint">
           Use the email you paid with and the order number from your confirmation. It looks like
-          #1234 and is on the screen Shopify showed you, and in your receipt.
+          #GPC1258 and is on the screen shown after you paid, and in your receipt email.
         </p>
       </div>
 
@@ -154,7 +154,7 @@ function ClaimBuild() {
       </Field>
 
       <Field label="Order number">
-        <TextInput value={orderNumber} onChange={setOrderNumber} placeholder="1234" />
+        <TextInput value={orderNumber} onChange={setOrderNumber} placeholder="GPC1258" />
       </Field>
 
       <button className="btn-primary" onClick={claim} disabled={busy || !ready}>

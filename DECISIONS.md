@@ -1235,3 +1235,40 @@ that does nothing is worse than no flag.
 
 **What this cost.** Most of a day, and it was two things: one missing Email field in a GHL action,
 and one SPF record. Neither announced itself, because every layer answered 200.
+
+## D49
+
+**Store the order number a customer can read, not the one Shopify counts with.**
+
+The claim door failed on the first real order. Two independent bugs, stacked:
+
+**One: the wrong field.** Shopify sends both `order_number` and `name`, and they are not the same
+thing. On a store with a custom order prefix, `order_number` is the bare integer `1258` while
+`name` is `#GPC1258`. Only `name` has ever been shown to the customer. The normaliser preferred
+`order_number`, so it would have stored a value nobody could type.
+
+**Two: the column was empty.** The order predated the deploy that started populating
+`shopify_order_number`, so all five existing paid build orders hold NULL. They are permanently
+unclaimable and always were. Every order from this deploy onward is fine.
+
+Both were invisible from the outside: the endpoint answered "we could not match that" either way,
+which is the same thing it says to somebody who mistyped.
+
+**So:**
+
+- `orderNumberOf` prefers `name` and strips the hash. `order_number` is the fallback.
+- Matching accepts every form the same order could be typed as — `GPC1258`, `#gpc1258`, `1258` —
+  folded on both sides, because the prefix reads as decoration to the person typing it.
+- The order's identity is now kept in `orders.raw` alongside the line items. When the column was
+  null there was nothing on the row to rebuild it from, and the only repair was asking a paying
+  customer to buy again.
+- A failed claim records **why** it failed: `no_paid_build_for_email`, `order_number_never_stored`
+  or `order_number_mismatch`. The customer still gets one message; the operator does not. The
+  middle one notifies Chris, because it means we lost their number, not that they mistyped it.
+
+**A hole found while writing the tests, not while writing the code.** `orderNumberForms('#')`
+returns an empty list. Drizzle's `or()` with no arguments is `undefined`, and an `undefined` inside
+`and()` is dropped silently — so the order number would have stopped being a condition at all and
+**email alone would have opened somebody's website**. The guard now tests the forms that will
+actually be matched on, rather than the string that was typed. Two factors is a claim about the
+query, so it has to be checked against the query.

@@ -76,16 +76,52 @@ async function resolveJob(order: ShopifyOrder, email: string | null): Promise<st
 /**
  * The order number a customer can actually read off their receipt.
  *
- * Shopify sends both an internal id and a customer-facing number, and they are not the same. The
- * claim flow checks the one the customer can see, so this normalises whichever form arrives:
- * order_number is an integer, name is the same value as "#1234".
+ * PREFER `name`, NOT `order_number`. Shopify sends both and they are not the same thing: on a
+ * store with a custom prefix, order_number is the bare integer 1258 while name is "#GPC1258", and
+ * "#GPC1258" is the only one the customer has ever seen. Preferring the integer stored a value no
+ * customer could ever type, which failed every claim on this store.
+ *
+ * The leading hash goes, because half of them type it and half do not.
  */
 export function orderNumberOf(order: ShopifyOrder): string | null {
-  if (order.order_number != null && String(order.order_number).trim()) {
-    return String(order.order_number).trim().replace(/^#/, '')
+  const name = (order.name ?? '').trim().replace(/^#/, '')
+  if (name) return name
+  const number = order.order_number == null ? '' : String(order.order_number).trim().replace(/^#/, '')
+  return number || null
+}
+
+/**
+ * Everything the same order could reasonably be typed as.
+ *
+ * A customer reads "#GPC1258" and types "GPC1258", "#gpc1258", or just "1258" because the
+ * prefix looks like decoration. All three mean one order, and refusing two of them turns a working
+ * purchase into a support email.
+ */
+export function orderNumberForms(value: string): string[] {
+  const clean = value.trim().replace(/^#/, '').toLowerCase()
+  const digits = clean.replace(/\D/g, '')
+  return [...new Set([clean, digits].filter(Boolean))]
+}
+
+/**
+ * What gets kept on the order row for later.
+ *
+ * The line items alone used to be stored, which threw away the one field that turned out to matter:
+ * the customer-facing order number. When a bug left `shopify_order_number` null for a batch of
+ * orders there was nothing on the row to rebuild it from, and the only repair was asking the
+ * customer to buy again. Keep the identity next to the goods.
+ *
+ * Trimmed rather than wholesale: the full payload carries a shipping address this product has no
+ * use for, and the customer's name, email and phone are already columns on `users`.
+ */
+function auditTrail(order: ShopifyOrder): unknown {
+  return {
+    id: order.id,
+    name: order.name ?? null,
+    order_number: order.order_number ?? null,
+    created_at: order.created_at ?? null,
+    line_items: order.line_items ?? [],
   }
-  if (order.name && order.name.trim()) return order.name.trim().replace(/^#/, '')
-  return null
 }
 
 export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResult> {
@@ -213,7 +249,7 @@ async function refBuildToken(
     amountExGst: amount,
     kind: 'build',
     status: 'paid',
-    raw: order.line_items ?? [],
+    raw: auditTrail(order),
   })
 
   // Database work is committed before anything that can fail on someone else's infrastructure.
