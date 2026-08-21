@@ -1272,3 +1272,27 @@ returns an empty list. Drizzle's `or()` with no arguments is `undefined`, and an
 **email alone would have opened somebody's website**. The guard now tests the forms that will
 actually be matched on, rather than the string that was typed. Two factors is a claim about the
 query, so it has to be checked against the query.
+
+## D50
+
+**Accept the confirmation number, because that is the one people type.**
+
+The claim door worked on the first real attempt — on the third try. The first two failed, and the
+logs said what was typed: `6M2EGNICA`. Not a typo. That is Shopify's **confirmation number**, which
+the thank-you page prints in larger type than the order number, on a page headed "confirmation".
+
+Asking for "the order number from your confirmation" and expecting someone to skip past the biggest
+number on the page is asking them to read our minds. The person who typed it wrote the store.
+
+So both are stored and both are accepted. `shopify_confirmation_number` is a new column, migration
+0004. They are equally private, equally per-order, and equally useless to anyone who did not buy,
+so nothing about the two-factor argument changes.
+
+**The bare-number fallback got narrower at the same time.** `orderNumberForms` used to strip every
+non-digit, which turned `6M2EGNICA` into `62` — a form that matches nothing on purpose and
+something by accident. It now only offers the bare number for the shape it was built for, letters
+followed by digits: `gpc1258` → `1258`, and `6m2egnica` → nothing.
+
+**This is only known because the failure was logged with the input.** D49 added the reason and the
+typed value to `auth.claim.failed`. Without it this was two shrugs and a working third attempt, and
+every customer after would have hit the same wall in private.

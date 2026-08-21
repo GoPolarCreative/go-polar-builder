@@ -84,10 +84,14 @@ app.post('/auth/claim', async (c) => {
         // Any form the same order could be typed as. On a store with a custom prefix the receipt
         // says "#GPC1258", and people type "GPC1258", "#gpc1258", or just "1258" because the
         // prefix reads as decoration. Folded on both sides, and the digits alone accepted.
+        //
+        // The confirmation number is accepted too. Shopify's thank-you page prints it larger than
+        // the order number and calls the page a confirmation, so it is the one people reach for.
         or(
           ...forms.flatMap((form) => [
             sql`lower(${schema.orders.shopifyOrderNumber}) = ${form}`,
             sql`regexp_replace(coalesce(${schema.orders.shopifyOrderNumber}, ''), '[^0-9]', '', 'g') = ${form}`,
+            sql`lower(${schema.orders.shopifyConfirmationNumber}) = ${form}`,
           ]),
         ),
         eq(schema.orders.kind, 'build'),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderNumberOf, orderNumberForms } from '../server/lib/orders.js'
+import { orderNumberOf, orderNumberForms, confirmationNumberOf } from '../server/lib/orders.js'
 
 /**
  * Claiming a build with the details on the receipt.
@@ -68,5 +68,32 @@ describe('what the same order might be typed as', () => {
     // An empty list must not become a query that matches every row.
     expect(orderNumberForms('')).toEqual([])
     expect(orderNumberForms('   #  ')).toEqual([])
+  })
+})
+
+describe('the confirmation number, which is the one people actually type', () => {
+  it('is kept off the order', () => {
+    expect(confirmationNumberOf({ id: 1, confirmation_number: '6M2EGNICA' })).toBe('6M2EGNICA')
+    expect(confirmationNumberOf({ id: 1, confirmation_number: '  6M2EGNICA  ' })).toBe('6M2EGNICA')
+  })
+
+  it('is null when Shopify does not send one', () => {
+    expect(confirmationNumberOf({ id: 1 })).toBeNull()
+    expect(confirmationNumberOf({ id: 1, confirmation_number: null })).toBeNull()
+    expect(confirmationNumberOf({ id: 1, confirmation_number: '' })).toBeNull()
+  })
+
+  it('survives being typed with a hash and in any case', () => {
+    // Shopify's thank-you page shows it larger than the order number, so it is what gets typed.
+    for (const typed of ['6M2EGNICA', '#6M2EGNICA', '6m2egnica']) {
+      expect(orderNumberForms(typed)).toContain('6m2egnica')
+    }
+  })
+
+  it('does not decay into a stray number', () => {
+    // "6M2EGNICA" reduced to its digits is "62", which matches nothing on purpose and something by
+    // accident. The bare-number form is only for the prefix-then-digits shape.
+    expect(orderNumberForms('6M2EGNICA')).toEqual(['6m2egnica'])
+    expect(orderNumberForms('GPC1258')).toEqual(['gpc1258', '1258'])
   })
 })

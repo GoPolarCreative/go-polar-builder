@@ -144,8 +144,8 @@ function ClaimBuild() {
       <div>
         <h2 className="text-xl">Just paid? Start here.</h2>
         <p className="field-hint">
-          Use the email you paid with and the order number from your confirmation. It looks like
-          #GPC1258 and is on the screen shown after you paid, and in your receipt email.
+          Use the email you paid with and either number from the page shown after you paid. The
+          confirmation number looks like 6M2EGNICA, the order number like #GPC1258. Both work.
         </p>
       </div>
 
@@ -153,8 +153,8 @@ function ClaimBuild() {
         <TextInput value={email} onChange={setEmail} type="email" placeholder="you@yourbusiness.com.au" />
       </Field>
 
-      <Field label="Order number">
-        <TextInput value={orderNumber} onChange={setOrderNumber} placeholder="GPC1258" />
+      <Field label="Order or confirmation number">
+        <TextInput value={orderNumber} onChange={setOrderNumber} placeholder="6M2EGNICA" />
       </Field>
 
       <button className="btn-primary" onClick={claim} disabled={busy || !ready}>

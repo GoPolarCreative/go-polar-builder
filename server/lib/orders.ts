@@ -91,16 +91,38 @@ export function orderNumberOf(order: ShopifyOrder): string | null {
 }
 
 /**
+ * The other number on the receipt.
+ *
+ * Shopify's thank-you page shows a **confirmation number** — "6M2EGNICA" — in larger type than the
+ * order number, and calls the page a confirmation. Asking someone for "the order number from your
+ * confirmation" and expecting them to skip past it is asking them to read our minds. The first
+ * person to use this door typed the confirmation number, and he wrote the store.
+ *
+ * So both are stored and both are accepted. They are equally private, equally per-order, and
+ * equally useless to anyone who did not buy.
+ */
+export function confirmationNumberOf(order: ShopifyOrder): string | null {
+  const value = (order.confirmation_number ?? '').trim()
+  return value || null
+}
+
+/**
  * Everything the same order could reasonably be typed as.
  *
- * A customer reads "#GPC1258" and types "GPC1258", "#gpc1258", or just "1258" because the
- * prefix looks like decoration. All three mean one order, and refusing two of them turns a working
+ * A customer reads "#GPC1258" and types "GPC1258", "#gpc1258", or just "1258" because the prefix
+ * looks like decoration. All three mean one order, and refusing two of them turns a working
  * purchase into a support email.
+ *
+ * The bare-number form is only offered for the shape it was built for: letters followed by digits.
+ * A confirmation number like "6M2EGNICA" would otherwise reduce to "62", which means nothing and
+ * exists only to match something it should not.
  */
 export function orderNumberForms(value: string): string[] {
-  const clean = value.trim().replace(/^#/, '').toLowerCase()
-  const digits = clean.replace(/\D/g, '')
-  return [...new Set([clean, digits].filter(Boolean))]
+  const clean = value.trim().replace(/^#/, '').trim().toLowerCase()
+  if (!clean) return []
+
+  const prefixed = /^[a-z]*(\d+)$/.exec(clean)
+  return [...new Set([clean, prefixed?.[1]].filter((form): form is string => Boolean(form)))]
 }
 
 /**
@@ -120,6 +142,7 @@ function auditTrail(order: ShopifyOrder): unknown {
     name: order.name ?? null,
     order_number: order.order_number ?? null,
     created_at: order.created_at ?? null,
+    confirmation_number: order.confirmation_number ?? null,
     line_items: order.line_items ?? [],
   }
 }
@@ -187,6 +210,7 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
       jobId,
       shopifyOrderId: orderId,
       shopifyOrderNumber: orderNumberOf(order),
+      shopifyConfirmationNumber: confirmationNumberOf(order),
       shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
       productHandle: ref,
       amountExGst: amount,
@@ -244,6 +268,7 @@ async function refBuildToken(
     jobId,
     shopifyOrderId: orderId,
     shopifyOrderNumber: orderNumberOf(order),
+    shopifyConfirmationNumber: confirmationNumberOf(order),
     shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
     productHandle: ref,
     amountExGst: amount,

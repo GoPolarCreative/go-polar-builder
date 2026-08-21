@@ -512,6 +512,7 @@ export interface ShopifyOrder {
   total_price?: string
   currency?: string
   created_at?: string
+  confirmation_number?: string | null
   financial_status?: string
 }
 
