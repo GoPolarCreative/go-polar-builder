@@ -491,6 +491,13 @@ export interface ShopifyLineItem {
 
 export interface ShopifyOrder {
   id: number | string
+  /**
+   * The number the CUSTOMER sees, like 1234 for "#1234". Different from id, which is internal and
+   * appears nowhere they can read. This is the one they can quote back, so it is the one the claim
+   * flow checks against.
+   */
+  order_number?: number | string | null
+  name?: string | null
   email?: string | null
   contact_email?: string | null
   customer?: {

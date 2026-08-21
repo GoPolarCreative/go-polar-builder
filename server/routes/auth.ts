@@ -1,11 +1,109 @@
 import { Hono } from 'hono'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
-import { buildLink, clearCookie, createBuildToken, exchangeToken, readSession, sessionCookie } from '../lib/auth.js'
+import {
+  SESSION_TTL_DAYS,
+  buildLink,
+  clearCookie,
+  createBuildToken,
+  exchangeToken,
+  readSession,
+  sessionCookie,
+} from '../lib/auth.js'
+import { signClaims } from '../lib/signing.js'
 import { trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { getJob, recordEvent } from '../lib/db.js'
 
 const app = new Hono()
+
+/**
+ * Claim a build with the details on the receipt.
+ *
+ *   POST /api/auth/claim   { email, orderNumber }
+ *
+ * WHY THIS EXISTS. Getting into the builder used to depend entirely on an email arriving. It did
+ * not arrive, for a whole day, for reasons that had nothing to do with this app: a sending domain
+ * that had never authorised the sender. A product whose only door is an email is a product that
+ * stops working when a DNS record is wrong somewhere else.
+ *
+ * So the customer can also just knock. They type the email they paid with and the order number
+ * from the Shopify confirmation still on their screen, and if a paid build order matches both,
+ * they are in. Nothing has to be delivered.
+ *
+ * TWO FACTORS, DELIBERATELY. Email alone would let anyone who knows a customer's address walk into
+ * their account and their website. The order number is on their receipt and nobody else's. Neither
+ * half is secret on its own; together they are evidence of a purchase.
+ *
+ * THE EMAIL PATH STILL WORKS. This is a second door, not a replacement, because somebody coming
+ * back a fortnight later will not have the order number to hand.
+ */
+app.post('/auth/claim', async (c) => {
+  const body = await c.req
+    .json<{ email?: string; orderNumber?: string }>()
+    .catch(() => ({}) as { email?: string; orderNumber?: string })
+
+  const email = (body.email ?? '').trim().toLowerCase()
+  // Customers type "#1234", "1234", and " 1234 ". All of them mean the same order.
+  const orderNumber = (body.orderNumber ?? '').trim().replace(/^#/, '')
+
+  if (!email.includes('@') || !orderNumber) {
+    return c.json(
+      {
+        error: 'bad_request',
+        detail: 'Enter the email you paid with and the order number from your confirmation.',
+      },
+      400,
+    )
+  }
+
+  const db = await getDb()
+
+  /*
+   * One query, both factors. Matching on email first and then checking the number would let the
+   * response time say whether an address has an account, which is the thing the resend flow goes
+   * out of its way not to reveal.
+   */
+  const rows = await db
+    .select({ jobId: schema.orders.jobId })
+    .from(schema.orders)
+    .innerJoin(schema.jobs, eq(schema.jobs.id, schema.orders.jobId))
+    .innerJoin(schema.users, eq(schema.users.id, schema.jobs.userId))
+    .where(
+      and(
+        eq(schema.users.email, email),
+        eq(schema.orders.shopifyOrderNumber, orderNumber),
+        eq(schema.orders.kind, 'build'),
+        eq(schema.orders.status, 'paid'),
+      ),
+    )
+    .limit(1)
+
+  const jobId = rows[0]?.jobId
+  if (!jobId) {
+    await recordEvent(null, 'auth.claim.failed', { email, orderNumber })
+    return c.json(
+      {
+        error: 'no_match',
+        detail:
+          'We could not match that. Check the email is the one you paid with, and that the order number is from the website build order. If it still will not work, email hello@itscold.com.au and we will sort it out.',
+      },
+      404,
+    )
+  }
+
+  const session = await signClaims({
+    kind: 'session',
+    jobId,
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_DAYS * 86_400,
+  })
+
+  await recordEvent(jobId, 'auth.claim', { email, orderNumber })
+
+  return new Response(JSON.stringify({ ok: true, jobId }), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(session) },
+  })
+})
 
 /** Exchange the emailed token for a session. Called by /start?t=... on first load. */
 app.post('/auth/start', async (c) => {

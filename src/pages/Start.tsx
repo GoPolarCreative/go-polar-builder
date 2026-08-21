@@ -86,6 +86,7 @@ export default function Start() {
         </div>
       ) : null}
 
+      <ClaimBuild />
       <ResendLink />
 
       {health && !health.shopifyConfigured ? <DevStart health={health} /> : null}
@@ -104,6 +105,65 @@ function routeFor(me: { signedIn: boolean; jobId?: string; status?: string; curr
   }
   if (me.status === 'intake' || me.status === 'generating') return `/build/${me.jobId}`
   return `/intake/${me.jobId}`
+}
+
+/**
+ * The front door for somebody who has just paid.
+ *
+ * They land here straight from the Shopify confirmation, with the order number still on screen and
+ * the email they typed at checkout fresh in their head. Nothing has to be delivered for this to
+ * work, which is the entire point: the build used to be reachable only through an email, and when
+ * that email stopped arriving the product stopped existing.
+ *
+ * The emailed link still works and is still the nicer route. This is the one that works anyway.
+ */
+function ClaimBuild() {
+  const [email, setEmail] = useState('')
+  const [orderNumber, setOrderNumber] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  const claim = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const { jobId } = await api.claimBuild(email, orderNumber)
+      navigate(`/intake/${jobId}`)
+    } catch (err) {
+      setError(err instanceof ApiCallError ? (err.detail ?? err.message) : 'Could not find that order')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const ready = email.includes('@') && orderNumber.trim().length > 0
+
+  return (
+    <div className="card space-y-4">
+      <div>
+        <h2 className="text-xl">Just paid? Start here.</h2>
+        <p className="field-hint">
+          Use the email you paid with and the order number from your confirmation. It looks like
+          #1234 and is on the screen Shopify showed you, and in your receipt.
+        </p>
+      </div>
+
+      <Field label="Email you paid with">
+        <TextInput value={email} onChange={setEmail} type="email" placeholder="you@yourbusiness.com.au" />
+      </Field>
+
+      <Field label="Order number">
+        <TextInput value={orderNumber} onChange={setOrderNumber} placeholder="1234" />
+      </Field>
+
+      <button className="btn-primary" onClick={claim} disabled={busy || !ready}>
+        {busy ? 'Checking' : 'Start building'}
+      </button>
+
+      {error ? <Banner tone="error">{error}</Banner> : null}
+    </div>
+  )
 }
 
 function ResendLink() {
@@ -128,9 +188,10 @@ function ResendLink() {
   return (
     <div className="card space-y-4">
       <div>
-        <h2 className="text-xl">Lost your link?</h2>
+        <h2 className="text-xl">Been here before?</h2>
         <p className="field-hint">
-          Put in the email you paid with. We will send it again.
+          If you have not got the order number to hand, put in the email you paid with and we will
+          send your link again.
         </p>
       </div>
 

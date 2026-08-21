@@ -110,6 +110,14 @@ export const api = {
       editsRemaining?: number
     }>('/api/auth/me'),
 
+  /** The door for somebody who just paid and has the confirmation still on screen. */
+  claimBuild: (email: string, orderNumber: string) =>
+    request<{ ok: true; jobId: string }>('/api/auth/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, orderNumber }),
+    }),
+
   resendLink: (email: string) =>
     request<{ ok: true; detail: string }>('/api/auth/resend', {
       method: 'POST',

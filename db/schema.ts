@@ -135,6 +135,8 @@ export const orders = pgTable(
     id: text('id').primaryKey(),
     jobId: text('job_id').references(() => jobs.id),
     shopifyOrderId: text('shopify_order_id').notNull(),
+    /** What the customer sees on their receipt, e.g. "1234". How they prove a purchase. */
+    shopifyOrderNumber: text('shopify_order_number'),
     shopifyCustomerId: text('shopify_customer_id'),
     productHandle: text('product_handle').notNull(),
     amountExGst: integer('amount_ex_gst').notNull(),

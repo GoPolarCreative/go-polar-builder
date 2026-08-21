@@ -73,6 +73,21 @@ async function resolveJob(order: ShopifyOrder, email: string | null): Promise<st
   return rows[0]?.id ?? null
 }
 
+/**
+ * The order number a customer can actually read off their receipt.
+ *
+ * Shopify sends both an internal id and a customer-facing number, and they are not the same. The
+ * claim flow checks the one the customer can see, so this normalises whichever form arrives:
+ * order_number is an integer, name is the same value as "#1234".
+ */
+export function orderNumberOf(order: ShopifyOrder): string | null {
+  if (order.order_number != null && String(order.order_number).trim()) {
+    return String(order.order_number).trim().replace(/^#/, '')
+  }
+  if (order.name && order.name.trim()) return order.name.trim().replace(/^#/, '')
+  return null
+}
+
 export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResult> {
   const db = await getDb()
   const orderId = String(order.id)
@@ -135,6 +150,7 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
       id: id('ord'),
       jobId,
       shopifyOrderId: orderId,
+      shopifyOrderNumber: orderNumberOf(order),
       shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
       productHandle: ref,
       amountExGst: amount,
@@ -191,6 +207,7 @@ async function refBuildToken(
     id: id('ord'),
     jobId,
     shopifyOrderId: orderId,
+    shopifyOrderNumber: orderNumberOf(order),
     shopifyCustomerId: order.customer?.id != null ? String(order.customer.id) : null,
     productHandle: ref,
     amountExGst: amount,
