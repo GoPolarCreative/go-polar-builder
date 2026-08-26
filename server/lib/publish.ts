@@ -5,7 +5,8 @@ import { config, web3formsKey } from '../config.js'
 import { storage } from './storage.js'
 import { assertNoGoPolarKey } from './web3forms.js'
 import { id } from './ids.js'
-import { recordEvent } from './db.js'
+import { getJob, getUserForJob, recordEvent } from './db.js'
+import { trackKlaviyoSafely } from './klaviyo.js'
 import { fakeDomainAttach } from './integrations/fakes.js'
 
 /**
@@ -31,11 +32,32 @@ export interface PublishResult {
 }
 
 /**
- * Rewrite relative asset paths to absolute URLs.
+ * Rewrite asset references to the URLs the storage layer actually serves.
  *
- * Longest paths first, so photo-01-thumb.webp is replaced before photo-01.webp: otherwise the
- * shorter path matches inside the longer one and corrupts it.
+ * THIS USED TO BE A PLAIN SUBSTRING REPLACE AND IT BROKE TWO THINGS SILENTLY.
+ *
+ * The manifest holds bare paths like `assets/photo-01.jpg`, and the home page references them
+ * exactly that way, so a substring replace was right for the case it was written for. It was
+ * wrong for every other way the same file gets named:
+ *
+ *   - A service page lives at `services/<slug>/index.html` and references `../../assets/x.jpg`.
+ *     Replacing the tail left `../../https://blob.../key`, so EVERY IMAGE ON EVERY PAID SERVICE
+ *     PAGE was broken on the published site. Nothing caught it: the build passes, the page
+ *     renders, the images just do not appear.
+ *   - The JSON-LD `image` field and the new og:image build an absolute URL as
+ *     `https://theirsite.com.au/assets/logo.svg`. Replacing the tail left
+ *     `https://theirsite.com.au/https://blob.../key`.
+ *
+ * So the match now swallows whatever prefix names the same file: a run of `../`, or an absolute
+ * origin. Longest manifest paths still go first, so `photo-01-thumb.webp` is replaced before
+ * `photo-01.webp` and the shorter name cannot corrupt the longer one.
  */
+
+/** Escape a manifest path for use inside a RegExp. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export function rewriteAssetPaths(
   html: string,
   facts: BuildFacts,
@@ -47,8 +69,20 @@ export function rewriteAssetPaths(
   for (const path of Object.keys(facts.assetManifest).sort((a, b) => b.length - a.length)) {
     const meta = facts.assetManifest[path]!
     if (!out.includes(path)) continue
-    out = out.split(path).join(urlFor(meta.key))
-    count++
+
+    /*
+     * Optionally an absolute origin, or optionally a run of ../, then the path itself. The
+     * character class stops the origin from running past the end of the attribute it sits in,
+     * which is what keeps two URLs on the same line from being merged into one.
+     */
+    const pattern = new RegExp(
+      '(?:https?:\\/\\/[^"\'\\s<>)]*?\\/|(?:\\.\\.\\/)+)?' + escapeRegExp(path),
+      'g',
+    )
+
+    const before = out
+    out = out.replace(pattern, urlFor(meta.key))
+    if (out !== before) count++
   }
 
   return { html: out, count }
@@ -104,6 +138,10 @@ export async function publishSite(args: {
     .where(eq(schema.sites.hostname, args.hostname))
     .limit(1)
 
+  // Read before the upsert below, which makes every publish look like an existing one.
+  const isFirstPublish = !existing[0]
+  const jobRow = await getJob(args.jobId)
+
   if (existing[0]) {
     await db
       .update(schema.sites)
@@ -125,6 +163,36 @@ export async function publishSite(args: {
     bytes: rewritten.html.length,
     pages: pagesPublished,
   })
+
+  /*
+   * TELL THE CUSTOMER THEIR SITE IS UP.
+   *
+   * This is the first moment the thing they bought exists at an address, and until now it was
+   * also the quietest: a row in the events table and nothing else. No email, no confirmation,
+   * nothing to forward to their partner.
+   *
+   * `is_first_publish` is computed BEFORE the sites row is written above, because after the
+   * upsert every publish looks like an existing one. A flow that welcomes somebody to their new
+   * website must not fire again when they change a photo six weeks later.
+   *
+   * Safely, and after the publish is complete: Klaviyo being down must never turn a successful
+   * publish into a failed request. The site is live either way.
+   */
+  const owner = await getUserForJob(args.jobId)
+  if (owner?.email) {
+    await trackKlaviyoSafely({
+      metric: 'site_live',
+      profile: { email: owner.email, businessName: jobRow?.businessName ?? null },
+      jobId: args.jobId,
+      properties: {
+        site_url: `https://${args.hostname}`,
+        hostname: args.hostname,
+        business_name: jobRow?.businessName ?? '',
+        pages: pagesPublished,
+        is_first_publish: isFirstPublish,
+      },
+    })
+  }
 
   return {
     hostname: args.hostname,

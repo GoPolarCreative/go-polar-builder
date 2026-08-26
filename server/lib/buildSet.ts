@@ -1,10 +1,10 @@
 import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
-import type { VerificationReport } from '../../shared/types.js'
+import type { CheckResult, VerificationReport } from '../../shared/types.js'
 import { getDb, schema } from '../db/client.js'
 import { and, eq } from 'drizzle-orm'
 import { id } from './ids.js'
 import { storage } from './storage.js'
-import { pagesFor, robotsTxt, sitemapXml, type SitePage } from './pages.js'
+import { pagesFor, robotsTxt, sitemapXml, slugify, type SitePage } from './pages.js'
 import { renderServicePage } from './render/servicePage.js'
 import { verify } from './verify.js'
 
@@ -48,6 +48,75 @@ export function pageBlobKey(jobId: string, version: number, path: string): strin
   return `jobs/${jobId}/builds/v${version}/${path}`
 }
 
+/**
+ * CHECK 19: PAGES DELIVERED.
+ *
+ * Every other check asks whether a page is CORRECT. This asks whether it EXISTS. The bug that
+ * caused it (D55) was not a bad page, it was a missing one: the customer paid for three, the
+ * plan carried none, and every per-page check passed because every page that got built was fine.
+ * A set can be flawless and still be short.
+ *
+ * Same reasoning as the duplicate mobile bar: a prompt instruction is a hope, a check is a
+ * guarantee. A failing result makes the whole version fail, and publish refuses a version that
+ * did not pass, so a short build cannot reach a customer.
+ *
+ * Pure and exported so the guarantee can be proved without a database, which is the only way a
+ * test of it is worth anything.
+ */
+export function pagesDeliveredCheck(
+  paidPageServices: string[],
+  deliveredPaths: string[],
+  /*
+   * THE ENTITLEMENT, AND IT IS REQUIRED ON PURPOSE.
+   *
+   * This argument was added after the check passed a build that shipped one page to a customer
+   * who had paid for five. The old signature compared the delivered pages against the services
+   * the customer had CHOSEN, so when they chose nothing there was nothing to be missing, and it
+   * returned "0 paid page(s) requested, 0 built" and passed. A guard that only fires once the
+   * thing it guards is already populated is not a guard.
+   *
+   * It is required rather than optional so that TypeScript refuses to compile a call site that
+   * forgets it. An optional argument would restore the exact failure: a caller omits it, the
+   * entitlement half of the check silently switches off, and the build reports success.
+   */
+  pagesAllowed: number,
+): CheckResult {
+  const delivered = new Set(deliveredPaths)
+  const missing = paidPageServices.filter(
+    (service) => !delivered.has('services/' + slugify(service) + '/index.html'),
+  )
+  const built = paidPageServices.length - missing.length
+
+  // Pages that were bought and then never pointed at a service. These never reach the plan at
+  // all, which is why nothing further down the chain has any way of noticing them.
+  const entitled = Math.max(0, (pagesAllowed || 1) - 1)
+  const unallocated = Math.max(0, entitled - paidPageServices.length)
+
+  const problems: string[] = []
+  if (missing.length > 0) {
+    problems.push('PAID FOR BUT NOT BUILT: ' + missing.join(', ') + '.')
+  }
+  if (unallocated > 0) {
+    problems.push(
+      'PAID FOR BUT NEVER CHOSEN: ' + unallocated + ' of ' + entitled +
+        ' additional page(s) were never assigned to a service, so nothing was ever built for them.',
+    )
+  }
+
+  return {
+    id: 'pages_delivered',
+    label: 'Every page they paid for was built',
+    status: problems.length === 0 ? 'pass' : 'fail',
+    detail:
+      problems.length === 0
+        ? entitled + ' additional page(s) paid for, ' + built + ' built'
+        : problems.join(' ') + ' The customer has been charged for ' + entitled +
+          ' additional page(s) and this build contains ' + built +
+          '. This build must not be published.',
+    evidence: unallocated > 0 ? [...missing, 'unallocated:' + unallocated] : missing,
+  }
+}
+
 export async function persistPageSet(args: {
   jobId: string
   version: number
@@ -59,6 +128,17 @@ export async function persistPageSet(args: {
   repairPasses?: number
   /** Render checks are expensive; the caller decides whether the service pages get them. */
   runRender?: boolean
+  /**
+   * What the customer actually paid for: every service they asked to have its own page.
+   * Supplied so the set can be checked against the entitlement rather than against the plan,
+   * which is the thing that was wrong. See DECISIONS.md D55.
+   */
+  paidPageServices?: string[]
+  /**
+   * The page allowance off the job row. Required, so a caller cannot quietly disable the half of
+   * the entitlement check that catches pages the customer bought and never allocated.
+   */
+  pagesAllowed: number
 }): Promise<PersistedSet> {
   const { jobId, version, plan, facts, homeHtml, homeReport } = args
   const db = await getDb()
@@ -130,7 +210,19 @@ export async function persistPageSet(args: {
     )
   }
 
-  const passed = persisted.every((p) => p.passed)
+  const pagesDelivered = pagesDeliveredCheck(
+    args.paidPageServices ?? [],
+    persisted.map((page) => page.path),
+    args.pagesAllowed,
+  )
+
+  homeReport.static.push(pagesDelivered)
+  if (pagesDelivered.status === "fail") {
+    homeReport.passed = false
+    failures.push({ path: 'index.html', checkId: 'pages_delivered', detail: pagesDelivered.detail ?? '' })
+  }
+
+  const passed = persisted.every((p) => p.passed) && pagesDelivered.status === "pass"
 
   await db.insert(schema.builds).values({
     id: id('bld'),
