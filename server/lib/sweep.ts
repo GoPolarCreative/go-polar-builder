@@ -1,4 +1,5 @@
-import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, notExists, or, sql } from 'drizzle-orm'
+import { runTakedownSweep } from './takedown.js'
 import { getDb, schema } from '../db/client.js'
 import { recordEvent } from './db.js'
 import { createBuildToken } from './auth.js'
@@ -25,6 +26,9 @@ export interface SweepReport {
   resentLinks: number
   abandonedIntake: number
   stalledEditing: number
+  /** The 60 day cancellation clock. See server/lib/takedown.ts. */
+  hostingWarned: number
+  sitesTakenDown: number
   problems: string[]
 }
 
@@ -37,6 +41,8 @@ export async function runSweep(): Promise<SweepReport> {
     resentLinks: 0,
     abandonedIntake: 0,
     stalledEditing: 0,
+    hostingWarned: 0,
+    sitesTakenDown: 0,
     problems: [],
   }
 
@@ -44,6 +50,17 @@ export async function runSweep(): Promise<SweepReport> {
   await retryMissingLinks(report)
   await flagAbandonedIntake(report)
   await flagStalledEditing(report)
+
+  /*
+   * THE CANCELLATION CLOCK. Last, and deliberately not wrapped in the same try as the others:
+   * runTakedownSweep collects its own problems per job, so one bad row cannot stop the rest of
+   * the list being warned. A customer missing their day 59 email because somebody else’s job
+   * threw is not an acceptable failure for something that ends with a website going offline.
+   */
+  const takedown = await runTakedownSweep()
+  report.hostingWarned = takedown.warned
+  report.sitesTakenDown = takedown.takenDown
+  report.problems.push(...takedown.problems)
 
   await recordEvent(null, 'sweep.ran', report)
   return report
@@ -100,14 +117,29 @@ async function reconcileOrders(report: SweepReport): Promise<void> {
 async function retryMissingLinks(report: SweepReport): Promise<void> {
   try {
     const db = await getDb()
+    /*
+     * "Already sent" means a klaviyo.sent event for the build-purchased metric. This used to
+     * look for the Resend-era event (email.sent, kind build_link), which the Klaviyo path never
+     * writes, so after D48 the guard matched nothing and every job sitting in "paid" for over an
+     * hour was re-sent its build link on every sweep. The legacy event is still honoured so
+     * pre-D48 jobs do not suddenly resend.
+     */
     const sent = db
       .select({ one: sql`1` })
       .from(schema.events)
       .where(
         and(
           eq(schema.events.jobId, schema.jobs.id),
-          eq(schema.events.type, 'email.sent'),
-          sql`${schema.events.payload}->>'kind' = 'build_link'`,
+          or(
+            and(
+              eq(schema.events.type, 'klaviyo.sent'),
+              sql`${schema.events.payload}->>'metric' = 'Website Build Purchased'`,
+            ),
+            and(
+              eq(schema.events.type, 'email.sent'),
+              sql`${schema.events.payload}->>'kind' = 'build_link'`,
+            ),
+          ),
         ),
       )
 
