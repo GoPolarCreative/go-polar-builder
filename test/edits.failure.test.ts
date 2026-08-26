@@ -141,18 +141,46 @@ describe('when the model call fails', () => {
     expect((await versions()).capability.available).toBe(true)
   })
 
-  it('surfaces the real error rather than stopping silently', async () => {
+  /*
+   * This used to assert the upstream error text appeared in what the customer is shown. The intent
+   * was right - never fail silently - but the implementation put "401 authentication_error" and, on
+   * the build screen, "go to Plans & Billing to purchase credits" in front of a tradie who had
+   * already paid. Our billing problem, phrased as an instruction only we can act on.
+   *
+   * The intent is kept and moved: the real reason must still be captured, in the event log, where
+   * a diagnosis belongs. What the customer sees must say only what is true and useful to them.
+   */
+  it('never shows the customer the upstream error text', async () => {
     const events = await submitEdit('Make the header darker')
 
     const error = events.find((e) => e.type === 'error')
     expect(error, 'the stream ended without an error event').toBeDefined()
 
     const detail = (error as { detail?: string }).detail ?? ''
-    // The actual reason, not "something went wrong".
-    expect(detail).toMatch(/401|authentication_error|API key is invalid/)
+    expect(detail).not.toMatch(/401|authentication_error|API key|credit balance|Plans & Billing/i)
 
-    // And it says the customer's site is untouched, which is the thing they care about.
+    // What they do get: it was not their fault, and it cost them nothing.
+    expect(detail).toMatch(/our end/i)
+    expect(detail).toMatch(/has not used up one of your ten changes/i)
     expect((error as { message: string }).message).toMatch(/has not been touched/i)
+  })
+
+  it('still records the real reason in the event log, so it is never lost', async () => {
+    await submitEdit('Make the footer darker')
+
+    const { getDb, schema } = await import('../server/db/client')
+    const { desc, eq, and } = await import('drizzle-orm')
+    const db = await getDb()
+    const rows = await db
+      .select()
+      .from(schema.events)
+      .where(and(eq(schema.events.jobId, jobId), eq(schema.events.type, 'edit.failed')))
+      .orderBy(desc(schema.events.createdAt))
+      .limit(1)
+
+    expect(rows.length, 'no edit.failed event was recorded').toBe(1)
+    const payload = JSON.stringify(rows[0]?.payload ?? {})
+    expect(payload).toMatch(/401|authentication_error|API key/i)
   })
 
   it('really did call the model, so this is a genuine failure and not a short circuit', () => {

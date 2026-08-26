@@ -175,6 +175,10 @@ that is about to publish it, that is an acceptable trade.
 
 ## D11. Resend and GoHighLevel fail loudly, and never take a payment down with them
 
+**SUPERSEDED by D48 and D53.** Both providers are gone: Klaviyo sends every customer email and
+the Resend transport was deleted from the code on 2026-08-25. The commit-first/notify-second
+ordering this decision established still stands and now protects the Klaviyo calls.
+
 **Question.** What happens when the build link email cannot be sent, or GHL is unreachable, at
 the moment a Shopify webhook arrives.
 
@@ -968,6 +972,16 @@ Both points are now stated in `.env.example` above the block they apply to.
 
 ## D40. The house style comes from four real sites, not from a written list
 
+> **Partly reversed, 2026-08-23.** The half of this decision that said the section skeleton
+> never varies is gone. It was a true reading of the four reference sites and a bad product:
+> one skeleton in four skins meant the customer chose a typeface while being told they were
+> choosing a layout, and the four previews looked like the same website four times. Each style
+> now carries a `LayoutSpec` (`shared/styles.ts`): which sections appear, in what order, one of
+> three hero compositions, and whether the dark bands hold still while the page scrolls. The
+> other half of D40, that the treatments are measured off real sites rather than invented,
+> stands unchanged. `test/styles.test.ts` now asserts the four orders differ and that no style
+> loses a section by reordering.
+
 **What went wrong.** The brief said "visual reference: the Gildon Constructions and CWM Modular
 screenshots in the Claude project". Those screenshots were never available. The house rules were
 therefore built from a written list of sections with **no visual quality bar at all**, and
@@ -1343,3 +1357,842 @@ putting stars on reviews that exist is presentation, writing a review is not.
 `GET /api/admin/jobs/:jobId/edits` now returns what they asked for beside what changed, and
 `edit.applied` carries the request. "I asked for a change and nothing happened" is unanswerable
 without the sentence they typed.
+
+## D52. The landing page sells one thing, discloses every cost, and asks one question
+
+**Decided 2026-08-25, Chris away, on his direction. Copy needs his sign-off before the theme is
+published. Everything is on unpublished theme 174639841439; the live page is untouched.**
+
+**The five-step configurator is gone.** It asked a buyer to assemble hosting, the web address,
+email and page count into a cart before they had paid for anything, duplicating decisions the
+app already asks at go-live (brief s8) and pulling them to the worst possible moment. The buy
+section is now: one qualifying question, a cost disclosure, one button. A cart permalink, no
+checkout script.
+
+**Hosting, the web address and email moved to post-build**, where GoLive.tsx already asks about
+them once the customer has seen their website. No new app work: the flow existed, the landing
+page was front-running it.
+
+**Extra pages stayed, by Chris's explicit amendment.** The page count is a fork in what is being
+bought, not an upsell, so it belongs in the buying decision. It is framed as a qualifying
+question with two options: "Most of my work is word of mouth" (one page covers it) and "I want
+new work from people searching" (a page per major service, $25 each, with a stepper, 1 to 8).
+The stepper updates the button, its price and the cart permalink
+(`/cart/{build}:1,{pages}:N`); the webhook already honours page quantity (D42). Without
+JavaScript the button holds the single-page cart and the copy says pages can be added after the
+build, which the app supports. **One fork, two options, one stepper. If it grows a second step
+or a running bundle total, the wizard is being rebuilt.**
+
+**The claim discipline is D44 and held.** The fork's expanded explanation says the mechanism
+("a page about exactly that gives the search engine something specific to match... one page
+covering all your services is competing with itself"), keeps the solar-in-Newcastle example as
+what the page is FOR, and repeats the honest caveat ("not a guarantee of anything"). No
+rankings, positions, traffic, timeframes or "higher". Verified by regex against the rendered
+page.
+
+**Brief s11 outranks the redesign.** The cost block sits directly above the button, in the same
+visual block: Today $220 inc GST (updating with pages picked), When you go live $33/month inc
+GST hosting, Only if you need one $5.50/month inc GST for a web address, then "Nothing else is
+compulsory. Hosting starts when you go live, not today." Removing the pre-purchase decisions is
+fine; removing the disclosure would be a consumer-law exposure, so it is stated plainly and not
+sold.
+
+**The paid-but-not-live state is handled and was checked, not assumed.** Nothing in the codebase
+expires, abandons or deletes a job in `preview` or `editing`: the customer can sit on a finished
+site indefinitely. `flagStalledEditing` in server/lib/sweep.ts (hourly cron) flags 72h of
+inactivity once and sends the recovery email with the preview link through Klaviyo
+(`editing_stalled`, D48). If their build token has expired, the claim door (email + order
+number, D49/D50) reissues access. No paid customer can end up with a finished site and no route
+forward.
+
+**COPY IS NOT APPROVED. Customer-facing wording changed this decision, for sign-off:**
+
+- Buy section subheading: "One question, one payment. Your build link is emailed to you and you
+  can start straight away."
+- Fork question: "One page, or a page for each service?"
+- Option one: "Most of my work is word of mouth — The website is there to look professional
+  when someone checks you out. One page covers it."
+- Option two: "I want new work from people searching — Give each major service its own page.
+  $25 each, picked here or added after the build."
+- Stepper: "Extra service pages [- N +] $25 each, on top of the $220"
+- Disclosure summary: "Why a page for each service, in plain English" with the two-paragraph
+  mechanism + caveat body (mirrors shared/pages-copy.ts).
+- Cost rows and "Nothing else is compulsory. Hosting starts when you go live, not today."
+- Button fine print: "Secure Shopify checkout. Ten rounds of changes included, and nothing goes
+  live until you approve it."
+- How-section note now: "One payment and it starts. Hosting, your web address and email are all
+  sorted after you have seen your website." (pages removed from the "after" list because they
+  are picked up front again).
+
+**Measured** (390x844 / 1280x900, height and visible words): wizard era 16,918px / 9,705px at
+~2,043 words; single-button interim 14,211px / 9,670px at ~1,534/1,543; with the fork and the
+full cost disclosure 14,776px / 10,091px at ~1,599/1,608. The fork plus disclosure costs about
+65 words and half a screen, which is the price of the page count being a real purchase decision
+and the ongoing costs being stated before payment.
+
+## D53. The health check reports on the provider in use, Resend is deleted, and go-live is manual-first
+
+**Decided 2026-08-25, Chris away, on his correction.**
+
+**The false blocker.** `/api/health` reported `emailConfigured: Boolean(resendApiKey)` months
+after D48 had moved every customer email to Klaviyo. Production therefore said
+`emailConfigured: false` while the build-link email worked end to end (Chris verified the full
+purchase path on 2026-08-25), and that reading was relayed to him twice as a launch blocker. A
+health check that cries wolf about a dead dependency trains everyone to ignore it, which is
+worse than no check. `emailConfigured` now reports on the Klaviyo key.
+
+**Resend is deleted, not dormant.** `server/lib/email.ts` (the transport and every message
+template) is gone; the discharge email, its last consumer, now fires the Klaviyo `files_ready`
+metric like every other customer email. `RESEND_API_KEY`/`RESEND_FROM` are out of the config,
+`fakeResend` out of the demo fakes, and the docs (README, DEPLOY.md, .env.example) name Klaviyo.
+**A Klaviyo flow on "Website Files Ready" must be live before the next discharge**, or that
+email quietly stops existing; the old path was wired to a transport that was never configured,
+so nothing that worked has been lost.
+
+**Two stale spots found while purging, both fixed:**
+- The hourly sweep's "was the build link sent" guard still looked for the Resend-era
+  `email.sent` event, which the Klaviyo path never writes, so every job sitting in `paid` for
+  over an hour was re-sent its build link on every sweep. It now recognises `klaviyo.sent` for
+  the build-purchased metric (and still honours the legacy event for pre-D48 jobs).
+- The operator trace's step 4 diagnosed Resend by name. It reads the Klaviyo events now.
+
+**Go-live is deliberately manual-first.** Chris's call, made knowing it does not scale: for the
+first customers he wants a human in the loop rather than an untested automated path. What the
+button does now:
+
+1. Customer presses go live (the existing plan screen). On the first press, two Klaviyo events
+   fire: `go_live_started` to the customer, carrying the hosting checkout link and the domain
+   context, and `operator_alert` to `OPERATOR_EMAIL` naming the business, contact details and
+   what they want. Chris hears the same minute.
+2. `/ops` grew a "Waiting to go live" list: everyone who has asked and is not live yet, longest
+   wait first, phone number shown, red flag at 24 hours. That is the call list. The timestamp
+   is the first `golive.requested` event, which does not move when they revisit the screen.
+3. The wording rule is unchanged and applies to the Klaviyo templates as much as the app:
+   "in touch within one business day", never a promise that a domain is connected in 24 hours.
+
+Both flows (`Website Go Live Started`, `Operator Alert`) need creating in Klaviyo; until then
+the events still land in Klaviyo's activity feed and /ops shows the queue regardless, so the
+24-hour rule holds even with no flow built.
+
+**The automated path is already specced**, in SCOPE-EDITOR.md (customer-triggered publish with
+the same gates the admin publish enforces), for when volume justifies replacing the phone call.
+
+## D54. DIY hosting is $42.90 sold on what it includes, and the compute moved to Sydney so the page could say so
+
+**Decided 2026-08-25, on Chris's direction. WORDING NOT APPROVED: every customer-facing line
+below needs his sign-off before the theme is published.**
+
+**The price.** DIY customers' hosting is $42.90/month inc GST ($39 + GST), the draft "DIY
+Website Hosting" product (variant 62853864685727, SKU diy-hosting-monthly), replacing $33 for
+this funnel. All five places the landing page said $33 now say $42.90: the hero figure, the
+comparison card, the hosting section heading and card, and the s11 cost block. Verified
+rendered at 390px and 1280px: zero occurrences of $33 remain, no banned jargon (cPanel, uptime,
+CDN, DNS, patching as bare nouns), no horizontal overflow.
+
+**The Australian-servers claim was FALSE when asked for, and was made true rather than
+written soft.** The claim was verified before a word of it was written: `X-Vercel-Id` read
+`syd1::iad1` — requests entered at the Sydney edge but every function, including the one that
+serves customer sites, executed in Washington DC, Vercel's default. Blob and Neon were already
+Sydney; only compute had defaulted wrong, against HANDOVER's documented intent and at a cost of
+~200-250ms per database query for every customer. Fixed by pinning `"regions": ["syd1"]` in
+vercel.json, deployed, verified `syd1::syd1`; the DB-heavy admin queue endpoint went from
+~1.35s to ~0.35s. The rule this leaves behind: **the "Australian servers" line on the landing
+page is load-bearing on that region pin. If the region ever changes, the copy changes the same
+day.** The speed wording is "loads quickly for the people looking you up", deliberately not
+"near-instant": modest, mechanism-grounded, defensible.
+
+**The hosting line sells the four things Chris named, worded to survive scrutiny:**
+
+- Hosting heading: "Then $42.90 a month, and your website is never out of date."
+- Lede: "Your website is live, and it stays yours to change. New photos, new wording, new
+  reviews, whenever you like. We keep it secure and online."
+- The list, in order: (1) "Change it yourself, any time. Upload new photos, rewrite the text,
+  add new reviews. Ten changes a month included." (2) "An SSL certificate, kept valid: the
+  padlock that shows visitors your site is secure" — SSL named then immediately glossed,
+  jargon-as-reassurance not jargon-as-spec. (3) "Security handled by us: kept up to date,
+  backed up, and if it ever goes down we get told before you do" — describes what actually
+  happens (platform automates, we monitor and answer for it), no invented security team.
+  (4) "Hosted on Australian servers, so it loads quickly for the people looking you up."
+  (5) "Your web address kept pointed at it."
+- Cost block hosting row: "$42.90/month inc GST — hosting with the editor: change your photos,
+  wording and reviews yourself, ten changes a month. The SSL padlock, security and Australian
+  servers are handled by us." The s11 discipline is untouched: $220 and the monthly in the
+  same visual block, above the button.
+- Comparison card: "$220, then $42.90 a month" and the change row now ends "then ten a month
+  once live."
+
+**Two obligations this copy creates, written into the section comments as well:**
+
+1. **The self-serve editor must ship before the first customer goes live on this tier.** The
+   page now sells it as the reason for the price, and it is scoped (SCOPE-EDITOR.md), not
+   built. Weeks of runway exist; do not let it reach zero.
+2. **The app still sells the $33 product at go-live.** shared/pricing.ts `hosting` remains
+   website-hosting-australia at $33 because diy-hosting-monthly is a DRAFT with no Appstle
+   selling plan, and switching before the plan exists would break every go-live checkout
+   (requiresSellingPlan). Before the first DIY go-live: Chris attaches the monthly selling
+   plan in Appstle and publishes the product, then pricing.ts switches to the new SKU/variant
+   and `SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY` is set. Until then the go-live screen
+   quoting $33 against a landing page quoting $42.90 is a D31 violation waiting at the end of
+   the funnel; acceptable only because go-live is weeks away and flagged here so it cannot be
+   forgotten.
+
+## D55 — Extra pages were sold and never built. A check, not a prompt, now stops it.
+
+**2026-08-25.** A customer could buy three service pages, be charged for three, and receive one,
+with every check passing.
+
+Three things had to be true at once. `planUserMessage` never told the model which services had
+been paid for, so it had no way to know. The model returned `servicePages: []`. And
+`enforcePlanInvariants` treated a missing page as "the model chose not to", so it dropped them.
+Nothing anywhere compared what was delivered against what was bought.
+
+The fix is in three parts, and only the third is a guarantee:
+
+1. `planUserMessage` now carries a `# PAGES THEY HAVE PAID FOR` section naming each service and
+   the total allowance.
+2. `enforcePlanInvariants` **synthesises** a missing page from the intake instead of dropping it.
+3. **Check 19, `pagesDeliveredCheck`.** Compares paid services against delivered paths. A short
+   build fails and cannot be published, and the failure names the missing services.
+
+The first two are hopes. A prompt instruction is a request to a model, and a fallback only runs if
+the code path is reached. The check is the part that makes silent loss impossible, which was the
+requirement. Proven on the real Anthropic path (`claude-opus-5`), 2 requested and 2 delivered,
+plus the check proven failing at 1-of-2 and 0-of-3.
+
+## D56 — Hosting is $42.90/month inc GST, on the DIY SKU.
+
+**2026-08-25.** The switch flagged at the end of D54 is done. `shared/pricing.ts` points at
+`diy-hosting-monthly` (variant 62853864685727) at 4290 cents, and the landing page, the
+comparison section and the go-live screen all quote one number, as D31 requires.
+
+**This broke production once, for about ten minutes.** The SKU was switched before checking that
+`SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY` existed. `assertProductConfig` refused to boot and
+build.itscold.com.au returned 500. Reverted, redeployed, then re-applied only after verifying the
+variable was actually set. **Verify the environment before pointing code at it**, particularly for
+config a boot assertion depends on: the failure is total and immediate, not degraded.
+
+The Australian-hosting claim on the landing page was also verified rather than asserted.
+`X-Vercel-Id` read `syd1::iad1` - functions were executing in Washington DC while the copy said
+Australian servers. Rather than softening a false claim into a vague one, `vercel.json` now pins
+`"regions": ["syd1"]`. Verified `syd1::syd1`, and the database round trip fell from 1.35s to
+0.35s as a side effect.
+
+## D57 — The domain question comes before the money, and the enquiry inbox moved into the build.
+
+**2026-08-25.** Chris's call, and both halves fix a real ordering problem rather than a taste one.
+
+**The domain now precedes the payment.** The plan screen used to ask the customer to tick
+"I need a domain, +$5.50" *before* anyone had checked whether the name they wanted was free. Two
+ways to lose money on that: pay for a domain that turns out to be taken, or pay for a second one
+when you already own one. The order is now ask, check, then charge - domain screen, then hosting,
+then one Shopify cart carrying both.
+
+**The cart is derived from the record, not the checkbox.** The two screens are separate requests
+with a page load between them, so the browser's copy of "I need a domain" can go stale. If it
+does, the customer pays for hosting, goes live, and has no web address - and nothing downstream
+catches it, because the build passes and the payment clears. So `goLiveCartLines` in
+`server/lib/products.ts` takes the recorded domain branch and the client flag, and either can
+**add** the domain line while neither can **remove** it. Pulled out of the route specifically so
+the rule is testable; `test/golive.cart.test.ts` covers it. Same principle as check 19 in D55.
+
+**"Where did you buy it?" is a new question**, on the own/locked branches, stored on
+`domains.registrar` (migration 0005, additive) and carried into the operator alert. WHOIS reports
+the *reseller*, which is often not the brand on the login page the customer has to open, and the
+first question on the connection call is always "where do we log in". A picker rather than a text
+box so the alert stays scannable, with "I am not sure" as a real option - that answer means
+*we* look it up, which is different from the question being skipped.
+
+**The enquiry inbox moved from go-live into the build step.** Third home for it: intake (D29 -
+59 submissions produced nothing usable, because there was no site yet to care about), then
+go-live, now the editor page. Go-live was wrong because it is a *paying* sequence, and dropping a
+third-party sign-up in front of a checkout turns a payment into an errand - they leave to make a
+Web3Forms account and the cart is still sitting there when they get back, if they get back. On
+the editor page they are already looking at their website with edits left, which is the one moment
+where "let's point your form at your own inbox" reads as part of the build.
+
+**The invariant did not move with it.** Until it is verified, the live site carries Go Polar's
+Web3Forms key, so every enquiry from the website the customer just paid for lands in Go Polar's
+inbox and they never see one. Go live still refuses without it - `InboxOutstanding` sends them
+back to the build page rather than offering the form a second time. Two places to complete one
+task means two places to keep working.
+
+**Process note.** `tsc --noEmit -p tsconfig.json` passed clean while `tsc -b` - what the Vercel
+build actually runs - found three errors, including a dead component and a client type that had
+not been widened. **Verify with `npx tsc -b`.** The narrower command is not the build.
+
+## D58 — Two silent image bugs, found by probing the publish rewrite instead of trusting it.
+
+**2026-08-26.** Chris ran a dress rehearsal and asked for a favicon and a share image. Adding them
+meant emitting an absolute `og:image` URL, and before doing that I checked what the publish-time
+asset rewrite does to a URL that is not a bare relative path. It mangled it. Two things were
+already broken in production because of the same mechanism:
+
+1. **Every image on every paid service page.** `rewriteAssetPaths` was a substring replace over
+   manifest paths like `assets/photo-01.jpg`. A service page lives at `services/<slug>/` and
+   references `../../assets/photo-01.jpg`, so the replace left `../../https://blob.../key`. The
+   page rendered, the build passed, the pictures did not load. These are the pages customers pay
+   $25 each for.
+2. **The JSON-LD `image` field**, which builds `${canonicalUrl}${logo.path}` and so became
+   `https://theirsite.com.au/https://blob.../key`.
+
+The rewrite now swallows whatever prefix names the same file — a run of `../`, or an absolute
+origin — so all four ways this codebase names an asset resolve to one URL. Eleven tests in
+`test/rewrite.test.ts`, including both bugs by name.
+
+**The lesson is the method, not the fix.** Neither bug was visible from inside the product and
+neither would ever have failed a check. They surfaced because a new feature depended on the same
+code path and the behaviour was probed rather than assumed. The dress rehearsal did not catch them
+either, because a missing image looks like a design choice.
+
+## D59 — The favicon and the share card.
+
+**2026-08-26.** The built website had no `<link rel="icon">` at all. The favicon existed only
+inside the downloadable zip, so every live site and every preview showed the browser default.
+
+Worse, the head declared `twitter:card=summary_large_image` and never named an image. That is a
+positive claim that a picture is available, so the site produced a large blank card everywhere it
+was pasted. A page with no card tags degrades to a tidy link; a page that declares a card and
+withholds the image does not. `headMeta.ts` now emits `summary` when there is no usable image, and
+**that branch must not be simplified away**.
+
+**The share image is a photo, not the logo**, whenever one exists, and always the JPEG — crawlers
+do not render WebP or SVG reliably, so handing Facebook a WebP produces the same blank card as
+handing it nothing.
+
+**The favicon uses the logo, with one exception.** Chris asked for the logo automatically. A wide
+lockup at 16px is an illegible smear, and the audit already flags that shape (`logo_wide_lockup`,
+aspect >= 3.2), so a wide logo falls back to the generated mark — their initials on their brand
+colour. Following the instruction literally there would have produced a worse icon than the
+alternative.
+
+The generated `favicon.svg` is now written into the published site at publish time. It was linked
+but never shipped, so the link 404'd. Check 8 (`assets_exist`) correctly failed the build the
+moment the link was added, which is the check doing its job; it now knows the favicon is generated
+rather than uploaded.
+
+## D60 — Going live is a button, not a footnote.
+
+**2026-08-26.** The way out of the editor was `text-xs text-ice-500 underline` sitting beside a
+solid accent button. The one action that finishes the job, and takes the next payment, read as a
+footnote to the one that does not.
+
+Now two real buttons of equal weight in different colours: accent blue for "make this change",
+near-black for "I'm ready to go live". Plus a card in the left column, because on a phone the
+changes panel is `absolute inset-0` and covers the screen — somebody reading their site and its
+history never sees the footer at all.
+
+**Not gated on the checklist.** The checklist is advice, nothing in it blocks going live, and a
+customer who is happy after two minutes should not have to tick eight boxes to find the door.
+
+## D61 — Shopify notification templates cannot be automated. Copy handed over instead.
+
+**2026-08-26.** The order confirmation email said "$500 website" to people paying $220, because it
+had been hand-written for the `websites` deposit product.
+
+There is **no Admin API** for this. Searching the GraphQL `Mutation` type for `notification` or
+`template` returns only the two gift-card send mutations, and `checkoutBranding` is unavailable on
+this store (Basic, not Plus). Shopify also allows exactly **one** order confirmation template per
+store, so "a separate one per product" is not possible.
+
+The answer is one template that branches in Liquid on
+`line.product.handle == 'diy-website-build'`, giving DIY buyers a "your next step is in your inbox"
+block and everyone else generic wording. Exact copy and paste locations are in
+`SHOPIFY-NOTIFICATIONS.md`. This one is Chris's to apply.
+
+**Also worth knowing for the thank-you page:** on a Basic plan the *Additional scripts* box may
+already be gone, in which case customising it needs a checkout UI extension, which means an app.
+The email block does the same job, so that is where the effort went.
+
+## D62 - Klaviyo flow content. NEEDS CHRIS'S SIGN-OFF BEFORE A CUSTOMER READS IT.
+
+**2026-08-26.** `KLAVIYO-FLOWS.md` documents every event the app fires and carries paste-ready
+copy for three flows: the operator alert, the go-live confirmation, and a seven-email post-live
+nurture sequence.
+
+**The copy is not approved.** Same status as `shared/pages-copy.ts` under D44. It is the most
+legally exposed writing in the product after the landing page, because emails 6 and 7 describe
+search and advertising, which is the hardest place to describe a product without promising a
+result.
+
+### Three gaps found while establishing the facts
+
+Writing the flows meant listing what actually fires, and the listing found three things:
+
+1. **No site-live event existed.** Publishing wrote a `site.published` row to the events table and
+   told the customer nothing at all. The one moment the thing they bought becomes real was the
+   quietest moment in the product. Built as `Website Is Live`, fired from `publishSite`.
+2. **Chris was alerted on the button press and never on the payment.** A press is an intention
+   some people will not act on. The payment is the obligation: hosting starts billing and an
+   address has to be connected. Added as `alert: go_live_paid`.
+3. **`ops_link` pointed at `/ops`**, so an alert meant searching a list. Both alerts now deep link
+   to `/ops#job-<id>`, with a matching anchor on the card.
+
+`Website Go Live Requested` was also enriched with the business name, domain name and domain
+branch. It carried a preview link and nothing else, which is not enough to write an honest "here
+is what happens next": the next step genuinely differs between a domain they own, one we are
+buying, and one stuck with a previous designer.
+
+### is_first_publish exists for one reason
+
+`Website Is Live` fires on EVERY publish, including a re-publish after an edit. Without a filter,
+a customer gets the entire seven-email welcome sequence again every time they change a photo. The
+flag is computed before the `sites` upsert, because after it every publish looks like an existing
+one.
+
+### The metric names are pinned by a test
+
+`test/klaviyo.metrics.test.ts` asserts all ten names literally. A flow is bound to a metric by a
+string typed into Klaviyo by hand, so renaming one in code breaks no build, fails no type check
+and throws nothing. The event lands under a name nothing is listening to and the emails silently
+stop. If that test fails, the question is which live flow needs renaming first.
+
+### The copy rules are enforced, not asserted
+
+`test/klaviyo.copy.test.ts` greps the document for the same forbidden patterns as
+`test/pages.copy.test.ts` (rankings, positions, volume, growth, timeframes, guarantees), plus em
+dashes and the banned jargon list. It also checks the structure Chris asked for: seven emails,
+free advice inside the first two weeks, and **at least fourteen clear days** before anything that
+costs money.
+
+The list is deliberately duplicated rather than shared with the pages test. Two separate approval
+surfaces, and neither should be able to relax the other.
+
+Three real violations were caught by that test on the first run, one of them an em dash in a
+heading of this author's own writing.
+
+### One wording decision worth keeping
+
+Chris asked for "contact within 24 hours". The copy says **one business day** instead. Somebody
+who presses go live at 9pm on a Friday counts twenty four hours forward and lands on Saturday
+night. The commitment is identical in substance and survives a weekend, which the hours version
+does not.
+
+### The cadence, and why
+
+Seven emails over eight weeks: day 0, 3, 8, 15, then 29, 43, 57.
+
+The first four are free advice, clustered into the fortnight when the site is new and the customer
+is actually motivated to act on it. Then fourteen clear days before the first paid suggestion,
+because they have just paid $220 plus hosting plus possibly a web address, and asking for more
+money in week one reads as a business that was only ever going to keep asking. The paid emails go
+one at a time and cheapest first: email address, then service pages, then advertising.
+
+Anyone who replies should be removed from the sequence. That is a Klaviyo setting, not code.
+
+## D63 - The post-build editor. Bucket 2 of SCOPE-EDITOR.md, built.
+
+**2026-08-26.** Built while there were **zero published sites**, which was deliberate. Every change
+here touches the publish path, and that path had no live mileage at all. Doing the structural work
+with nothing at stake was the safest window this feature will ever have.
+
+### One publish gate, two callers
+
+`server/lib/publishJob.ts` is now the only place a website becomes public. The operator endpoint
+and the customer's button both go through it, and the only thing the operator gets that the
+customer does not is `force`.
+
+This replaced 155 lines in `admin.ts`. Had the customer route been written separately it would
+have been a second 155 lines, and the two would have drifted within a month. The failure this
+codebase keeps producing is a rule that exists on one path and not the other: the Web3Forms guard,
+the paid-pages check, the asset rewrite. One implementation is the fix for the category, not just
+for this instance.
+
+**Checks are re-run at publish time, not read off `builds.passed`.** That flag records how a
+version looked when it was built. Publishing can happen weeks later, against a different version
+after a rollback. A stored boolean is a memory of a check; running the check is the check.
+
+**The paid-pages check now runs on the live path too.** D55 put it on the build path only. A
+rollback can select a version that predates a page the customer has since paid for, and publishing
+that would quietly remove it from their live site.
+
+**Nothing is written until everything is read.** Every page is loaded and verified before the
+first byte reaches storage, so a refusal halfway cannot leave a live site as a mix of old and new
+pages.
+
+**What "all 19 checks" honestly means in production:** four of them drive a real browser and
+production runs `renderDriver: none`. Those four report `skipped`, which is not `pass`, and only
+`fail` blocks. So production enforces 15 static checks plus the paid-pages check; the render four
+are enforced at build time on a machine that has a browser. Stated rather than papered over.
+
+### Restore now reaches the live site
+
+This was shipped broken and is the reason it was built first. Rollback moved
+`jobs.currentVersion` and wrote an edit row, and stopped. For a live customer the preview went
+back and the public website kept serving the version they were panicking about. The panic button
+did nothing about the panic.
+
+Now: the pointer moves, publish runs, and **if publish refuses the pointer is put back**. Ending
+up with the database saying one version while the internet serves another is the exact
+inconsistency this button exists to get somebody out of.
+
+The UI moved too. It was `text-xs underline` inside a collapsed version history. A person who has
+just put a mistake in front of their customers is not reading, they are scanning for the way out,
+so it is now a full-width button on the surface of the live panel labelled as an undo rather than
+as a version operation.
+
+### Two allowances, kept apart on purpose
+
+- **Pre-launch:** `jobs.editsUsed` / `editsAllowed`. Ten, lifetime, never resets. Does not hard
+  block (D5).
+- **Live:** ten per calendar month, AWST. **Does** block, because the tier states ten a month,
+  there is no product to sell an eleventh, and running it anyway would make the stated inclusion
+  a fiction. The refusal names the date it refills and offers a person.
+
+**Counted, never stored.** `edits.phase` marks which bucket a row came from and the monthly figure
+is a query over those rows. A stored counter needs a reset that can fail to run, run twice, or run
+in the wrong timezone, and when it drifts nothing notices. A count cannot disagree with the rows
+it is counting.
+
+**A failed edit still costs nothing.** The edit row and the counter update both sit inside the
+success branch, which is what made that true pre-launch. The monthly figure is a count of exactly
+those rows, so the same shape protects it. A rollback writes `counted: false` and costs nothing on
+either allowance.
+
+### Claim-to-email-link, for live jobs only
+
+Email plus order number is evidence of a purchase. It is enough to open a build that only exists
+on our servers. It is **not** enough to edit a website the public is already looking at: neither
+half is secret, an address is on the side of the van and an order number is on a forwarded receipt.
+
+So for a live job the match is now the claim step only, and a fresh link goes to the address on
+record. `createBuildToken` mints a **new** token, so somebody whose original link lapsed months
+ago is the normal case and works. Pre-launch is unchanged, because that flow is verified and
+working and the stakes there are different.
+
+### Cancellation, which nothing consumed until now
+
+A cancelled subscriber kept their site, kept editing, and kept costing money. With a self-serve
+editor that stops being a slow leak and becomes somebody actively using a product they stopped
+paying for.
+
+Shopify's own subscription topics are handled (signed with the secret the route already verifies,
+rather than a second Appstle integration with a second secret). Editing and publishing refuse.
+`hostingStatus` defaults to `'unknown'` and only an explicit cancellation locks anything, because
+absence of a cancellation is not evidence of one and every customer predating the column must
+carry on working.
+
+**A billing failure is not a cancellation.** Shopify retries and cards recover.
+
+### Rate limiting
+
+Six edits an hour, on top of the ten a month. The monthly cap limits what a customer spends, not
+how fast, and the expensive failure is a stuck customer regenerating ten times in ten minutes.
+Rollbacks are excluded: the moment somebody most needs to undo is right after making several
+changes quickly.
+
+### Proven, not asserted
+
+`scripts/proof-editor-loop.mjs`, 18/18 against a real database and real storage: publish, live
+bytes change, rollback, **live bytes revert**, a failing page refused with the check named, the
+live site untouched by that refusal, a cancelled subscription blocked, the operator force still
+working, and the allowance counting live edits but not pre-launch ones or undos.
+
+Three of those assertions failed on the first run and all three were the system being right and
+the fixture being wrong: the assets were not in the database, the fixture still carried the Go
+Polar forms key, and the "customer" key chosen for the swap happened to be identical to the dev
+`WEB3FORMS_KEY`. The guards were fixed in place and the fixture was made realistic.
+
+---
+
+## TWO POLICY QUESTIONS FOR CHRIS. Neither is a code decision.
+
+**1. What happens to a cancelled customer's live website, and after how long?**
+
+Right now: editing and publishing stop, the site **stays up indefinitely**, and Chris gets an
+alert. Nothing takes a site down automatically, deliberately: pulling a tradie's website offline
+the hour a card bounces is a person's decision, and the person who loses is the one whose phone
+number is on it. But "indefinitely" is not a policy, it is the absence of one, and it means Go
+Polar pays to host cancelled customers forever.
+
+Needs: a grace period, and what replaces the site at the end of it.
+
+**2. Is a hard stop at ten changes a month right?**
+
+It is what the landing page promises and what is now enforced. The alternative is to keep going
+and bill, which needs a price that does not exist yet, or to keep going free, which makes the
+number meaningless. Worth deciding before the first customer hits it rather than during.
+
+## D64 - The returning customer signs in with a six digit code, not a link.
+
+**2026-08-26.** Chris's specified flow, built. Supersedes the magic-link approach in D63.
+
+**A code beats a link for this audience.** A tradie reading email on a phone has to leave the
+browser for the mail app and come back, and on an older phone whatever they had open is often gone
+by then. A code is read once, from the notification if the Klaviyo flow puts it in the subject, and
+typed into the screen already in front of them.
+
+**A code is only as good as its constraints**, because six digits is one million possibilities and
+a million is nothing to a script. All of these are in `server/lib/loginCode.ts` and all of them are
+load-bearing:
+
+| Constraint | Value | Why |
+|---|---|---|
+| Attempts | 5, then the code dies | 1 in 200,000 per code |
+| Send limit | 3 per address per 15 min | Caps the guessing budget AND stops this being a mail bomb |
+| Expiry | 10 minutes | A code found later is worthless |
+| Single use | `consumedAt` | A code that worked cannot work again |
+| Comparison | constant time over hashes | The code itself is never stored |
+| Binding | the email it was sent to | Can only ever open jobs for that address |
+
+**The two limits multiply, and that is the number that matters.** 3 sends x 5 attempts = 15 guesses
+per 15 minutes against a million. Either limit alone is not enough: attempts alone lets an attacker
+mint fresh codes forever, sends alone gives a million guesses on three codes.
+
+**Minting a new code kills the outstanding one.** Otherwise five requests means five times the
+guessing budget, and a customer who pressed the button twice has two working codes.
+
+**Rows are consumed, never deleted.** The send limit counts recent rows for an address, so deleting
+them would reset the limit and hand back the mail bomb.
+
+**Every failure costs an attempt, including one against an expired code.** Otherwise an attacker
+learns which guesses were merely late.
+
+**The request endpoint answers identically whether or not the address is a customer**, so it cannot
+be used to find out who has bought a website. The email is only sent when there is a job to open.
+
+**Order number stays for the pre-launch phase.** That pair is evidence of a purchase, which is fine
+for opening a draft on our servers. It is not enough for a website the public is looking at:
+neither half is secret. Control of the inbox is the only acceptable evidence once a site is live.
+
+**Someone whose original token lapsed months ago is the normal case.** Nothing in this path
+consults the old token. Proven: `scripts/proof-login-code.mjs` deletes every token for the job and
+signs in anyway. 14/14.
+
+### Chris's manual sync step does not exist, and never did
+
+He said he expected to do something manual after a customer publishes. **He does not.** Verified in
+the code rather than assumed:
+
+`sites.ts` serves a request by calling `findSiteByHostname`, which looks up the `sites` row by
+hostname and derives the blob key with `siteObjectKey(hostname, path)`. That function takes the
+**hostname and the path only, never the version**. `publishSite` overwrites
+`sites/{hostname}/index.html`. So the moment publish returns, the same key holds the new bytes and
+the next request serves them.
+
+The only wait is the cache header: `max-age=60, s-maxage=300`. Up to about five minutes for a
+CDN-cached response, and a hard refresh sees it immediately. That is a cache, not a sync step, and
+nothing anybody does makes it happen faster.
+
+Domain attachment is genuinely one-time, done on first connection through `/admin/publish`. After
+that every publish is self-serving.
+
+**So the notification is purely so he knows.** It is not a queue item.
+
+### The alert carries what changed
+
+`alert: customer_published` (or `customer_restored`), with the business name, hostname, the version
+now live, the previous published version, the customer's own words for the change, and a deep link
+to `/ops#job-<id>`. Readable without opening anything, which is the point of an alert that is not a
+task.
+
+Operator publishes do not alert. Chris does not need an email about his own action.
+
+### And a way to put it back
+
+`POST /api/admin/restore { jobId, version }` and `GET /api/admin/jobs/:jobId/versions`. For the
+call where a customer publishes something wrong and rings rather than pressing undo themselves,
+which is what a worried person does.
+
+It goes through the same `publishJob` gate, so an operator restoring a version cannot skip the
+checks either, and the pointer is put back if the publish refuses. `force` remains on
+`/admin/publish` as a deliberate second decision.
+
+## D65 - The brief's data model, audited. The status lifecycle no longer holds.
+
+**2026-08-26.** Section 10 of the brief specifies the schema explicitly. Compared against the real
+one.
+
+**Nothing specified is missing.** Every table and column exists. The divergences are all either
+additive or renames that followed a real move:
+
+| Brief | Actual | Why |
+|---|---|---|
+| `users.ghl_contact_id` | still there, **dead** | GoHighLevel deleted in D48. Column kept, nothing writes it |
+| `assets.r2_key` | `original_key` | Storage moved off Cloudflare R2 to Vercel Blob |
+| `builds.r2_key` | `blob_key` | Same move |
+| `orders.amount_ex_gst` | unchanged | Name is wrong for a GST-inclusive store (D31). The value is genuinely ex-GST, so the name is accurate and the concept is the odd one |
+
+Five tables the brief never anticipated exist for features built since: `golive`, `build_pages`,
+`discharges`, `sites`, `login_codes`.
+
+### The lifecycle broke, and it had already caused a bug
+
+The brief treats `live` as terminal: `paid → intake → generating → preview → editing →
+go_live_pending → live → discharged | abandoned`. The enum still matches exactly.
+
+**It is no longer true.** A live customer editing their own site sets the status back to `editing`
+(`edits.ts`). `live` is not terminal and `jobs.status` cannot answer "is this site public".
+
+That was not theoretical. `/ops` computed its waiting list as
+`status !== 'live' && status !== 'discharged'`, so **every customer who went live and then changed
+something reappeared on the go-live waiting list**, with an hours-waiting counter climbing, on the
+screen whose only job is telling Chris who needs a phone call. Fixed to read the `sites` table,
+which is the fact that matters. Same reasoning as `editPhaseFor`.
+
+**The rule to carry forward: `jobs.status` is a workflow position, not a statement about the
+internet. Anything asking "is this live" reads `sites.live`.**
+
+## D66 - extra-edits is removed, not priced. Running out means going live.
+
+**2026-08-26. Chris's call.** The $42.90 tier includes ten changes a month, so selling five more
+pre-launch rounds stopped making sense: the honest answer to "I have used my ten" is now "go live,
+and you get ten a month from that day", not "pay us more to keep drafting".
+
+Removed entirely: the `PriceKey`, the `PRICING` entry, `EXTRA_EDITS_QUANTITY`, the order handler
+branch that granted them, the store-title mapping, and the endpoint that quoted the price. There is
+no dark path left quoting a number that does not exist.
+
+**Running out still does not hard block** (brief s7, D5). A customer who sends another change
+anyway gets it made and Chris is told the same day. Running out is a prompt to finish, not a wall.
+
+**The product configuration is now completely clean.** `productConfigProblems` returns an empty
+array for the first time, and two tests assert that rather than having been deleted, because
+"there is nothing left to configure" is a fact worth knowing when it stops being true.
+
+## D67 - No $110 post-live edit in the DIY flow.
+
+**2026-08-26. Chris's call.** The go-live confirmation screen, the last thing a customer read
+before paying, said *"Changes after you are live are handled by our team. Website update after
+launch: $110.00 inc GST"* to somebody who had just bought the tier including ten self-serve changes
+a month. It contradicted the landing page, the comparison section and the product itself.
+
+Now: *"Changes after you go live. Included. You get 10 changes a month, and you make them yourself
+in the same chat box you used to build it."* The number comes from `shared/allowance.ts` so it
+cannot drift from what the editor enforces.
+
+**The product is NOT archived.** It stays on the store because Chris's other website customers use
+it, and because a legacy $33 subscriber genuinely has no editor. It simply has nothing to do with
+the DIY path, and the only remaining reference is inbound order parsing so a legacy order is still
+recognised.
+
+## D68 - A cancelled customer's site comes down after 60 days.
+
+**2026-08-26. Chris's call**, closing the policy question left open in D63.
+
+```
+DAY 0    Cancellation received. Site stays up and keeps serving. Editing stops.
+DAY 30   Warning. Still up.
+DAY 53   A week to go.
+DAY 59   Tomorrow.
+DAY 60   The site stops serving.
+```
+
+**Editing ends at cancellation** because that is the thing they stopped paying for. **The site does
+not**, because taking a business website offline the hour a card bounces is not a decision a
+webhook should make.
+
+**Nothing is ever deleted.** Takedown flips `sites.live` to false, which stops
+`findSiteByHostname` answering. The build, every version, the plan and the images stay exactly
+where they are. A customer who resubscribes in month four, or pays for a discharge in year two, is
+somebody who can still be helped. Proven against real storage: the document is still readable after
+takedown.
+
+**Resubscribing before day 60 undoes everything with no intervention.** Every date is derived from
+one field, `golive.hostingEndedAt`, so clearing it IS cancelling the takedown. There is no second
+place a stale countdown could survive. A site already dark comes back up.
+
+**Discharge stays available throughout, including after takedown.** They paid $220 for the build
+and the files are theirs to buy. Verified: the discharge route never consults live state.
+
+**Only a confirmed cancellation starts the clock.** `hostingStatus` defaults to `'unknown'` and a
+failed payment is not a cancellation, because Shopify retries and cards recover. Both proven.
+
+**Warnings are sent BEFORE any takedown is considered**, in the same sweep pass, so a site cannot
+go dark without its last warning even if the sweep has been down for a fortnight and catches up in
+one run. And a catch-up sends only the LATEST warning, not four at once: somebody who has heard
+nothing for two weeks should get "your site comes down tomorrow", not a pile of history.
+
+**Visible in `/ops` before it happens**, at `GET /api/admin/takedowns`, with days remaining. A list
+that only appeared after a site went dark would be a log, not a safeguard.
+
+**One metric, four stages.** `Website Hosting Ending`, told apart by `stage`. The headline and body
+are computed in `shared/takedown.ts` and travel in the payload, so the wording of a message that
+ends with a website going offline lives in one place beside the clock that drives it, not in four
+Klaviyo templates that can drift apart. Every warning says how to stop it, names the date, and says
+nothing has been deleted.
+
+**Proven:** `test/takedown.test.ts` (18 assertions on the clock, both sides of every edge) and
+`scripts/proof-takedown.mjs` (24 assertions against a real database and real storage, including
+that day 59 is not a takedown, that the bytes survive, and that resubscribing at 45 days cancels
+it).
+
+**FOR SIGN-OFF:** the four warning emails in `shared/takedown.ts` are customer-facing copy Chris
+has not read. Same status as D62.
+
+## D69
+
+**A page the customer paid for must be allocated before the build runs, and the check that
+guards it reads the entitlement rather than the choice.**
+
+Found in a dress rehearsal on 2026-08-26, job `job_03b9657cf7f24757828ab158`. The tester bought
+four additional pages, scrolled past the picker without choosing any, and got a one page website.
+Every stage reported success.
+
+The purchase chain was correct throughout: `pages.granted {granted: 4, pagesAllowed: 5}`. What was
+empty was `intake.ownPageServices`, and nothing objected. `pagesDeliveredCheck` compared the
+delivered pages against the services the customer had CHOSEN, so an empty choice had nothing
+missing from it and the check passed, reporting "0 paid page(s) requested, 0 built".
+
+Two changes, and both are needed. `unallocatedPages()` in `shared/intake.ts` is one rule used by
+the wizard and by the submit route, and submit returns 422 rather than building short.
+`pagesDeliveredCheck` now takes `pagesAllowed` and fails when pages were bought and never
+allocated.
+
+`pagesAllowed` is a REQUIRED argument on purpose. Optional would have restored the bug the first
+time a call site forgot it, which is the same shape of hole the check itself was.
+
+**Why the tests missed it:** every case in `test/paidpages.test.ts` populated `paidPageServices`.
+The single case passing an empty array also passed an allowance of one, where empty is correct.
+Nothing asserted on the combination that actually shipped. It does now.
+
+## D70
+
+**Accent blue is a background colour. Accent text on a light ground uses `--color-polar-accent-ink`.**
+
+The same rehearsal reported that text in the chat box could not be read. Measuring the running app
+rather than reasoning about it: white on `#38b6ff` is 2.26:1, against the 4.5:1 AA asks for. That
+was `.btn-accent`, so every primary button in the product, and `.chip-on`. `.eyebrow` was the same
+blue as 11px ink on white, also 2.26:1.
+
+`#38b6ff` is unchanged, because it is the value read off itscold.com.au. Buttons now carry
+near-black labels, which measures 8.77:1 on the real rendered button. Accent-coloured TEXT uses
+`--color-polar-accent-ink: #1f6690`, the same hue taken down to 6.25:1. Darkening the background
+blue enough for white to pass would have taken it to `#267cad`, which is a different brand colour.
+
+Two dead utility classes were found the same way and are worth recording, because neither failed
+any build: `bg-accent` on the generation progress bar (the token is `polar-accent`, so the fill
+was transparent and the bar had no colour at all, which is exactly what the tester reported), and
+`text-ice-400` / `text-ice-600`, shades this palette does not define.
+
+## D71
+
+**The Web3Forms key is collected BEFORE the build, and it never blocks the build.**
+
+Third position for this task. Intake (D29) produced 59 submissions of email addresses and phone
+numbers, because at that point there is no website to care about. Go-live turned a payment into an
+errand. The editing page, which was the previous answer, is where the rehearsal tester stopped
+dead: the task arrived after the exciting part was over, beside a website he was already happy
+with, and read as an interruption.
+
+Before the build, it is one setup question among the setup questions, and the five to ten minutes
+of generation they are about to wait through is time to make the account.
+
+Everything that made the go-live version safe is kept: guided explanation, a link that opens
+web3forms.com in a new tab, validation that names what was pasted wrongly, and a live test
+submission that must actually arrive before a key is accepted. What is added is a skip: the build
+button is never disabled, and `InboxTask` still carries the reminder afterwards. Being trapped is
+the failure being fixed, so trapping people would be a worse bug than the one it replaces.
+
+The `why` copy is now written to be true in both places it appears. It previously opened with
+"Right now the enquiry forms on your website send to our account", which is false on a screen
+shown before the website exists.
+
+## D72
+
+**A logo is sized from its own dimensions.**
+
+The header emitted `width="180" height="44"` and the footer `width="240" height="70"`, both
+hardcoded. Those attributes are what the browser reserves space with, so a square logo was given a
+footer box 3.43:1 and looked squished. `logoBox()` in `server/lib/render/site.ts` computes the box
+from `facts.logo.width/height`, capped on both axes, and the CSS carries `object-fit:contain` so
+nothing can distort whatever the attributes say.

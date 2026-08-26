@@ -144,11 +144,26 @@ export function PhotoUploader({
   const [removing, setRemoving] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
 
+  /*
+   * PROGRESS IS COUNTED IN FILES FINISHED, NOT BYTES SENT.
+   *
+   * The uploads run one after another, so "3 of 8" is a fact this loop actually knows. A byte
+   * level bar would need XHR upload events instead of fetch, and a bar that eases to 90% and waits
+   * is a lie that makes a slow upload feel broken rather than slow. Photos off a phone are several
+   * megabytes each, so on a site van connection this runs for a while and the old version showed
+   * nothing but the word "Uploading".
+   */
+  const [progress, setProgress] = useState<{ done: number; total: number; name: string } | null>(null)
+
   const uploadMany = async (files: File[]) => {
+    const queue = files.slice(0, 20 - photos.length)
     setBusy(true)
     setError(null)
+    setProgress({ done: 0, total: queue.length, name: queue[0]?.name ?? '' })
+
     const added: AssetRecord[] = []
-    for (const file of files.slice(0, 20 - photos.length)) {
+    for (const [i, file] of queue.entries()) {
+      setProgress({ done: i, total: queue.length, name: file.name })
       try {
         const { stats } = await analyseUpload(file, 'photo')
         const { asset } = await api.uploadAsset(jobId, file, 'photo', stats)
@@ -160,9 +175,14 @@ export function PhotoUploader({
           }`,
         )
       }
+      // Counted after the attempt, so a file that failed still moves the bar. It is a measure of
+      // how far through the queue we are, not of how many worked.
+      setProgress({ done: i + 1, total: queue.length, name: file.name })
     }
+
     if (added.length > 0) onChange([...photos, ...added])
     setBusy(false)
+    setProgress(null)
   }
 
   /**
@@ -240,6 +260,26 @@ export function PhotoUploader({
             {busy ? 'Uploading' : 'Add photos'}
           </button>
         </div>
+
+        {progress ? (
+          <div className="mt-3" role="status" aria-live="polite">
+            <div className="flex items-baseline justify-between gap-2 text-xs text-ice-600">
+              <span className="truncate">{progress.name}</span>
+              <span className="shrink-0 tabular-nums">
+                {progress.done} of {progress.total}
+              </span>
+            </div>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-ice-100">
+              <div
+                className="h-full rounded-full bg-ice-700 transition-[width] duration-300"
+                style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }}
+              />
+            </div>
+            <p className="field-hint mt-1">
+              Big photos off a phone take a moment each. Leave this open until it finishes.
+            </p>
+          </div>
+        ) : null}
 
         {photos.length > 0 ? (
           <ul className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">

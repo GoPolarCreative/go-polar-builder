@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { formatAbn, isValidAbn, normaliseAbn } from '../shared/abn'
 import { formatAuPhone, normaliseAuPhone, phoneKind } from '../shared/phone'
 import {
-  EDITS_INCLUDED,
-  EXTRA_EDITS_QUANTITY,
+  type PriceKey,
   PRICING,
-  ProductNotOnStoreError,
   checkoutRef,
   exGstCents,
   formatPrice,
@@ -91,16 +89,27 @@ describe('AU phone numbers', () => {
 describe('pricing', () => {
   it('shows the number the customer is actually charged, labelled inc GST', () => {
     expect(formatPrice('build')).toBe('$220 inc GST')
-    expect(formatPrice('hosting')).toBe('$33/month inc GST')
+    expect(formatPrice('hosting')).toBe('$42.90/month inc GST')
     expect(formatPrice('email')).toBe('$14.95/month inc GST')
     expect(formatPrice('discharge')).toBe('$330 inc GST')
     expect(formatPrice('domain')).toBe('$5.50/month inc GST')
   })
 
-  it('refuses to show a price that has not been set', () => {
-    expect(PRICING.extraEdits.incGstCents).toBeNull()
-    expect(isPriceSet('extraEdits')).toBe(false)
-    expect(formatPrice('extraEdits')).toBeNull()
+  /*
+   * 'extraEdits' was the only unpriced product and it was removed in D66. The RULE it demonstrated
+   * still matters: a product with no price shows no number and no buy button, rather than a guess
+   * or a zero. Asserted against the registry as a whole so it holds for whatever is added next.
+   */
+  it('every product either has a real price or is honestly null, never zero', () => {
+    for (const [key, product] of Object.entries(PRICING)) {
+      if (product.incGstCents === null) {
+        expect(isPriceSet(key as PriceKey), key).toBe(false)
+        expect(formatPrice(key as PriceKey), key).toBeNull()
+      } else {
+        expect(product.incGstCents, key).toBeGreaterThan(0)
+        expect(formatPrice(key as PriceKey), key).toContain('inc GST')
+      }
+    }
   })
 
   it('prices the recurring products monthly, as decided', () => {
@@ -120,14 +129,14 @@ describe('pricing', () => {
   })
 
   it('keeps the ex-GST figure for the order records without ever showing it', () => {
-    expect(exGstCents('hosting')).toBe(3_000)
+    expect(exGstCents('hosting')).toBe(3_900)
     expect(exGstCents('domain')).toBe(500)
     expect(exGstCents('build')).toBe(20_000)
     expect(exGstCents('email')).toBe(1_359)
   })
 
   it('carries the real identifiers from the store, not the ones in the brief', () => {
-    expect(PRICING.hosting.ref).toBe('website-hosting-australia')
+    expect(PRICING.hosting.ref).toBe('diy-hosting-monthly')
     expect(PRICING.domain.ref).toBe('domain-1-year')
     expect(PRICING.email.ref).toBe('email-hosting')
   })
@@ -159,11 +168,14 @@ describe('how a product is identified', () => {
     expect(checkoutRef('discharge')).toBe('discharge')
   })
 
-  it('uses the handle for the three subscriptions, which are known', () => {
-    for (const key of ['hosting', 'domain', 'email'] as const) {
+  it('uses the handle for the two subscriptions whose handle is the stable identifier', () => {
+    // Hosting moved to a SKU on 2026-08-25 when the DIY tier replaced the $33 one (D54): its
+    // SKU was set deliberately, its handle was generated from a title nobody chose.
+    for (const key of ['domain', 'email'] as const) {
       expect(PRICING[key].refKind, key).toBe('handle')
     }
-    expect(checkoutRef('hosting')).toBe('website-hosting-australia')
+    expect(PRICING.hosting.refKind).toBe('sku')
+    expect(checkoutRef('hosting')).toBe('diy-hosting-monthly')
     expect(checkoutRef('domain')).toBe('domain-1-year')
   })
 
@@ -202,10 +214,12 @@ describe('how a product is identified', () => {
     }
   })
 
-  it('records the handle for the three subscriptions too, where it is the same thing', () => {
-    for (const key of ['hosting', 'domain', 'email'] as const) {
+  it('records the handle for the handle-identified subscriptions, where it is the same thing', () => {
+    for (const key of ['domain', 'email'] as const) {
       expect(PRICING[key].storeHandle, key).toBe(PRICING[key].ref)
     }
+    // Hosting is SKU-identified, so its handle and its ref are deliberately different.
+    expect(PRICING.hosting.storeHandle).toBe('diy-website-hosting')
   })
 
   it('all six products on the store are published, and none is flagged draft', () => {
@@ -215,34 +229,6 @@ describe('how a product is identified', () => {
   })
 })
 
-describe('products that do not exist on the store', () => {
-  // Only one left. The other three were created on 2026-08-19.
-  const NOT_CREATED = ['extraEdits'] as const
-
-  it('have no identifier at all, so nothing can quietly use one', () => {
-    for (const key of NOT_CREATED) {
-      expect(PRICING[key].ref, key).toBeNull()
-      expect(PRICING[key].store.exists, key).toBe(false)
-    }
-  })
-
-  it('throw by name when something tries to buy them', () => {
-    for (const key of NOT_CREATED) {
-      expect(() => checkoutRef(key), key).toThrow(ProductNotOnStoreError)
-    }
-  })
-
-  it('do not quote a price for the one that has no price', () => {
-    try {
-      checkoutRef('extraEdits')
-      expect.unreachable('should have thrown')
-    } catch (err) {
-      expect((err as Error).message).toMatch(/does not exist on the Shopify store/)
-      expect((err as Error).message).toContain('extra-edits')
-      expect((err as Error).message).not.toMatch(/\$\d/)
-    }
-  })
-})
 
 describe('the three one-off products, now published', () => {
   const ONE_OFF = ['build', 'postLiveEdit', 'discharge'] as const
@@ -272,47 +258,21 @@ describe('the three one-off products, now published', () => {
   })
 })
 
-describe('extra edits, the one thing still unpriced', () => {
-  // The claim being held down: its absence cannot block a launch, because it is unreachable until
-  // a customer has used all ten included rounds, and it shows nothing rather than a wrong number.
-  it('shows no price and no number anywhere', () => {
-    expect(PRICING.extraEdits.incGstCents).toBeNull()
-    expect(formatPrice('extraEdits')).toBeNull()
-    expect(isPriceSet('extraEdits')).toBe(false)
-  })
-
-  it('cannot be bought, and the refusal quotes no figure', () => {
-    expect(() => checkoutRef('extraEdits')).toThrow(ProductNotOnStoreError)
-    try {
-      checkoutRef('extraEdits')
-    } catch (err) {
-      expect((err as Error).message).not.toMatch(/\$\d/)
-    }
-  })
-
-  it('is only reachable after all ten included rounds are used', () => {
-    expect(EDITS_INCLUDED).toBe(10)
-    expect(EXTRA_EDITS_QUANTITY).toBe(5)
-  })
-
-  it('is the only gap that costs nothing today, and says so', () => {
-    const problem = productConfigProblems({}).find((p) => p.key === 'extraEdits' && p.needsDecision)!
-    expect(problem.breaks).toMatch(/nothing today/i)
-  })
-})
 
 describe('the startup configuration report', () => {
   it('names what is missing, product by product', () => {
     const problems = productConfigProblems({})
     const missing = problems.map((p) => p.missing)
 
-    // The one product that still does not exist.
-    expect(missing.some((m) => m.includes('extra-edits'))).toBe(true)
+    // Every product now exists on the store. 'extra-edits' was the last one that did not, and it
+    // was removed rather than created (D66).
+    expect(missing.some((m) => m.includes('extra-edits'))).toBe(false)
     // Nothing is in draft any more, so nothing should be reported as one.
     expect(missing.some((m) => /still a draft/.test(m))).toBe(false)
     // A selling plan id for each subscription, because Shopify refuses the line without one.
-    expect(missing).toContain('SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA')
-    expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY')
+    // The hosting variant id is recorded in pricing.ts, so it is not something to paste in.
+    expect(missing).not.toContain('SHOPIFY_VARIANT_DIY_HOSTING_MONTHLY')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_EMAIL_HOSTING')
   })
@@ -339,7 +299,7 @@ describe('the startup configuration report', () => {
     }
     // Variant ids alone are not enough. requiresSellingPlan means Shopify rejects the line.
     const missing = productConfigProblems(env).map((p) => p.missing)
-    expect(missing).toContain('SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA')
+    expect(missing).toContain('SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR')
     expect(missing).toContain('SHOPIFY_SELLING_PLAN_EMAIL_HOSTING')
 
@@ -357,10 +317,15 @@ describe('the startup configuration report', () => {
 
     const problems = productConfigProblems(env)
 
-    // One thing left in the whole configuration, and it is a price only Chris can set.
-    expect(problems.map((p) => p.key)).toEqual(['extraEdits', 'extraEdits'])
-    expect(problems.some((p) => p.needsDecision)).toBe(true)
-    expect(problems.every((p) => p.needsShopify || p.needsDecision)).toBe(true)
+    /*
+     * NOTHING IS LEFT. 'extraEdits' was the last outstanding item and it was removed rather than
+     * priced (D66): the $42.90 tier includes ten changes a month, so selling five more pre-launch
+     * rounds stopped making sense.
+     *
+     * Asserted as empty rather than deleted, because "the configuration is complete" is a fact
+     * worth keeping a test on. If a future product arrives unconfigured, this is what says so.
+     */
+    expect(problems).toEqual([])
   })
 })
 

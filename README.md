@@ -94,8 +94,7 @@ verification checks run, then the finished site appear in an iframe. From there:
 Watch the terminal while you do it. Every integration that would have fired prints a line:
 
 ```
-FAKE RESEND: would send "Your website build is ready to start" to jobs@coldfrontplumbing.com.au
-FAKE GHL: would fire "build_complete" into the CRM  [contact=... preview_link=...]
+FAKE KLAVIYO: would fire "build_purchased" so Klaviyo emails them  [to=jobs@coldfrontplumbing.com.au ...]
 FAKE SHOPIFY: would create a checkout  [jobId=job_... lines=website-hosting-australia]
 ```
 
@@ -126,7 +125,7 @@ Nothing deploys. Nothing bills. No email leaves the machine. No DNS record chang
 | 3 | 17 verification checks, repair loop, hold and notify | done |
 | 4 | Preview, edit loop, version history, rollback | done |
 | 5 | Go live, three domain branches, RDAP and DNS lookups, discharge | done |
-| 6 | Auth, Shopify, Resend, GHL, cron, demo mode, deploy-ready config | done, not deployed |
+| 6 | Auth, Shopify, Klaviyo, cron, demo mode, deploy-ready config | done, deployed |
 
 **278 unit tests.** Plus a 45-check end-to-end script and a verification self-test.
 
@@ -139,8 +138,7 @@ it is stubbed or silently skipped.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | real generation and edits | Clear error, or `DEV_OFFLINE_GENERATION=1` for the fixture |
 | `SHOPIFY_*` | checkout links, webhooks, reconciliation | Demo checkout locally; webhooks refuse; 503 naming the variable. **Six of seven products are live on the store; only extra-edits is unpriced: SHOPIFY-SETUP.md** |
-| `RESEND_API_KEY` | build links, receipts, handover | Printed to the terminal in demo mode; recorded as `email.failed` and retried otherwise |
-| `GHL_INBOUND_WEBHOOK_URL` | CRM notifications | Printed in demo mode; recorded as `ghl.failed`, never blocks a payment |
+| `KLAVIYO_API_KEY` | every customer email: build links, receipts, handover, recovery (D48) | Printed to the terminal in demo mode; recorded as `klaviyo.failed` and the build link retried by the sweep otherwise |
 | `DATABASE_URL` | Neon in production | Embedded PGlite locally |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob | Local folder |
 | `VERCEL_API_TOKEN` | attaching customer domains | Logged as a fake, nothing attached |
@@ -173,7 +171,7 @@ The generated sites share nothing with this app. They are single-file vanilla HT
 ## How it works
 
 ```
-Shopify orders/paid -> HMAC verified -> user + job created -> build token emailed -> GHL
+Shopify orders/paid -> HMAC verified -> user + job created -> Klaviyo emails the build link
   -> intake wizard, five steps, validated by one schema shared with the server
   -> uploads processed: original kept, web and thumbnail derivatives generated as WebP and JPEG
   -> gap audit (never blocks, always flags)

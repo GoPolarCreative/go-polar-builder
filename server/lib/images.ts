@@ -105,12 +105,26 @@ export async function processImage(
   if (kind === 'logo') {
     // Logos keep their alpha channel, so WebP and PNG rather than WebP and JPEG. A JPEG logo
     // would gain a white box on any coloured header.
-    const resized = sharp(Buffer.from(input), { failOn: 'none' }).resize({
-      width: LOGO_MAX_EDGE,
-      height: LOGO_MAX_EDGE,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
+    //
+    // .rotate() IS NOT OPTIONAL HERE, AND ITS ABSENCE SHIPPED MIRRORED LOGOS. This branch used to
+    // omit it while the photo branch below called it. Re-encoding strips the EXIF orientation tag
+    // either way, so without .rotate() the tag is dropped WITHOUT being applied: a logo saved with
+    // orientation 2, 4, 5 or 7 (the mirrored values, which is what you get from some phone
+    // screenshots and a few editors' "flip" tools) ships horizontally flipped, and the browser has
+    // no tag left to correct it with.
+    //
+    // Measured on a red-left/blue-right test image stamped orientation 2: without .rotate() the
+    // output kept red on the left, with .rotate() it correctly moved to the right. A wrong logo is
+    // worse than a sideways photo, because it is the one image on the page a customer recognises
+    // instantly and it appears in the header of every page.
+    const resized = sharp(Buffer.from(input), { failOn: 'none' })
+      .rotate()
+      .resize({
+        width: LOGO_MAX_EDGE,
+        height: LOGO_MAX_EDGE,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
 
     variants.push(await encode(resized.clone().webp({ quality: 90 }), 'web', 'webp'))
     variants.push(await encode(resized.clone().png({ compressionLevel: 9, palette: true }), 'web', 'png'))

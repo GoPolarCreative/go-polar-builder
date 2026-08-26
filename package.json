@@ -28,7 +28,8 @@
     "vercel:env": "node scripts/make-vercel-env.mjs",
     "check:imports": "node scripts/add-import-extensions.mjs --check",
     "vercel:push": "node scripts/push-env.mjs",
-    "compare": "node scripts/model-compare.mjs"
+    "compare": "node scripts/model-compare.mjs",
+    "demos": "tsx scripts/build-demos.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.5",

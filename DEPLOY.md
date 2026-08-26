@@ -21,8 +21,7 @@ does not work, so gather it first.
 | Vercel account, **Pro plan** | vercel.com | Hobby will not do: no cron, 10s function limit |
 | Anthropic API key | console.anthropic.com | Billing enabled. This is what writes the sites |
 | Shopify admin on itscold.com.au | admin.shopify.com | For the webhook and the product ids |
-| Resend account | resend.com | Sending domain verified for itscold.com.au |
-| GoHighLevel inbound webhook URL | GHL → Automation | Optional. Notifications only |
+| Klaviyo account | klaviyo.com | Sends every customer email (D48). Owns the verified sending domain for itscold.com.au |
 | DNS access for **itscold.com.au** | wherever the domain lives | To add one CNAME |
 
 **And three Shopify products sitting in draft.** They exist and are priced correctly, but a draft
@@ -194,9 +193,8 @@ does not sell. See DECISIONS.md D38.
 
 | Variable | Where |
 | --- | --- |
-| `RESEND_API_KEY` | resend.com → API Keys |
-| `RESEND_FROM` | `Go Polar Creative <build@itscold.com.au>`. The domain must be verified in Resend or every send bounces |
-| `GHL_INBOUND_WEBHOOK_URL` | GoHighLevel → Automation → inbound webhook trigger |
+| `KLAVIYO_API_KEY` | Klaviyo → Settings → API Keys. Private key with write access to events. Klaviyo sends every customer email; there is no other email path |
+| `OPERATOR_EMAIL` | Where operator alerts land (go-live requests). Defaults to hello@itscold.com.au |
 | `VERCEL_API_TOKEN` | vercel.com/account/tokens. Attaches customer domains to the project |
 | `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID` | Project → Settings → General |
 | `CRON_SECRET` | Generate another random hex string. Bearer secret on the cron endpoint |
@@ -264,7 +262,7 @@ install it, and get a 403 on everything, because there is no released version.
    | --- | --- | --- |
    | `read_orders` | The hourly sweep lists recently paid orders and processes any whose webhook never arrived | A dropped webhook stays dropped forever. The customer paid, got no build link, and nothing ever notices |
    | `read_products` | Reads each product's status and its selling plan billing policy before building any checkout link | The store checks report "cannot verify" instead of passing. A product that has been unpublished, or a subscription silently billing yearly, is no longer caught |
-   | `unauthenticated_write_checkouts` | Builds a real cart through the Storefront API | A cart permalink carries only **one** selling plan, so a customer taking hosting **and** email cannot be expressed as a link. The app refuses that checkout and says why rather than dropping a line from their order |
+   | `unauthenticated_write_checkouts` | Builds a real cart through the Storefront API | **Nothing subscription can be sold without it.** A cart permalink carries *no* selling plan at all: Shopify answers "Variant can only be purchased with a selling plan" for a subscription variant even with the correct plan id on the URL (measured against this store, 2026-08-22). Hosting, domain and email are all subscriptions, so without this scope there is no working checkout — the app refuses and names this token rather than sending a customer to a Shopify error page |
 
    **No write scopes on the Admin API.** This app never creates, edits or deletes anything on the
    store and never reads a customer record. Anything not in that table stays unticked.
@@ -484,15 +482,16 @@ What each step separates out:
 | 1. Shopify sent the webhook | Did anything at all reach the deployment? | Webhook not registered, wrong URL, or the deployment was down |
 | 2. Signature verified | Did HMAC pass? | `SHOPIFY_WEBHOOK_SECRET` wrong or unset, or `DEMO_MODE` still 1 so webhooks are inert |
 | 3. Job created | Did the order become a user and a job? | The line item matched no known product, usually a changed SKU. The trace prints what arrived |
-| 4. Build link emailed | Did Resend accept it? | Sending domain not verified, `RESEND_API_KEY` unset, or `ENABLE_LIVE_EMAIL` still 0 |
+| 4. Build link emailed | Did Klaviyo accept the event? | `KLAVIYO_API_KEY` unset, `ENABLE_LIVE_EMAIL` still 0, or the flow on "Website Build Purchased" is off in Klaviyo |
 
 A step reading `waiting` rather than `failed` means it never got that far, so fix the earliest
 `failed` step and buy again. Steps 1 and 2 work without the `email` parameter, so you can check
 whether webhooks are arriving at all before an order exists.
 
-**Step 4 saying "ok" but no email in the inbox** means Resend accepted it and delivery is Resend's
-problem: check spam, then Resend's own delivery log. The hourly sweep retries failed sends, so a
-transient failure fixes itself.
+**Step 4 saying "ok" but no email in the inbox** means Klaviyo accepted the event and the send is
+Klaviyo's to explain: check spam, then the flow's activity feed in Klaviyo. An accepted event with
+no send usually means the flow on that metric is off or filtered. The hourly sweep re-fires a
+missing build link, so a transient failure fixes itself.
 
 ### The raw event log
 
@@ -595,8 +594,8 @@ older deployment runs fine against a newer database.
 - **Hobby plan.** No cron, and a 10 second function limit that generation blows through immediately.
 - **`DEMO_MODE` left at `1`.** Everything appears to work and nothing is real: fake checkouts, fake
   emails, fake CRM. The front page says `Demo mode: on`.
-- **Resend domain not verified.** Sends are accepted and then bounce. Verify itscold.com.au in Resend
-  before the smoke test.
+- **Klaviyo flow not live.** Events are accepted (the API says 202) and no email ever sends,
+  because the flow on the metric is in draft or off. Check each flow is live before the smoke test.
 - **Neon in a US region.** Every wizard step is a round trip. It will feel slow and you will blame
   the app.
 - **`ANTHROPIC_API_KEY` set as a Vite variable.** It must be a plain environment variable. Anything

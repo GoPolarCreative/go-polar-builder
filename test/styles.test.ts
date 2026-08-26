@@ -75,12 +75,12 @@ function differences(a: ReturnType<typeof signals>, b: ReturnType<typeof signals
 
 describe('every style still produces a valid site', () => {
   for (const style of NAMED_STYLES) {
-    it(`${style}: passes all thirteen static checks`, async () => {
+    it(`${style}: passes all fourteen static checks`, async () => {
       const { html, facts } = built[style]
       const results = await runStaticChecks(html, facts)
       const failed = results.filter((r) => r.status === 'fail')
       expect(failed.map((f) => `${f.id}: ${f.detail}`)).toEqual([])
-      expect(results).toHaveLength(13)
+      expect(results).toHaveLength(14)
     })
 
     it(`${style}: passes verification overall`, async () => {
@@ -148,18 +148,54 @@ describe('the four styles are materially different', () => {
     }
   })
 
-  it('every style builds the SAME skeleton, because that is what the reference sites do', () => {
-    // gildonconstructions.com.au, naarmearthmoving.com.au, summithvacr.com.au and
-    // turquoiseplumbing.com.au run the same sections in the same order. The skeleton is the house
-    // style; the treatment is the choice. A style that reordered sections would be a different
-    // studio, not a different mood.
+  it('the four styles do NOT share a section order', () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the point.
+    //
+    // It read "every style builds the SAME skeleton, because that is what the reference sites
+    // do", which was true of the four sites Chris hand built and became the excuse for shipping
+    // one page in four skins. A customer picking "the look of your site" was picking a typeface.
+    // DECISIONS.md D40 recorded the old rule; it has been reversed deliberately.
     const sectionsOf = (html: string) =>
       [...html.matchAll(/<section[^>]*id="([a-z-]+)"/g)].map((m) => m[1])
 
-    const reference = sectionsOf(built.industrial.html)
-    expect(reference.length).toBeGreaterThan(6)
+    const orders = NAMED_STYLES.map((style) => sectionsOf(built[style].html))
+    for (const order of orders) expect(order.length).toBeGreaterThan(6)
+
+    // Every pair has to differ. Two styles with the same order are one style.
+    for (let i = 0; i < orders.length; i++) {
+      for (let j = i + 1; j < orders.length; j++) {
+        expect(
+          orders[i]!.join(),
+          `${NAMED_STYLES[i]} and ${NAMED_STYLES[j]} render sections in the same order`,
+        ).not.toEqual(orders[j]!.join())
+      }
+    }
+  })
+
+  it('no style loses a section by reordering', () => {
+    // Reordering must not silently drop content. Every style has to carry the same SET of
+    // sections, whatever order it puts them in, with the one intended exception: a hero that
+    // holds the form has no separate quote section, because that would be the same card twice.
+    const setOf = (html: string) =>
+      new Set([...html.matchAll(/<section[^>]*id="([a-z-]+)"/g)].map((m) => m[1]))
+
     for (const style of NAMED_STYLES) {
-      expect(sectionsOf(built[style].html), style).toEqual(reference)
+      const ids = setOf(built[style].html)
+      for (const required of [
+        'top',
+        'about',
+        'services',
+        'work',
+        'why',
+        'stats',
+        'process',
+        'areas',
+        'reviews',
+        'faq',
+        'contact',
+      ]) {
+        expect(ids.has(required), `${style} is missing the ${required} section`).toBe(true)
+      }
     }
   })
 
@@ -169,9 +205,14 @@ describe('the four styles are materially different', () => {
     for (const style of NAMED_STYLES) {
       const html = built[style].html
       expect(html, style + ': eyebrow labels').toContain('class="eyebrow"')
-      expect(html, style + ': enquiry form inside the hero').toMatch(
-        /<section class="hero"[\s\S]*?class="card-form"[\s\S]*?<\/section>/,
-      )
+      // NOT "a form inside the hero" any more. Two of the four now have a hero with no form on
+      // it at all, which is the point of offering the choice. What must stay true is that the
+      // page carries two forms wherever they sit, because checks/static.ts requires it and
+      // because one form at the very bottom is a worse site.
+      expect(
+        (html.match(/<form/g) ?? []).length,
+        style + ': needs two enquiry forms, wherever the style puts them',
+      ).toBeGreaterThanOrEqual(2)
       expect(html, style + ': hero photo scrim').toContain('hero__scrim')
       expect(html, style + ': trust bar').toContain('class="trust-item"')
       expect(html, style + ': service card icons').toContain('class="card__icon"')

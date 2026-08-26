@@ -57,8 +57,8 @@ export function StylePicker({
     <div>
       <span className="field-label">The look of your site</span>
       <p className="field-hint mb-3">
-        Same information, same photos, same colours. This is about the shape of it. Have a look at
-        the pictures rather than the words.
+        Four different layouts, not four colour schemes: the sections, the order they come in and
+        the hero are all different. Open a preview rather than reading the words.
       </p>
 
       <button
@@ -92,34 +92,62 @@ export function StylePicker({
           const selected = value === option.id
           const isSuggested = suggested === option.id
           return (
-            <button
+            // A div, not a button, because the card now holds a link. An anchor inside a button
+            // is an interactive element inside an interactive element: browsers unnest it and the
+            // tap picks the style instead of opening the demo. The whole card still selects, and
+            // the real button underneath keeps the keyboard and the pressed state honest.
+            <div
               key={option.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => onChange(option.id)}
-              className={`rounded-xl border-2 p-4 text-left transition ${
+              className={`flex flex-col rounded-xl border-2 p-4 transition ${
                 selected
                   ? 'border-polar-accent bg-polar-accent/5'
                   : 'border-ice-200 bg-white hover:border-ice-400'
               }`}
             >
-              <StyleThumb id={option.id} palette={palette} />
-              <span className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{option.label}</span>
-                {isSuggested && trade ? (
-                  <span className="rounded-full bg-ice-100 px-2 py-0.5 text-xs text-ice-600">
-                    Often suits {TRADE_LABELS[trade].toLowerCase()}s
-                  </span>
-                ) : null}
-              </span>
-              <span className="mt-1 block text-sm text-ice-600">{option.blurb}</span>
-            </button>
+              <button
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onChange(option.id)}
+                className="flex-1 text-left"
+              >
+                <StyleThumb id={option.id} palette={palette} />
+                <span className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="font-semibold">{option.label}</span>
+                  {isSuggested && trade ? (
+                    <span className="rounded-full bg-ice-100 px-2 py-0.5 text-xs text-ice-600">
+                      Often suits {TRADE_LABELS[trade].toLowerCase()}s
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-1 block text-sm text-ice-600">{option.blurb}</span>
+              </button>
+
+              {/*
+                A new tab, not a modal. A whole website squeezed into a dialog on a 390px phone is
+                a worse look at it than the thumbnail above, and leaving the wizard in place means
+                nothing typed so far is at risk. min-h-11 because this is a tap target.
+              */}
+              <a
+                href={`/demo/${option.id}.html`}
+                target="_blank"
+                rel="noopener"
+                className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-ice-300 px-3 text-sm font-semibold text-ice-700 transition hover:border-ice-500 hover:bg-ice-50"
+              >
+                Preview this look
+                <span aria-hidden="true">↗</span>
+                <span className="sr-only">, opens an example website in a new tab</span>
+              </a>
+            </div>
           )
         })}
       </div>
 
       {error ? <span className="field-error">{error}</span> : null}
       <p className="field-hint mt-3">
+        The previews are one made-up electrician, built four ways. Your site uses your own words,
+        photos and the colours sampled from your logo.
+      </p>
+      <p className="field-hint">
         You can change this later. Asking for a different look after the site is built counts as one
         of your changes.
       </p>

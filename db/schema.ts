@@ -248,9 +248,28 @@ export const edits = pgTable(
     prompt: text('prompt'),
     diffSummary: text('diff_summary'),
     counted: boolean('counted').notNull().default(true),
+    /*
+     * WHICH ALLOWANCE THIS EDIT CAME OUT OF.
+     *
+     * 'prelaunch' spends one of the lifetime ten on jobs.editsUsed, before the site is live and
+     * before hosting is charged.
+     * 'live' spends one of the ten included with hosting that month.
+     *
+     * The monthly figure is COUNTED off these rows rather than stored in a column, so this is
+     * not a denormalised copy of anything. It is the only record of which bucket was used. See
+     * shared/allowance.ts.
+     *
+     * Defaulting to prelaunch is correct for every row that already exists: nothing was live
+     * when they were written.
+     */
+    phase: text('phase').notNull().default('prelaunch'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('edits_job_idx').on(t.jobId, t.createdAt)],
+  (t) => [
+    index('edits_job_idx').on(t.jobId, t.createdAt),
+    // The monthly allowance query filters on all three of these.
+    index('edits_phase_idx').on(t.jobId, t.phase, t.createdAt),
+  ],
 )
 
 export const domains = pgTable(
@@ -262,6 +281,15 @@ export const domains = pgTable(
       .references(() => jobs.id),
     name: text('name').notNull(),
     branch: domainBranch('branch').notNull(),
+    /*
+     * WHERE THE CUSTOMER SAYS IT IS REGISTERED, in their words, not ours.
+     *
+     * whois below is what the internet says. This is what the person says, and the two are
+     * different facts. A WHOIS record shows the reseller, which for most Australian tradies is
+     * not the brand on the login page they will actually have to open. The operator alert reads
+     * this one, because the first question on that phone call is "where do we log in".
+     */
+    registrar: text('registrar'),
     whois: jsonb('whois'),
     mx: jsonb('mx'),
     status: text('status').notNull().default('queued'),
@@ -283,6 +311,21 @@ export const golive = pgTable('golive', {
   checkoutCreatedAt: timestamp('checkout_created_at', { withTimezone: true }),
   paidAt: timestamp('paid_at', { withTimezone: true }),
   status: goliveStatus('status').notNull().default('selecting'),
+  /*
+   * IS THE HOSTING SUBSCRIPTION STILL BEING PAID FOR?
+   *
+   * 'active'    billing normally.
+   * 'cancelled' the customer cancelled, or billing failed and the subscription ended.
+   * 'unknown'   no subscription webhook has ever been seen for this job. The honest default:
+   *             absence of a cancellation is not evidence of a payment, and treating it as one
+   *             would lock out every customer who predates this column.
+   *
+   * Editing and publishing are refused while cancelled. The live SITE is deliberately left
+   * alone: taking a tradie offline the hour their card bounces is a decision for a person, not
+   * a webhook. See DECISIONS.md D63 for the policy question this leaves open for Chris.
+   */
+  hostingStatus: text('hosting_status').notNull().default('unknown'),
+  hostingEndedAt: timestamp('hosting_ended_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -377,4 +420,40 @@ export const events = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('events_job_idx').on(t.jobId, t.createdAt), index('events_type_idx').on(t.type, t.createdAt)],
+)
+
+/**
+ * One-time sign-in codes for a returning customer.
+ *
+ * SIX DIGITS EMAILED, NOT A LINK. Chris's call, and it is the right one for this audience: a
+ * tradie on a phone reading a link has to leave the browser for the mail app and come back, and
+ * whatever they had open is often gone by the time they do. A code is read once and typed into
+ * the screen they are already looking at.
+ *
+ * A CODE IS ONLY AS GOOD AS ITS CONSTRAINTS, which is why this is a table and not a cache entry.
+ * Six digits is a million possibilities, and a million is nothing to a script: everything that
+ * makes this safe is written down here rather than assumed.
+ *
+ *   codeHash      the code is never stored. Same treatment as tokens.
+ *   email         the code opens jobs belonging to THIS address and no other.
+ *   attempts      counted, and the row is dead once it passes the limit.
+ *   consumedAt    single use. A code that worked cannot work twice.
+ *   expiresAt     ten minutes.
+ *
+ * Rows are kept after use rather than deleted, because the send rate limit counts recent rows for
+ * an address, and deleting them would hand an attacker an unlimited mail bomb.
+ */
+export const loginCodes = pgTable(
+  'login_codes',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    /** SHA-256 of the six digits. The code itself only ever exists in the email. */
+    codeHash: text('code_hash').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('login_codes_email_idx').on(t.email, t.createdAt)],
 )

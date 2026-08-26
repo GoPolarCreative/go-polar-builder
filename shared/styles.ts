@@ -61,8 +61,8 @@ export const DESIGN_STYLE_OPTIONS: DesignStyleOption[] = [
   },
   {
     id: 'auto',
-    label: 'Not sure, pick for me',
-    blurb: 'We will choose the one that suits your trade and your logo. Most people pick this.',
+    label: 'Most popular',
+    blurb: 'You decide for me. We pick the layout that suits your trade and your logo. Most people choose this.',
     suits: [],
     recommended: true,
   },
@@ -110,12 +110,71 @@ export type NumberTreatment = 'corner-small' | 'large-faint' | 'none'
  *   established -> gildonconstructions.com.au navy, gold and cream, sentence case, alternating
  *   modern      -> turquoiseplumbing.com.au   Space Grotesk, light and generous, two-tone
  *
- * The section SKELETON does not vary between them. What varies is palette, heading case and
- * weight, and density. That is the whole insight, and it is why these are values rather than
- * separate templates: one renderer, four treatments. See DECISIONS.md D40.
+ * THE SKELETON USED TO BE FIXED, AND IS NOT ANY MORE. The original reading of those four sites
+ * was that they run the same sections in the same order, so style was palette, heading case and
+ * density only: one renderer, four treatments, recorded as DECISIONS.md D40.
+ *
+ * That was true of the reference sites and wrong as a product. Four skins on one skeleton meant
+ * a customer choosing "the look of your site" was choosing a typeface, and the four previews
+ * looked like the same website four times. Each spec now carries a LayoutSpec: which sections
+ * appear, in what order, which of three heroes, and whether the dark bands hold still while the
+ * page scrolls. D40 is reversed; see the note there.
  */
+/**
+ * The sections a page is built from, in no particular order: the order is the style's business.
+ *
+ * 'quote' is the hero's form card standing on its own. A style whose hero has no form still has
+ * to have two forms on the page, because checks/static.ts form_action requires it and because one
+ * form at the very bottom is a worse site. So the card is not deleted, it is moved.
+ */
+export const SECTION_KEYS = [
+  'trust',
+  'about',
+  'services',
+  'quote',
+  'work',
+  'why',
+  'stats',
+  'process',
+  'areas',
+  'reviews',
+  'faq',
+  'contact',
+] as const
+export type SectionKey = (typeof SECTION_KEYS)[number]
+
+/**
+ * The structural half of a style.
+ *
+ * WHY THIS EXISTS. Until now a StyleSpec was fonts, spacing, radius and surfaces, and the eleven
+ * body sections were hardcoded in one fixed order. Four styles meant one page in four skins, and
+ * a customer choosing "the look of your site" was choosing a typeface. This is the part that
+ * actually changes the shape.
+ */
+export interface LayoutSpec {
+  /**
+   * Whether the quote form card sits inside the hero. False moves it to its own 'quote' section,
+   * placed wherever the order puts it, and gives the hero back to the headline and the photo.
+   */
+  heroForm: boolean
+  /**
+   * split    copy left, form or photo right. The busy, everything-above-the-fold hero.
+   * centred  one column, centred, CTAs under the headline. Nothing competing with the h1.
+   * editorial  copy over a full-bleed photo with a wide bottom margin. Quietest of the three.
+   */
+  hero: 'split' | 'centred' | 'editorial'
+  /**
+   * Fixed-attachment backgrounds on the dark bands. Switched off under prefers-reduced-motion and
+   * on touch, where iOS has never supported it and renders a jumping, badly cropped image.
+   */
+  parallax: boolean
+  /** Which sections appear, and in what order. */
+  order: SectionKey[]
+}
+
 export interface StyleSpec {
   id: NamedStyleId
+  layout: LayoutSpec
   /** The site this was measured from, so a future change can go and look again. */
   reference: string
   /** Google Fonts query, the only external request a generated site makes. */
@@ -163,6 +222,15 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
   // naarmearthmoving.com.au. Near-black on near-black, one cold accent, condensed caps shouting.
   industrial: {
     id: 'industrial',
+    // Plant and machinery. The headline gets the hero to itself over a full-bleed photo, the
+    // work comes before the talking, and the dark bands hold still while the page moves over
+    // them. About is near the bottom: this style sells the jobs, not the founder.
+    layout: {
+      hero: 'centred',
+      heroForm: false,
+      parallax: true,
+      order: ['trust', 'services', 'work', 'stats', 'why', 'quote', 'process', 'areas', 'reviews', 'faq', 'about', 'contact'],
+    },
     reference: 'naarmearthmoving.com.au',
     fontsQuery: 'family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700',
     headingFamily: '"Bebas Neue", Impact, sans-serif',
@@ -202,6 +270,15 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
   // summithvacr.com.au. Navy and a hot accent, everything centred, high contrast, consumer trade.
   direct: {
     id: 'direct',
+    // Fast and easy to ring. Centred hero with the form right under the headline, then services
+    // and a second form almost immediately. Somebody who wants a plumber now should not have to
+    // scroll past a founder story to find the box.
+    layout: {
+      hero: 'centred',
+      heroForm: true,
+      parallax: true,
+      order: ['trust', 'services', 'quote', 'work', 'reviews', 'why', 'stats', 'about', 'process', 'areas', 'faq', 'contact'],
+    },
     reference: 'summithvacr.com.au',
     fontsQuery: 'family=Oswald:wght@500;600;700&family=Poppins:wght@400;500;600;700',
     headingFamily: 'Oswald, "Arial Narrow", sans-serif',
@@ -244,6 +321,14 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
   // gildonconstructions.com.au. Navy, gold and cream, sentence case, alternating light sections.
   established: {
     id: 'established',
+    // Settled and premium. An editorial hero with no form on it at all, then the reviews third,
+    // because this style is selling reputation before it sells a service list. Nothing moves.
+    layout: {
+      hero: 'editorial',
+      heroForm: false,
+      parallax: false,
+      order: ['trust', 'about', 'reviews', 'services', 'quote', 'work', 'why', 'process', 'areas', 'stats', 'faq', 'contact'],
+    },
     reference: 'gildonconstructions.com.au',
     fontsQuery: 'family=Poppins:wght@400;500;600;700;800',
     headingFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -286,6 +371,14 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
   // turquoiseplumbing.com.au. Light and generous, Space Grotesk, the two-tone device everywhere.
   modern: {
     id: 'modern',
+    // The busy one, and the only one that keeps the form in the hero. Everything above the
+    // fold: headline, trust points and a form you can start filling without scrolling.
+    layout: {
+      hero: 'split',
+      heroForm: true,
+      parallax: false,
+      order: ['trust', 'about', 'services', 'work', 'why', 'stats', 'process', 'areas', 'reviews', 'faq', 'contact'],
+    },
     reference: 'turquoiseplumbing.com.au',
     fontsQuery: 'family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;700',
     headingFamily: '"Space Grotesk", system-ui, sans-serif',

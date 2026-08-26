@@ -37,10 +37,10 @@ describe('a known good document', () => {
     expect(failed.map((f) => `${f.id}: ${f.detail} ${JSON.stringify(f.evidence ?? [])}`)).toEqual([])
   })
 
-  it('returns all thirteen static checks, with no duplicates', async () => {
+  it('returns all fourteen static checks, with no duplicates', async () => {
     const results = await runStaticChecks(fixture.html, fixture.facts)
-    expect(results).toHaveLength(13)
-    expect(new Set(results.map((r) => r.id)).size).toBe(13)
+    expect(results).toHaveLength(14)
+    expect(new Set(results.map((r) => r.id)).size).toBe(14)
   })
 
   it('uses picture elements with a webp source and a jpeg fallback', () => {
@@ -94,6 +94,23 @@ const BREAKAGES: Array<{ id: CheckId; name: string; mutate: (html: string) => st
     id: 'single_h1',
     name: 'a second h1',
     mutate: (h) => h.replace('<h2>Get in touch</h2>', '<h1>Get in touch</h1>'),
+  },
+  {
+    // The real one, seen in production: the header section and the footer section each emit a
+    // bar. Both are valid markup on their own, so nothing else in the suite notices, and the
+    // page renders one copy clipped behind the fixed header and one in the right place.
+    id: 'single_mobile_bar',
+    name: 'a second mobile sticky bar emitted after the header',
+    mutate: (h) =>
+      h.replace(
+        '</header>',
+        '</header><div class="mobile-bar"><a class="mobile-bar__call" href="tel:+61400000000">Call now</a></div>',
+      ),
+  },
+  {
+    id: 'single_mobile_bar',
+    name: 'no mobile sticky bar at all',
+    mutate: (h) => h.replace('<div class="mobile-bar">', '<div class="not-the-bar">'),
   },
   {
     id: 'heading_hierarchy',

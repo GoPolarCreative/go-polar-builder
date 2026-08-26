@@ -2,7 +2,7 @@ import type { AuditFlag } from '../../shared/types.js'
 import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
 import type { IntakePayload } from '../../shared/intake.js'
 import { TRADE_LABELS, TRADE_SCHEMA_TYPE } from '../../shared/trades.js'
-import { resolveDesignStyle } from '../../shared/styles.js'
+import { resolveDesignStyle, styleSpec } from '../../shared/styles.js'
 import { slugify } from './pages.js'
 import { renderSite } from './render/site.js'
 
@@ -160,7 +160,18 @@ export function offlinePlan(
       ink: '#16191d',
       inkMuted: '#5b646e',
       surface: '#ffffff',
-      surfaceAlt: '#f4f6f8',
+      // THE ALTERNATING BAND TAKES ITS TEMPERATURE FROM THE STYLE, NOT FROM A CONSTANT.
+      //
+      // This was a hardcoded #f4f6f8, a cold grey, for every style and every palette. It is why
+      // "warm and established" could never be what its own blurb promises: cream and white under a
+      // deep header. The style asks for a warm surface, the renderer read that as a boolean
+      // "tinted or not", and the tint was always the same cold grey.
+      //
+      // The palette's own light value is used where the style asks for warmth, so the band belongs
+      // to the customer's colours rather than to a number typed here. Styles that ask for a pale
+      // or dark alternation keep the neutral, because a cream band under a near-black page would
+      // be a stripe rather than a rhythm.
+      surfaceAlt: styleSpec(style.resolved).altSurface === 'warm' ? intake.palette.light : '#f4f6f8',
       line: '#e2e6ea',
       white: '#ffffff',
       black: '#000000',

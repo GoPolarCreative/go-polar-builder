@@ -119,8 +119,17 @@ export interface AuditFlag {
   severity: AuditSeverity
   /** Shown to the customer. Plain English, no jargon, never blaming. */
   message: string
-  /** What the generator will do about it. Also becomes an HTML comment in the build. */
+  /**
+   * INTERNAL. Feeds the generation prompt as a build directive ("logoTreatment=css-logotype"),
+   * becomes an HTML comment in the build, and is asserted on by tests. Never shown to a customer.
+   */
   buildEffect: string
+  /**
+   * CUSTOMER-FACING. The same consequence in plain words, shown under "What we will do" on
+   * the intake screens. A customer saw "flagged CONFIRM WITH CLIENT BEFORE LAUNCH in the
+   * HTML" and reasonably called it tacky: one string cannot serve a prompt and a person.
+   */
+  customerNote: string
   field?: string
 }
 
@@ -133,6 +142,7 @@ export type CheckId =
   | 'no_em_dash'
   | 'no_emoji'
   | 'single_h1'
+  | 'single_mobile_bar'
   | 'heading_hierarchy'
   | 'footer_credit'
   | 'jsonld_valid'
@@ -146,6 +156,7 @@ export type CheckId =
   | 'images_load'
   | 'interactions_work'
   | 'page_weight'
+  | 'pages_delivered'
 
 export type CheckStatus = 'pass' | 'fail' | 'skipped' | 'warn'
 

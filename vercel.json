@@ -3,6 +3,7 @@
   "buildCommand": "npm run vercel:build",
   "outputDirectory": "dist",
   "framework": null,
+  "regions": ["syd1"],
   "functions": {
     "api/index.ts": {
       "maxDuration": 800,
@@ -21,7 +22,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|demo/).*)",
       "has": [
         {
           "type": "host",
@@ -31,7 +32,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|demo/).*)",
       "destination": "/api/index"
     }
   ]

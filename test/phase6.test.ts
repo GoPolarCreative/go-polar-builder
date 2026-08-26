@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SESSION_COOKIE, buildLink, clearCookie, jobIdFromPath, sessionCookie } from '../server/lib/auth'
 import { readClaims, signClaims } from '../server/lib/signing'
-import {
-  buildCompleteEmail,
-  buildLinkEmail,
-  dischargeReadyEmail,
-  goLiveReceiptEmail,
-  resendLinkEmail,
-  send,
-} from '../server/lib/email'
 import { KlaviyoConfigError, builderLoginLink, previewLink, trackKlaviyo } from '../server/lib/klaviyo'
 import { LiveActionBlockedError, assertLiveEnabled } from '../server/config'
 import { testConfig } from './fixtures/site'
@@ -112,87 +104,13 @@ describe('live action gating', () => {
   })
 })
 
-describe('emails', () => {
-  it('sends nothing in demo mode and logs what it would have sent', async () => {
-    testConfig({ demoMode: true })
-    const result = await send({ to: 'someone@example.com', subject: 'Test', text: 'Body' })
-    expect(result.id).toMatch(/^fake_email_/)
-  })
-
-  it('refuses to send for real unless live email is switched on', async () => {
-    testConfig({ demoMode: false, live: { payments: false, email: false, domains: false } })
-    await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/ENABLE_LIVE_EMAIL/)
-    testConfig()
-  })
-
-  it('names RESEND_API_KEY when live email is on but the key is missing', async () => {
-    testConfig({
-      demoMode: false,
-      live: { payments: false, email: true, domains: false },
-      resendApiKey: undefined,
-    })
-    await expect(send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(/RESEND_API_KEY/)
-    testConfig()
-  })
-
-  it('the build link email carries the link and the 90 day promise', () => {
-    const message = buildLinkEmail({ link: 'https://build.itscold.com.au/start?t=xyz' })
-    expect(message.text).toContain('https://build.itscold.com.au/start?t=xyz')
-    expect(message.text).toContain('90 days')
-    // Wording is Chris's to change; the promise is not. Either form of the number is fine.
-    expect(message.text).toMatch(/(ten|10) rounds/i)
-  })
-
-  it('the go live receipt restates the monthly cost and never promises a connection time', () => {
-    const message = goLiveReceiptEmail({
-      businessName: 'Cold Front Plumbing',
-      domain: 'coldfront.com.au',
-      monthly: ['Hosting: $30/month + GST'],
-    })
-    expect(message.text).toContain('$30/month + GST')
-    expect(message.text).toContain('within one business day')
-    expect(message.text).not.toMatch(/connected within|live within|24 hours/i)
-  })
-
-  it('the discharge email leads with the key swap when a placeholder was used', () => {
-    const withPlaceholder = dischargeReadyEmail({
-      businessName: 'Cold Front',
-      downloadLink: 'https://x/y',
-      expiresAt: '2026-09-16T00:00:00.000Z',
-      usedPlaceholder: true,
-    })
-    expect(withPlaceholder.text).toContain('will not send anywhere')
-
-    const withKey = dischargeReadyEmail({
-      businessName: 'Cold Front',
-      downloadLink: 'https://x/y',
-      expiresAt: '2026-09-16T00:00:00.000Z',
-      usedPlaceholder: false,
-    })
-    expect(withKey.text).toContain('come straight to you')
-    expect(withKey.text).not.toContain('will not send anywhere')
-  })
-
-  it('no email contains an em dash or an emoji, same as the sites we build', () => {
-    const messages = [
-      buildLinkEmail({ link: 'https://x' }),
-      resendLinkEmail({ link: 'https://x' }),
-      buildCompleteEmail({ businessName: 'X', previewLink: 'https://x' }),
-      goLiveReceiptEmail({ businessName: 'X', domain: 'x.com.au', monthly: ['Hosting: $30/month + GST'] }),
-      dischargeReadyEmail({
-        businessName: 'X',
-        downloadLink: 'https://x',
-        expiresAt: '2026-09-16T00:00:00.000Z',
-        usedPlaceholder: true,
-      }),
-    ]
-    for (const message of messages) {
-      expect(message.text).not.toContain('—')
-      expect(message.text).not.toMatch(/\p{Extended_Pictographic}/u)
-      expect(message.subject).not.toContain('—')
-    }
-  })
-})
+/*
+ * The email-transport tests that used to sit here tested server/lib/email.ts, the Resend
+ * transport. That module is deleted: Klaviyo sends every customer email (D48) and owns the
+ * copy, so there are no message templates in this codebase left to assert on. The gating
+ * behaviour they checked (demo mode sends nothing, ENABLE_LIVE_EMAIL blocks real sends, a
+ * missing key throws by name) is covered for the real path by the Klaviyo tests below.
+ */
 
 describe('Klaviyo', () => {
   const event = {

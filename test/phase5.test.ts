@@ -180,7 +180,14 @@ describe('checkout', () => {
     testConfig()
   })
 
-  it('builds a cart permalink carrying the job id and the selling plan', async () => {
+  /*
+   * This test used to assert that a permalink carried the selling plan. It never did. Shopify
+   * answers "Variant can only be purchased with a selling plan" for a subscription variant even
+   * when the correct plan id is on the URL, so the assertion was encoding a belief rather than a
+   * behaviour, and it kept a real customer's checkout broken. Measured against the live store, see
+   * the note on permalink() in server/lib/shopify.ts.
+   */
+  it('refuses to build a permalink for a subscription, because Shopify will not honour one', async () => {
     testConfig({
       demoMode: false,
       live: { payments: true, email: false, domains: false },
@@ -189,19 +196,39 @@ describe('checkout', () => {
     process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY = '45012345678901'
     process.env.SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY = '6890123456'
 
-    const result = await createCheckout({
-      jobId: 'job_abc',
-      email: 'jobs@coldfront.com.au',
-      lines: [{ ref: 'hosting-monthly', quantity: 1 }],
-    })
-
-    expect(result.method).toBe('permalink')
-    expect(result.url).toContain('itscold.myshopify.com/cart/45012345678901:1')
-    expect(result.url).toContain('selling_plan=6890123456')
-    expect(result.url).toContain('job_abc')
+    await expect(
+      createCheckout({
+        jobId: 'job_abc',
+        email: 'jobs@coldfront.com.au',
+        lines: [{ ref: 'hosting-monthly', quantity: 1 }],
+      }),
+    ).rejects.toThrow(/SHOPIFY_STOREFRONT_TOKEN/)
 
     delete process.env.SHOPIFY_VARIANT_HOSTING_MONTHLY
     delete process.env.SHOPIFY_SELLING_PLAN_HOSTING_MONTHLY
+    testConfig()
+  })
+
+  it('still builds a permalink for a one-off product, which does work', async () => {
+    testConfig({
+      demoMode: false,
+      live: { payments: true, email: false, domains: false },
+      shopify: { storeDomain: 'itscold.myshopify.com' },
+    })
+    process.env.SHOPIFY_VARIANT_DISCHARGE = '45099999999999'
+
+    const result = await createCheckout({
+      jobId: 'job_abc',
+      email: 'jobs@coldfront.com.au',
+      lines: [{ ref: 'discharge', quantity: 1 }],
+    })
+
+    expect(result.method).toBe('permalink')
+    expect(result.url).toContain('itscold.myshopify.com/cart/45099999999999:1')
+    expect(result.url).toContain('job_abc')
+    expect(result.url).not.toContain('selling_plan')
+
+    delete process.env.SHOPIFY_VARIANT_DISCHARGE
     testConfig()
   })
 
@@ -255,13 +282,14 @@ describe('order parsing', () => {
   })
 
   it('falls back to the SKU', () => {
-    expect(refForLineItem({ sku: 'website-hosting-australia', title: 'Whatever' })).toBe(
-      'website-hosting-australia',
+    // The hosting SKU, which is how the DIY tier is identified since D54.
+    expect(refForLineItem({ sku: 'diy-hosting-monthly', title: 'Whatever' })).toBe(
+      'diy-hosting-monthly',
     )
   })
 
   it('falls back to the titles that are actually on the store', () => {
-    expect(refForLineItem({ title: 'Website Hosting' })).toBe('website-hosting-australia')
+    expect(refForLineItem({ title: 'DIY Website Hosting (with Editor)' })).toBe('diy-hosting-monthly')
     expect(refForLineItem({ title: 'Domain (1 Year)' })).toBe('domain-1-year')
     expect(refForLineItem({ title: 'Website Build Token' })).toBe('build-token')
   })
@@ -279,7 +307,9 @@ describe('order parsing', () => {
   it('maps handles to order kinds', () => {
     expect(kindForRef('build-token')).toBe('build')
     expect(kindForRef('post-live-edit')).toBe('edit')
-    expect(kindForRef('extra-edits')).toBe('edit')
+    // 'extra-edits' was removed (D66). An unknown ref maps to nothing, which is the safe answer:
+    // an order line nobody recognises must not be quietly filed under a kind.
+    expect(kindForRef('extra-edits')).toBeNull()
     expect(kindForRef('nonsense')).toBeNull()
   })
 
@@ -376,5 +406,43 @@ describe('Shopify webhook verification', () => {
   it('rejects a missing or rubbish header', async () => {
     expect(await verifyShopifyHmac(secret, body, null)).toBe(false)
     expect(await verifyShopifyHmac(secret, body, 'not-base64!!')).toBe(false)
+  })
+})
+
+/**
+ * The two hosting products, told apart.
+ *
+ * Found live on 2026-08-26: two real orders for the legacy $33 "Website Hosting" product were
+ * being read as the $42.90 DIY tier, because the title contains "hosting". It was harmless only
+ * because those customers have no job in this app. It would have stopped being harmless the
+ * moment one of them also had a job: a $33 renewal would have been recorded as a $42.90 DIY
+ * hosting payment and unlocked the editor.
+ */
+describe('legacy hosting is not the DIY tier', () => {
+  const byTitle = (title: string) => refForLineItem({ title } as never)
+
+  it('THE BUG: a bare "Website Hosting" line is not read as DIY hosting', () => {
+    expect(byTitle('Website Hosting')).toBeNull()
+  })
+
+  it('the DIY tier still resolves from its own title', () => {
+    expect(byTitle('DIY Website Hosting (with Editor)')).toBe('diy-hosting-monthly')
+  })
+
+  it('is case insensitive, because a title is typed by a person', () => {
+    expect(byTitle('diy website hosting')).toBe('diy-hosting-monthly')
+    expect(byTitle('WEBSITE HOSTING')).toBeNull()
+  })
+
+  it('does not break the other products that share a word with it', () => {
+    expect(byTitle('Email Hosting')).toBe('email-hosting')
+    expect(byTitle('Domain Hosting')).toBe('domain-1-year')
+  })
+
+  it('still resolves the DIY tier by variant id, which is how a real order matches', () => {
+    // The variant is recorded in pricing.ts, so a real DIY order never reaches the title fallback.
+    expect(refForLineItem({ title: 'anything at all', variant_id: 62853864685727 } as never)).toBe(
+      'diy-hosting-monthly',
+    )
   })
 })

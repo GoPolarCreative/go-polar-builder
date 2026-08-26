@@ -205,7 +205,7 @@ describe('the rest of the product still works without a key', () => {
     const res = await authed(`/api/jobs/${jobId}/golive`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { pricing: { hosting: { price: string } } }
-    expect(body.pricing.hosting.price).toBe('$33/month inc GST')
+    expect(body.pricing.hosting.price).toBe('$42.90/month inc GST')
   })
 })
 

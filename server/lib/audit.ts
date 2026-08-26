@@ -94,6 +94,7 @@ export function runGapAudit(
       message:
         'No logo uploaded. We will set your business name in type for now, which looks clean, but a real logo lifts the whole site.',
       buildEffect: 'logoTreatment=css-logotype, CLIENT TO SUPPLY comment added for logo artwork',
+      customerNote: 'your business name goes up in clean type until your logo arrives',
     })
   } else {
     if (looksLikeMockupRender(logo)) {
@@ -105,6 +106,7 @@ export function runGapAudit(
           'That logo file looks like a mockup image, your logo photographed or placed on a background rather than the artwork itself. We cannot use it in the header. If you can get the original file from your designer (PNG with a transparent background, or SVG), send it through and we will swap it in.',
         buildEffect:
           'logoTreatment=css-logotype, mockup not used anywhere, CLIENT TO SUPPLY comment added',
+      customerNote: 'your business name goes up in clean type, and the mockup image is not used anywhere',
       })
     } else {
       const aspect = logo.stats?.aspect ?? (logo.width && logo.height ? logo.width / logo.height : 1)
@@ -115,6 +117,7 @@ export function runGapAudit(
           message:
             'Your logo is a wide one. At header size a wide logo goes unreadable, so we will use the icon part up top with your name set beside it, and the full logo larger in the footer.',
           buildEffect: 'logoTreatment=cropped-mark, full logo used in footer at larger size',
+      customerNote: 'the icon part of your logo goes in the header, and the full version goes larger in the footer',
         })
       }
       const w = logo.width ?? logo.stats?.width ?? 0
@@ -124,6 +127,7 @@ export function runGapAudit(
           severity: 'info',
           message: `Your logo is only ${w}px wide, so it may look soft on a big screen. A larger version or an SVG would sharpen it up.`,
           buildEffect: 'logo used as supplied, capped at its natural width so it is not upscaled',
+      customerNote: 'your logo is shown at its natural size, so it is never stretched or blurry',
         })
       }
     }
@@ -136,6 +140,7 @@ export function runGapAudit(
       message:
         'We could not pull colours from a logo, so the site uses a neutral navy and grey scheme. You can change any colour in the preview.',
       buildEffect: 'default palette tokens used',
+      customerNote: 'a clean neutral colour scheme is used, and you can change it any time',
     })
   }
 
@@ -150,6 +155,7 @@ export function runGapAudit(
           ? 'No usable photos yet, so we are leaving the gallery out rather than filling it with stock images of someone else. Job photos off your phone are exactly right. Add three or more and we will build it in.'
           : `Only ${usablePhotos.length} of your photos are big enough for a gallery, and we need at least 3. We are leaving the gallery out for now rather than stretching small images.`,
       buildEffect: 'gallery section skipped, CSS gradients used for section backgrounds, flagged',
+      customerNote: 'the photo gallery is left out for now, and the design carries the page instead. Send photos through any time and it goes in',
     })
     if (photos.length > usablePhotos.length) {
       flags.push({
@@ -157,6 +163,7 @@ export function runGapAudit(
         severity: 'info',
         message: `${photos.length - usablePhotos.length} photo${photos.length - usablePhotos.length === 1 ? '' : 's'} came through too small to use. Photos straight off your phone, not screenshots or images saved from Facebook, work best.`,
         buildEffect: 'undersized photos excluded from the gallery',
+      customerNote: 'the photos too small to look sharp are left out of the gallery',
       })
     }
   }
@@ -174,6 +181,7 @@ export function runGapAudit(
       message: `You told us ${intake.yearsInBusiness} years in business, but your description reads like about ${stated}. Which one should go on the site?`,
       buildEffect:
         'the number from the years field is used, and the sentence is flagged CONFIRM WITH CLIENT BEFORE LAUNCH',
+      customerNote: 'we use the number from your years-in-business answer, and we check it with you before you go live',
     })
   }
 
@@ -186,6 +194,7 @@ export function runGapAudit(
       message:
         'We have used standard trade hours, Monday to Friday 7am to 5pm. Worth a look before you go live, since these show on Google.',
       buildEffect: 'default hours used, flagged CONFIRM WITH CLIENT BEFORE LAUNCH in the HTML',
+      customerNote: 'standard trade hours go on for now, and we check them with you before you go live',
     })
   }
 
@@ -197,6 +206,7 @@ export function runGapAudit(
       message:
         'No reviews supplied, so we are not building a testimonials section. We will not write fake ones. Send real ones through any time and we will add them.',
       buildEffect: 'testimonials section omitted entirely',
+      customerNote: 'your site is built without a reviews section, and one goes in the moment you send real reviews through',
     })
   }
 
@@ -208,6 +218,7 @@ export function runGapAudit(
       message:
         'No street address given. That is normal for a mobile trade. We will use your base suburb for the location signals instead.',
       buildEffect: 'PostalAddress limited to suburb, state and postcode, no streetAddress emitted',
+      customerNote: 'your suburb, state and postcode are used for the local search signals, and no street address appears anywhere',
     })
   }
 
@@ -217,6 +228,7 @@ export function runGapAudit(
       severity: 'info',
       message: `You have listed ${intake.suburbsServiced.length} suburbs. More suburbs means more local searches you can turn up in, so add any you would happily drive to.`,
       buildEffect: 'service area section built with the suburbs supplied',
+      customerNote: 'the service area section is built with the suburbs you listed',
     })
   }
 

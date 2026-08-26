@@ -162,13 +162,13 @@ export function AuditFlagList({ flags }: { flags: AuditFlag[] }) {
       {attention.map((f) => (
         <Banner key={f.code} tone="warn" title="Worth a look">
           <p>{f.message}</p>
-          <p className="mt-1 text-xs opacity-80">What we will do: {f.buildEffect}</p>
+          <p className="mt-1 text-xs opacity-80">What we will do: {f.customerNote}</p>
         </Banner>
       ))}
       {info.map((f) => (
         <Banner key={f.code} tone="info">
           <p>{f.message}</p>
-          <p className="mt-1 text-xs opacity-80">What we will do: {f.buildEffect}</p>
+          <p className="mt-1 text-xs opacity-80">What we will do: {f.customerNote}</p>
         </Banner>
       ))}
     </div>
