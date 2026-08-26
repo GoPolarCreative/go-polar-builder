@@ -13,7 +13,7 @@ import { config } from '../../config.js'
  * Every fake LOGS what it would have done, in one obvious format, so the flow can be watched in
  * the terminal rather than guessed at:
  *
- *   FAKE RESEND: would send build link to jobs@coldfrontplumbing.com.au
+ *   FAKE KLAVIYO: would fire "build_purchased" so Klaviyo emails them
  *
  * These are not silent no-ops. A silent no-op in a payment path is indistinguishable from
  * success, which is how money goes missing. Anything the fakes cannot honestly simulate throws.
@@ -37,20 +37,6 @@ export async function fakeKlaviyo(event: KlaviyoEvent): Promise<void> {
     jobId: event.jobId,
     ...event.properties,
   })
-}
-
-export async function fakeResend(message: { to: string; subject: string; text: string }): Promise<{ id: string }> {
-  fakeLog('resend', `send "${message.subject}" to ${message.to}`)
-  // The body matters more than the envelope when you are checking the flow, so it is printed
-  // indented rather than hidden.
-  console.log(
-    message.text
-      .trim()
-      .split('\n')
-      .map((line) => `        | ${line}`)
-      .join('\n'),
-  )
-  return { id: `fake_email_${Math.random().toString(36).slice(2, 10)}` }
 }
 
 /**

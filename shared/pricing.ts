@@ -19,7 +19,7 @@
  *
  * 1. NO INVENTED IDENTIFIERS. A product that does not exist has `ref: null`, and a checkout for it
  *    throws by name saying what to create.
- * 2. NO INVENTED PRICES. `extra-edits` has never been priced, so nothing shows a number for it.
+ * 2. NO INVENTED PRICES. A product with no price shows no number and no buy button.
  * 3. SELLING PLANS ARE NOT OPTIONAL. All three subscriptions have `requiresSellingPlan: true`, so
  *    Shopify REJECTS a line without a plan id. A missing plan id is fatal, not a downgrade.
  * 4. THE STORE IS THE AUTHORITY ON WHETHER SOMETHING CAN BE SOLD. All six products are published
@@ -35,7 +35,6 @@ export type PriceKey =
   | 'domain'
   | 'email'
   | 'postLiveEdit'
-  | 'extraEdits'
   | 'discharge'
 
 export type OrderKind = 'build' | 'page' | 'hosting' | 'domain' | 'email' | 'edit' | 'discharge'
@@ -148,24 +147,37 @@ export const PRICING: Record<PriceKey, Product> = {
     },
   },
   hosting: {
-    ref: 'website-hosting-australia',
-    refKind: 'handle',
-    proposedRef: 'website-hosting-australia',
-    label: 'Hosting',
-    incGstCents: 3_300, // $33.00 = $30 + GST
+    // SWITCHED 2026-08-25 from website-hosting-australia ($33) to the DIY tier ($42.90), which
+    // is hosting plus the self-serve editor. See DECISIONS.md D54. Verified on the store the
+    // same day: product ACTIVE, requiresSellingPlan true, one selling plan group
+    // "DIY Website Hosting" carrying plan "Monthly Subscription". Sold by SKU, like the other
+    // deliberately-SKUed products, because a handle follows whatever the title happens to be.
+    // SWITCHED 2026-08-25 from website-hosting-australia ($33) to the DIY tier ($42.90), which
+    // is hosting plus the self-serve editor. See DECISIONS.md D54 and D56.
+    //
+    // THIS SWITCH IS GATED ON SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY BEING SET. The product
+    // has requiresSellingPlan on the store, so assertProductConfig refuses to boot the API
+    // without the plan id, which is what took production down for ten minutes the first time
+    // this landed. Verify the env var exists before deploying a change to this block.
+    ref: 'diy-hosting-monthly',
+    refKind: 'sku',
+    proposedRef: 'diy-hosting-monthly',
+    label: 'Hosting and editor',
+    incGstCents: 4_290, // $42.90 = $39 + GST
     recurrence: 'monthly',
     kind: 'hosting',
     requiresSellingPlan: true,
-    variantId: null,
-    productId: null,
-    storeHandle: 'website-hosting-australia',
+    variantId: '62853864685727',
+    productId: '10930879201439',
+    storeHandle: 'diy-website-hosting',
     store: {
       exists: true,
-      title: 'Website Hosting',
-      sellingPlan: { group: 'Website Hosting', plan: 'Monthly Subscription', interval: 'MONTH', intervalCount: 1 },
-      todo: 'Nothing. Price and billing interval both correct.',
+      title: 'DIY Website Hosting (with Editor)',
+      sellingPlan: { group: 'DIY Website Hosting', plan: 'Monthly Subscription', interval: 'MONTH', intervalCount: 1 },
+      todo:
+        'Set SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY=3944349855 in Vercel. Until it is set every go-live checkout is refused, because Shopify rejects a subscription line with no plan id.',
       breaks:
-        'A second variant, "Hosting + 2 Monthly Website Edits" at $100.00, exists on the store and is not offered anywhere in this app. No decision on file.',
+        'The legacy $33 product website-hosting-australia is still on the store for anyone already subscribed to it. It is no longer sold by this app.',
     },
   },
   domain: {
@@ -227,27 +239,6 @@ export const PRICING: Record<PriceKey, Product> = {
       todo: 'Nothing. Published and verified active on 2026-08-19.',
     },
   },
-  extraEdits: {
-    ref: null,
-    refKind: 'sku',
-    proposedRef: 'extra-edits',
-    label: 'Another 5 edits before launch',
-    // TODO(chris): still never decided. While this is null the UI shows no price and no buy button
-    // and offers to put the customer in touch instead. Set the number and the path turns on.
-    incGstCents: null,
-    recurrence: 'once',
-    kind: 'edit',
-    requiresSellingPlan: false,
-    variantId: null,
-    productId: null,
-    storeHandle: null,
-    store: {
-      exists: false,
-      todo: 'Do not create it yet. Decide the price first.',
-      breaks:
-        'Nothing today. The price is undecided so the path is already dark by design: a customer out of edits is offered a conversation or going live, never a number.',
-    },
-  },
   discharge: {
     ref: 'discharge',
     refKind: 'sku',
@@ -269,7 +260,6 @@ export const PRICING: Record<PriceKey, Product> = {
 }
 
 export const EDITS_INCLUDED = 10
-export const EXTRA_EDITS_QUANTITY = 5
 
 /** Whether a price is settled well enough to put in front of a customer. */
 export function isPriceSet(key: PriceKey): boolean {

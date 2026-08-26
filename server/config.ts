@@ -64,10 +64,10 @@ export interface AppConfig {
     clientSecret?: string
     storefrontToken?: string
   }
-  resendApiKey?: string
-  resendFrom: string
   /** Klaviyo private API key. Klaviyo sends every customer email. See server/lib/klaviyo.ts. */
   klaviyoApiKey?: string
+  /** Where operator alerts go (go-live requests and the like). Chris's inbox. */
+  operatorEmail: string
   vercelApiToken?: string
   vercelProjectId?: string
   vercelTeamId?: string
@@ -104,7 +104,7 @@ const DEMO_APP_SECRET = 'demo-mode-only-secret-do-not-use-in-production'
 
 export function loadConfig(): AppConfig {
   // Demo mode defaults ON when nothing is configured, so a fresh clone runs with no accounts.
-  const demoMode = bool(process.env.DEMO_MODE, !env('SHOPIFY_WEBHOOK_SECRET') && !env('RESEND_API_KEY'))
+  const demoMode = bool(process.env.DEMO_MODE, !env('SHOPIFY_WEBHOOK_SECRET') && !env('KLAVIYO_API_KEY'))
   const anthropicApiKey = env('ANTHROPIC_API_KEY')
 
   return {
@@ -153,9 +153,8 @@ export function loadConfig(): AppConfig {
       clientSecret: env('SHOPIFY_CLIENT_SECRET'),
       storefrontToken: env('SHOPIFY_STOREFRONT_TOKEN'),
     },
-    resendApiKey: env('RESEND_API_KEY'),
-    resendFrom: env('RESEND_FROM') ?? 'Go Polar Creative <build@itscold.com.au>',
     klaviyoApiKey: env('KLAVIYO_API_KEY'),
+    operatorEmail: env('OPERATOR_EMAIL') ?? 'hello@itscold.com.au',
     vercelApiToken: env('VERCEL_API_TOKEN'),
     vercelProjectId: env('VERCEL_PROJECT_ID'),
     vercelTeamId: env('VERCEL_TEAM_ID'),

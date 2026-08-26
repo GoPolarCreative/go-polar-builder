@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
-import { EXTRA_EDITS_QUANTITY } from '../../shared/pricing.js'
-import { createUserAndJob, recordEvent, setJobStatus } from './db.js'
+import { createUserAndJob, getJob, recordEvent, setJobStatus } from './db.js'
+import { config } from '../config.js'
 import { id } from './ids.js'
 import { createBuildToken } from './auth.js'
 import { builderLoginLink, previewLink, trackKlaviyoSafely } from './klaviyo.js'
@@ -239,7 +239,7 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
         ref,
         kind,
         action:
-          ref === 'extra-edits' ? `${EXTRA_EDITS_QUANTITY} extra edits added` : 'post-live update recorded',
+          'post-live update recorded',
       })
     }
   }
@@ -338,11 +338,92 @@ async function refGoLivePayment(jobId: string, email: string): Promise<void> {
   await setJobStatus(jobId, 'go_live_pending')
   await recordEvent(jobId, 'golive.paid', { email, notify: 'chris' })
 
+  /*
+   * WHAT THE CONFIRMATION EMAIL NEEDS TO KNOW.
+   *
+   * This event used to carry a preview link and nothing else, which is not enough to write an
+   * honest "here is what happens next". The next step genuinely differs by branch: a domain they
+   * already own gets connected, one they asked us to buy gets registered first, and one they
+   * cannot get into is a recovery job with no timeframe anybody can promise. A single generic
+   * paragraph covering all three either overpromises or says nothing.
+   */
+  const [domainRow] = await db
+    .select({
+      name: schema.domains.name,
+      branch: schema.domains.branch,
+      // Where the customer says they bought it. The first question on the connection call is
+      // always "where do we log in", and WHOIS answers with the reseller rather than the brand
+      // on the login page. See D57.
+      registrar: schema.domains.registrar,
+    })
+    .from(schema.domains)
+    .where(eq(schema.domains.jobId, jobId))
+    .orderBy(desc(schema.domains.createdAt))
+    .limit(1)
+
+  const jobForEmail = await getJob(jobId)
+
   await trackKlaviyoSafely({
     metric: 'go_live_requested',
-    profile: { email },
+    profile: { email, businessName: jobForEmail?.businessName ?? null },
     jobId,
-    properties: { preview_link: previewLink(jobId) },
+    properties: {
+      preview_link: previewLink(jobId),
+      business_name: jobForEmail?.businessName ?? '',
+      // '' rather than null: a Klaviyo template comparing against an empty string is easier to
+      // get right than one that has to know the difference between null and missing.
+      domain_name: domainRow?.name ?? '',
+      domain_branch: domainRow?.branch ?? '',
+    },
+  })
+
+  /*
+   * AND TELL CHRIS, because this is the moment the work becomes his.
+   *
+   * The operator alert used to fire only when somebody PRESSED go live, which is a statement of
+   * intent that a fair number of people will not follow through on. Nothing at all fired when the
+   * money actually arrived, so the one event that creates an obligation - hosting is now billing,
+   * and a domain has to be connected - was the one he was not told about.
+   *
+   * Both alerts now exist and they mean different things. `alert: go_live_requested` is
+   * "somebody wants to", `alert: go_live_paid` is "somebody has, go and do it". A flow can send
+   * the first quietly and the second to his phone.
+   */
+  const cfgOps = config()
+  const jobRow = await getJob(jobId)
+  await trackKlaviyoSafely({
+    metric: 'operator_alert',
+    profile: { email: cfgOps.operatorEmail },
+    jobId,
+    properties: {
+      alert: 'go_live_paid',
+      business_name: jobRow?.businessName ?? 'Unnamed business',
+      customer_email: email,
+      job_id: jobId,
+      preview_link: previewLink(jobId),
+      ops_link: `${cfgOps.publicAppUrl.replace(/\/$/, '')}/ops#job-${jobId}`,
+      /*
+       * THE DOMAIN, IN THE ALERT ITSELF.
+       *
+       * The customer answers the domain question BEFORE they pay (D57: domain first, money
+       * second), so all of this is known by the time this fires. It was not being passed on,
+       * which meant the alert said "somebody paid" and left the operator to go and look up the
+       * only three facts the phone call is actually about.
+       *
+       * domain_action is derived rather than passing the raw branch, because "own" and "locked"
+       * mean nothing to somebody reading an email on a phone at 7am.
+       */
+      domain_name: domainRow?.name ?? '',
+      domain_registrar: domainRow?.registrar ?? 'Not stated',
+      domain_action:
+        domainRow?.branch === 'new'
+          ? 'REGISTER this for them, they do not own it yet'
+          : domainRow?.branch === 'locked'
+            ? 'RECOVERY. Somebody else is holding it and not answering'
+            : domainRow?.branch === 'own'
+              ? 'CONNECT it. They already own it, get their logins'
+              : 'No domain recorded. Ask them what they want to use',
+    },
   })
 }
 
@@ -379,17 +460,17 @@ async function refDischargePayment(jobId: string, email: string): Promise<void> 
 async function refEditPayment(jobId: string, ref: string): Promise<void> {
   const db = await getDb()
 
-  if (ref === 'extra-edits') {
-    await db
-      .update(schema.jobs)
-      .set({
-        editsAllowed: sql`${schema.jobs.editsAllowed} + ${EXTRA_EDITS_QUANTITY}`,
-        held: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.jobs.id, jobId))
-    await recordEvent(jobId, 'edits.extended', { added: EXTRA_EDITS_QUANTITY })
-  } else {
-    await recordEvent(jobId, 'post_live_edit.paid', { notify: 'chris', action: 'make the change' })
-  }
+  /*
+   * ONLY THE POST-LIVE UPDATE REACHES HERE NOW.
+   *
+   * 'extra-edits' was removed in D66: the DIY tier includes ten changes a month, so selling five
+   * more pre-launch rounds made no sense once running out simply means going live. There is no
+   * product, no price and no path to buy it, so there is nothing to grant.
+   *
+   * The $110 post-live update product stays on the store because Chris's OTHER website customers
+   * use it. A DIY customer never sees it and never should: it would be selling them something the
+   * $42.90 they already pay includes.
+   */
+  void db
+  await recordEvent(jobId, 'post_live_edit.paid', { notify: 'chris', action: 'make the change', ref })
 }

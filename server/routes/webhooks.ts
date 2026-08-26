@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { applySubscriptionStatus } from '../lib/subscription.js'
 import { config } from '../config.js'
 import { verifyShopifyHmac } from '../lib/signing.js'
 import { recordEvent } from '../lib/db.js'
@@ -60,6 +61,32 @@ app.post('/webhooks/shopify', async (c) => {
   }
 
   const topic = c.req.header('x-shopify-topic') ?? 'unknown'
+
+  /*
+   * SUBSCRIPTION TOPICS ARE HANDLED BEFORE THE ORDER PARSE, because their payload is a
+   * subscription contract and casting it to an order would produce an object whose every field is
+   * undefined and whose id is missing. Nothing consumed these at all until now, which meant a
+   * cancelled customer kept their site, kept editing it, and kept costing money.
+   *
+   * Shopify's own topics rather than Appstle's, because these arrive signed with the same secret
+   * this route already verifies. An Appstle-specific webhook would be a second integration with a
+   * second secret and a second thing to go wrong.
+   */
+  if (topic.startsWith('subscription_contracts/') || topic.startsWith('subscription_billing_attempts/')) {
+    let payload: { status?: string; customer?: { email?: string }; email?: string } = {}
+    try {
+      payload = JSON.parse(raw)
+    } catch {
+      return c.json({ error: 'bad_json' }, 400)
+    }
+
+    const email = payload.customer?.email ?? payload.email ?? ''
+    // A failed billing attempt is not a cancellation. Shopify retries, and cards recover. Only
+    // the contract's own status decides, so a failure topic with no status changes nothing.
+    const status = payload.status ?? ''
+    const out = await applySubscriptionStatus({ email, status, raw: payload })
+    return c.json({ ok: true, topic, ...out })
+  }
 
   let order: ShopifyOrder
   try {

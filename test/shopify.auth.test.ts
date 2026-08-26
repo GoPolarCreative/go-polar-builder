@@ -128,6 +128,24 @@ describe('scopes', () => {
     expect(missingScopes()).toEqual([])
   })
 
+  /*
+   * The real one. The app exchanged credentials happily and was granted nothing, because the new
+   * version had been released but never approved on the store. Every product lookup returned "no
+   * such product" and the health endpoint said "Scopes ok.", which sent the diagnosis in entirely
+   * the wrong direction. An empty grant is an answer, not a shrug.
+   */
+  it('reports every needed scope when the grant came back empty', async () => {
+    vi.stubGlobal('fetch', tokenResponse({ access_token: 't', expires_in: 86399, scope: '' }))
+    await adminApiToken(cfg({ clientId: 'id', clientSecret: 'secret' }))
+    expect(missingScopes()).toEqual(['read_orders', 'read_products'])
+  })
+
+  it('treats a whitespace-only grant the same way', async () => {
+    vi.stubGlobal('fetch', tokenResponse({ access_token: 't', expires_in: 86399, scope: '  ,  ' }))
+    await adminApiToken(cfg({ clientId: 'id', clientSecret: 'secret' }))
+    expect(missingScopes()).toEqual(['read_orders', 'read_products'])
+  })
+
   it('claims nothing about a static token, which reports no scopes', async () => {
     expect(await adminApiToken(cfg({ adminApiToken: 'shpat_x' }))).toBe('shpat_x')
     expect(missingScopes()).toEqual([])

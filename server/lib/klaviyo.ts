@@ -28,6 +28,58 @@ export const KLAVIYO_METRICS = {
   files_ready: 'Website Files Ready',
   intake_abandoned: 'Website Intake Abandoned',
   editing_stalled: 'Website Editing Stalled',
+  /**
+   * Fired the moment a customer presses "put my website live", before any payment. The flow on
+   * this metric sends them everything they need to set up hosting (the checkout link) and, if
+   * they asked us to handle one, the web address. Copy lives in Klaviyo; the one wording rule
+   * that binds it is the brief's: "in touch within one business day", never a promise that the
+   * domain is connected within any timeframe.
+   */
+  go_live_started: 'Website Go Live Started',
+  /**
+   * A cancelled customer's site is coming offline, and here is when.
+   *
+   * ONE METRIC, FOUR STAGES, told apart by `stage` (0, 30, 53, 59 days since cancellation). The
+   * headline and body are computed server side in shared/takedown.ts and travel in the payload,
+   * so the flow is a single template that prints them rather than four flows that can drift apart
+   * and four places to get the wording of a serious message wrong.
+   *
+   * The day 59 email is the last warning before a real business website stops answering. It has
+   * to arrive.
+   */
+  hosting_ending: 'Website Hosting Ending',
+  /**
+   * The six digit sign-in code for a returning customer.
+   *
+   * The flow needs this to arrive in seconds, not minutes, because the person is sitting on the
+   * screen waiting to type it. If a Klaviyo flow on this metric is slow or missing, the whole
+   * returning-customer door is shut, so it is worth being the first flow anybody checks.
+   *
+   * The code is in the event payload and nowhere else: it is not stored, not logged, and not
+   * recoverable from this app once sent.
+   */
+  login_code: 'Website Login Code',
+  /**
+   * THE SITE IS ACTUALLY ON THE INTERNET. Fired from publishSite, once per publish.
+   *
+   * Everything before this is a request or a payment. This is the only event that means a real
+   * person can type their address and see their website, so it is the one the post-live nurture
+   * hangs off. It did not exist until 2026-08-26: publishing wrote a `site.published` row to the
+   * events table and told the customer nothing at all.
+   *
+   * FIRES ON EVERY PUBLISH, INCLUDING RE-PUBLISHES. A flow on this metric must be set to trigger
+   * once per profile, or a customer gets the whole welcome sequence again every time their site
+   * is updated. The `is_first_publish` property is there so the flow can filter on it instead,
+   * which is the safer of the two.
+   */
+  site_live: 'Website Is Live',
+  /**
+   * An alert to the OPERATOR, not a customer. Fired against the operatorEmail profile so Chris
+   * hears the same minute somebody wants to go live. Needs a Klaviyo flow on this metric that
+   * emails him; without the flow the event still lands in Klaviyo's activity feed and /ops
+   * shows the waiting list either way.
+   */
+  operator_alert: 'Operator Alert',
 } as const
 
 export type KlaviyoMetric = keyof typeof KLAVIYO_METRICS

@@ -155,7 +155,9 @@ export function grantedScopes(): string | null {
  *   read_products  the product, variant and selling plan checks
  *
  * Storefront access is separate and is listed on the app's version as an unauthenticated scope:
- *   unauthenticated_write_checkouts   cartCreate, for a checkout carrying two subscriptions
+ *   unauthenticated_write_checkouts   cartCreate. Required for ANY subscription line, not just
+ *                                     two: a cart permalink binds no selling plan at all, so
+ *                                     without this there is no working checkout whatsoever.
  */
 export const REQUIRED_ADMIN_SCOPES = ['read_orders', 'read_products'] as const
 export const REQUIRED_UNAUTHENTICATED_SCOPES = ['unauthenticated_write_checkouts'] as const
@@ -166,10 +168,25 @@ export const REQUIRED_UNAUTHENTICATED_SCOPES = ['unauthenticated_write_checkouts
  * Only meaningful for the client credentials route, where Shopify reads the scopes back. Returns
  * an empty array when there is nothing to say, including when the answer is unknowable.
  */
+/**
+ * AN EMPTY SCOPE STRING MEANS NONE WERE GRANTED, NOT "CANNOT TELL".
+ *
+ * This used to return [] for any falsy scope, which the health endpoint rendered as "Scopes ok."
+ * The app had exchanged credentials successfully and been granted absolutely nothing, every
+ * product lookup was coming back "no such product on the store", and the one line that should have
+ * explained it said everything was fine. Not knowing is never the same as passing.
+ *
+ * No token at all is still [] , because nothing has been asked yet and there is genuinely nothing
+ * to report. A token with an empty scope list is a real answer: zero.
+ */
 export function missingScopes(): string[] {
-  const scope = cached?.scope
-  if (!scope) return []
-  const granted = new Set(scope.split(',').map((s) => s.trim()))
+  if (!cached) return []
+  const granted = new Set(
+    (cached.scope ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
   return REQUIRED_ADMIN_SCOPES.filter((needed) => !granted.has(needed))
 }
 

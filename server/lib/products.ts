@@ -122,3 +122,35 @@ export function productConfigReport(env: Record<string, string | undefined> = pr
 export function resetProductConfigReportForTests(): void {
   reported = false
 }
+
+
+/**
+ * What goes in the go-live cart.
+ *
+ * PULLED OUT OF THE ROUTE SO THE GUARANTEE CAN BE TESTED. The rule it enforces is the one that
+ * matters commercially: a customer who answered "I need a domain" on the domain screen gets the
+ * domain line whatever the client sends on the next screen. The two screens are separate
+ * requests with a page load between them, so the browser's copy of that answer can be stale,
+ * wrong, or absent, and the failure is invisible - the build passes, the payment clears, and it
+ * surfaces weeks later as a phone call asking where the web address is.
+ *
+ * Same principle as pagesDeliveredCheck in D55: an intention recorded on one screen must not be
+ * lost by a flag on the next one. A prompt or a checkbox is a hope; deriving it from the record
+ * is a guarantee.
+ *
+ * Hosting is unconditional. That is the thing being bought here.
+ */
+export function goLiveCartLines(opts: {
+  /** The branch recorded on the domain screen, if they have been through it. */
+  domainBranch?: 'own' | 'new' | 'locked' | null
+  /** What the client said. Can add the domain, can never remove it. */
+  domainAddon?: boolean
+  emailAddon?: boolean
+}): Array<{ ref: string; quantity: number }> {
+  const lines = [{ ref: refForCheckout('hosting'), quantity: 1 }]
+  if (opts.emailAddon) lines.push({ ref: refForCheckout('email'), quantity: 1 })
+  if (Boolean(opts.domainAddon) || opts.domainBranch === 'new') {
+    lines.push({ ref: refForCheckout('domain'), quantity: 1 })
+  }
+  return lines
+}

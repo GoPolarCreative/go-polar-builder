@@ -126,24 +126,41 @@ interface ResolvedLine {
 }
 
 /**
- * Cart permalink fallback.
+ * Cart permalink fallback. IT CANNOT SELL A SUBSCRIPTION AT ALL.
  *
- * LIMITATION, and why the Storefront path is preferred: a permalink takes a single selling_plan
- * parameter, so it carries only one subscription line. When more than one is requested this
- * throws rather than quietly dropping the customer's email add-on from their cart.
+ * This was wrong for a long time and cost a real customer a dead checkout. The belief was that a
+ * permalink carries one subscription line via ?selling_plan=. It does not carry any. Measured
+ * against this store:
+ *
+ *   /cart/62805693563039:1                                  302 to a real checkout   (no plan)
+ *   /cart/62848019595423:1                                  410 Cart Error           (hosting)
+ *   /cart/62848019595423:1?selling_plan=3911188639          410 Cart Error           (correct id)
+ *   /cart/62848019595423:1?selling_plan=gid://...           410 Cart Error
+ *
+ * "Variant can only be purchased with a selling plan", with the right plan id attached. The
+ * permalink route is fine; it just will not bind a selling plan, and these plans are managed by
+ * Appstle rather than by Shopify's own subscription surface.
+ *
+ * So this now refuses ANY subscription line rather than one line beyond the first. A checkout that
+ * throws here is a deploy-time problem with a name on it. A checkout that returns a permalink for
+ * a subscription is a paying customer staring at a Shopify error page, which is the outcome this
+ * whole module exists to prevent. Set SHOPIFY_STOREFRONT_TOKEN and the Storefront path handles it.
  */
 function permalink(cfg: AppConfig, req: CheckoutRequest, lines: ResolvedLine[]): string {
   const subscriptions = lines.filter((l) => l.sellingPlanId)
-  if (subscriptions.length > 1) {
+  if (subscriptions.length > 0) {
     throw new ShopifyConfigError(
-      'This checkout has more than one subscription line, which a cart permalink cannot carry. Set SHOPIFY_STOREFRONT_TOKEN so carts can be created through the Storefront API.',
+      `This checkout has ${subscriptions.length} subscription line(s) (${subscriptions
+        .map((l) => l.ref)
+        .join(', ')}), and a cart permalink cannot carry a selling plan at all. Shopify answers with "Variant can only be purchased with a selling plan" even when the correct plan id is on the URL. Set SHOPIFY_STOREFRONT_TOKEN so carts are created through the Storefront API.`,
       ['SHOPIFY_STOREFRONT_TOKEN'],
     )
   }
 
   const items = lines.map((l) => `${l.variantId}:${l.quantity}`).join(',')
   const params = new URLSearchParams()
-  if (subscriptions[0]?.sellingPlanId) params.set('selling_plan', subscriptions[0].sellingPlanId)
+  // No selling_plan parameter: see above, Shopify ignores it here and this path is now
+  // unreachable for a subscription anyway.
   params.set('checkout[email]', req.email)
   // Carried through to the order so the webhook can match it back to the job without guessing.
   params.set('attributes[job_id]', req.jobId)
@@ -570,8 +587,31 @@ export function refForLineItem(item: ShopifyLineItem): string | null {
   if (title.includes('discharge')) return PRICING.discharge.ref
   if (title.includes('update')) return PRICING.postLiveEdit.ref
   if (title.includes('build')) return PRICING.build.ref
-  if (title.includes('edits')) return PRICING.extraEdits.proposedRef
-  if (title.includes('hosting')) return PRICING.hosting.ref
+  // 'extra-edits' was removed (D66). Nothing maps to it, because nothing sells it.
+
+  /*
+   * "HOSTING" IN A TITLE IS NOT ENOUGH TO MEAN THE DIY TIER, and reading it that way was a real
+   * mistake found on 2026-08-26.
+   *
+   * There are two hosting products on this store. The DIY tier, "DIY Website Hosting (with
+   * Editor)" at $42.90, is what this app sells. The legacy "Website Hosting" at $33 is what Chris's
+   * OTHER website customers pay, and this app knows nothing about them.
+   *
+   * The bare title check mapped both to the DIY tier. Two live legacy orders were logged as
+   * `no_matching_job` because of it, which was harmless only by luck: those customers have no job
+   * here, so the order was skipped anyway.
+   *
+   * IT WOULD NOT HAVE STAYED HARMLESS. The moment a legacy $33 customer also has a job in this app,
+   * whether they buy a DIY build or Chris migrates them, their $33 renewal would be read as a
+   * $42.90 DIY hosting payment. That marks golive.paidAt, unlocks the editor and the monthly
+   * allowance, and records a tier they are not paying for.
+   *
+   * A REAL DIY ORDER NEVER REACHES THIS LINE. The variant id is checked first and the DIY variant
+   * is recorded in pricing.ts, so title matching is a fallback for products this app does not sell.
+   * Requiring "diy" keeps that fallback working for the tier it belongs to and returns null for
+   * everything else, which is the honest answer: not a product this app handles.
+   */
+  if (title.includes('hosting')) return title.includes('diy') ? PRICING.hosting.ref : null
 
   return null
 }
