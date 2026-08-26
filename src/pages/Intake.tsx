@@ -6,6 +6,7 @@ import {
   STEP_TITLES,
   TRAVEL_RADII,
   emptyIntake,
+  unallocatedPages,
   type IntakePayload,
   type Palette,
 } from '../../shared/intake'
@@ -30,10 +31,8 @@ import { SuburbChips, SuburbSearch } from '../components/SuburbPicker'
 import { LogoUploader, PhotoUploader } from '../components/Uploader'
 import { StylePicker } from '../components/StylePicker'
 import {
-  PAGE_CAVEAT,
   PAGE_INCLUDES,
   PAGE_MECHANISM,
-  pagePriceLine,
 } from '../../shared/pages-copy'
 import { AuditFlagList, HoursEditor, ReviewsEditor } from '../components/StoryInputs'
 
@@ -54,6 +53,14 @@ export default function Intake() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [auditFlags, setAuditFlags] = useState<AuditFlag[] | null>(null)
+  /*
+   * How many pages this job paid for. One comes with the build; anything beyond that was bought
+   * on the landing page, and until now nothing in the intake knew about it. The picker below
+   * asked everybody "want any of these on their own page?" whether they had bought a page or not,
+   * and told them we would confirm the charge later. Anyone who had already paid for two was
+   * being asked to opt in to something they owned.
+   */
+  const [pagesAllowed, setPagesAllowed] = useState(1)
 
   const firstLoad = useRef(true)
 
@@ -64,6 +71,7 @@ export default function Intake() {
         const res = await api.getJob(jobId)
         if (cancelled) return
         setData({ ...emptyIntake(), ...(res.intake ?? {}) })
+        setPagesAllowed(res.job.pagesAllowed ?? 1)
         setAssets(res.assets)
         if (res.intakeSubmittedAt) setAuditFlags(res.auditFlags)
       } catch (err) {
@@ -113,17 +121,39 @@ export default function Intake() {
   const validateStep = (index: number): boolean => {
     const schema = STEP_SCHEMAS[index]!
     const result = schema.safeParse(data)
-    if (result.success) {
-      setErrors({})
-      return true
-    }
     const next: Errors = {}
-    for (const issue of result.error.issues) {
-      const key = issue.path.join('.') || 'form'
-      if (!next[key]) next[key] = issue.message
+
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const key = issue.path.join('.') || 'form'
+        if (!next[key]) next[key] = issue.message
+      }
     }
+
+    /*
+     * PAGES THEY HAVE PAID FOR MUST BE ALLOCATED BEFORE THEY CAN MOVE ON.
+     *
+     * This cannot be a schema rule because the allowance lives on the job row rather than in the
+     * answers, so it sits here, and the submit route checks it again because this copy runs in a
+     * browser and is therefore a courtesy rather than a guarantee.
+     *
+     * The step is hard-blocked rather than warned. A warning is what we effectively had: the
+     * picker already said "0 of 4 chosen" and said in as many words that the pages were paid for,
+     * and a real customer scrolled past all of it and shipped a one page website he had bought
+     * five pages for.
+     */
+    if (index === 1) {
+      const left = unallocatedPages(pagesAllowed, data.ownPageServices, data.services ?? [])
+      if (left > 0 && !next.ownPageServices) {
+        next.ownPageServices =
+          left === 1
+            ? 'Choose the service for the extra page you have paid for.'
+            : `Choose services for the ${left} extra pages you have paid for.`
+      }
+    }
+
     setErrors(next)
-    return false
+    return Object.keys(next).length === 0
   }
 
   const goNext = () => {
@@ -220,7 +250,9 @@ export default function Intake() {
 
       <div className="card mt-6">
         {step === 0 ? <StepBusiness data={data} patch={patch} errors={errors} /> : null}
-        {step === 1 ? <StepServices data={data} patch={patch} errors={errors} /> : null}
+        {step === 1 ? (
+          <StepServices data={data} patch={patch} errors={errors} pagesAllowed={pagesAllowed} />
+        ) : null}
         {step === 2 ? <StepArea data={data} patch={patch} errors={errors} /> : null}
         {step === 3 ? <StepStory data={data} patch={patch} errors={errors} /> : null}
         {step === 4 ? (
@@ -469,7 +501,12 @@ function StepBusiness({ data, patch, errors }: StepProps) {
 
 // --- Step 2 ------------------------------------------------------------------------------------
 
-function StepServices({ data, patch, errors }: StepProps) {
+function StepServices({
+  data,
+  patch,
+  errors,
+  pagesAllowed,
+}: StepProps & { pagesAllowed: number }) {
   const [custom, setCustom] = useState('')
   const trade = (data.trade ?? 'other') as Trade
   const presets = SERVICE_PRESETS[trade] ?? []
@@ -563,7 +600,15 @@ function StepServices({ data, patch, errors }: StepProps) {
         />
       </Field>
 
-      {selected.length > 0 ? <OwnPagePicker data={data} patch={patch} selected={selected} /> : null}
+      {selected.length > 0 && pagesAllowed > 1 ? (
+        <OwnPagePicker
+          data={data}
+          patch={patch}
+          selected={selected}
+          extraPages={pagesAllowed - 1}
+          error={errors.ownPageServices}
+        />
+      ) : null}
 
       <div>
         <span className="field-label">Do you offer free quotes?</span>
@@ -812,8 +857,13 @@ function StepBrand({
           jobId={jobId}
           photos={photos}
           onChange={(next) => {
-            setAssets((prev) => [...prev.filter((a) => a.kind !== 'photo'), ...next])
-            patch({ photoAssetIds: next.map((p) => p.id) })
+            // sortOrder is restamped to match the new positions. Without this the arrows and
+            // "Make hero" did nothing visible: the memo above sorts by sortOrder, the handed-back
+            // records still carried their old values, and the array snapped straight back. The
+            // server writes the same numbers via reorderAssets, so client and server agree.
+            const stamped = next.map((p, i) => ({ ...p, sortOrder: i }))
+            setAssets((prev) => [...prev.filter((a) => a.kind !== 'photo'), ...stamped])
+            patch({ photoAssetIds: stamped.map((p) => p.id) })
           }}
         />
       </div>
@@ -845,36 +895,83 @@ function OwnPagePicker({
   data,
   patch,
   selected,
+  extraPages,
+  error,
 }: {
   data: Draft
   patch: (p: Draft) => void
   selected: string[]
+  extraPages: number
+  error?: string
 }) {
-  const chosen = data.ownPageServices ?? []
+  const chosen = (data.ownPageServices ?? []).filter((name) => selected.includes(name))
+  const full = chosen.length >= extraPages
 
   const toggle = (name: string) => {
-    const next = chosen.includes(name) ? chosen.filter((s) => s !== name) : [...chosen, name]
-    patch({ ownPageServices: next })
+    const isOn = chosen.includes(name)
+    // Silently ignoring a tap on a full list reads as a broken button, so the chip is disabled
+    // and says why rather than doing nothing.
+    if (!isOn && full) return
+    patch({ ownPageServices: isOn ? chosen.filter((s) => s !== name) : [...chosen, name] })
   }
 
   return (
-    <div className="rounded-lg border border-ice-200 p-4">
-      <Eyebrow>Optional</Eyebrow>
-      <span className="field-label">Want any of these on their own page?</span>
+    /*
+     * DELIBERATELY THE LOUDEST THING ON THE STEP.
+     *
+     * The previous version was a quiet grey card that read as an optional extra, and it was
+     * skipped by the first real customer to see it. It is now a thick accent rail, a status line
+     * that says whether the job is done, and a counter at the top instead of buried underneath
+     * the chips. Being required is not enough on its own: an unmissable blocker still produces a
+     * confused customer if they never understood there was something to do.
+     *
+     * The unfinished state is carried by TEXT as well as colour, because colour alone is not a
+     * message and this project has already shipped one instruction nobody could read.
+     */
+    <div
+      className={`rounded-lg border-2 border-l-8 p-4 ${
+        error
+          ? 'border-red-500 bg-red-50'
+          : full
+            ? 'border-polar-accent bg-white'
+            : 'border-polar-accent bg-ice-50'
+      }`}
+    >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <Eyebrow>
+          You paid for {extraPages === 1 ? 'an extra page' : `${extraPages} extra pages`}
+        </Eyebrow>
+        <span
+          className={`px-2 py-0.5 text-[13px] font-bold ${
+            full ? 'bg-polar-accent text-white' : 'bg-ice-700 text-white'
+          }`}
+        >
+          {chosen.length} of {extraPages} chosen
+        </span>
+      </div>
+
+      <span className="field-label text-base">
+        Which {extraPages === 1 ? 'service' : 'services'} did you want on your extra{' '}
+        {extraPages === 1 ? 'page' : 'pages'}?
+      </span>
       <p className="field-hint mb-3">{PAGE_MECHANISM}</p>
 
       <div className="flex flex-wrap gap-2">
-        {selected.map((name) => (
-          <button
-            key={name}
-            type="button"
-            aria-pressed={chosen.includes(name)}
-            className={chosen.includes(name) ? 'chip-on' : 'chip-off'}
-            onClick={() => toggle(name)}
-          >
-            {name}
-          </button>
-        ))}
+        {selected.map((name) => {
+          const on = chosen.includes(name)
+          return (
+            <button
+              key={name}
+              type="button"
+              aria-pressed={on}
+              disabled={!on && full}
+              className={`${on ? 'chip-on' : 'chip-off'} disabled:cursor-not-allowed disabled:opacity-40`}
+              onClick={() => toggle(name)}
+            >
+              {name}
+            </button>
+          )
+        })}
       </div>
 
       <ul className="mt-3 space-y-1 text-[13px] text-ice-500">
@@ -883,14 +980,23 @@ function OwnPagePicker({
         ))}
       </ul>
 
-      <p className="field-hint mt-3">
-        {pagePriceLine()} {PAGE_CAVEAT}
+      <p className="mt-3 text-sm font-semibold text-ice-700">
+        {full
+          ? 'All done. Tap one again to swap it out.'
+          : chosen.length === 0
+            ? 'Nothing chosen yet. Pick the work you most want your own page about.'
+            : `Still to choose: ${extraPages - chosen.length}.`}
       </p>
 
-      {chosen.length > 0 ? (
-        <p className="mt-3 text-sm font-semibold text-ice-700">
-          {chosen.length} extra {chosen.length === 1 ? 'page' : 'pages'}. We will confirm this before
-          anything is charged, and your site is built either way.
+      {error ? (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      ) : !full ? (
+        <p className="field-hint mt-1">
+          These pages are paid for either way, so there is nothing to gain by leaving{' '}
+          {extraPages - chosen.length === 1 ? 'one' : 'them'} unused. You cannot continue until{' '}
+          {extraPages === 1 ? 'it is' : 'they are'} allocated.
         </p>
       ) : null}
     </div>

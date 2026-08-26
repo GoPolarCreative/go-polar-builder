@@ -160,6 +160,33 @@ export const step2Schema = z
   })
 export type Step2 = z.infer<typeof step2Schema>
 
+/**
+ * Additional pages the customer has PAID FOR but has not assigned to a service.
+ *
+ * WHY THIS IS A SHARED FUNCTION AND NOT A ZOD REFINEMENT. The entitlement lives on the job row,
+ * not in the intake payload, so the schema cannot see it. Both the browser and the submit route
+ * need the same answer, and the failure this guards against is precisely the two of them
+ * disagreeing, so there is exactly one implementation and both import it.
+ *
+ * FAILURE THIS PREVENTS, observed in production on 2026-08-26 (job_03b9657cf7f24757828ab158).
+ * A customer bought four additional pages, scrolled past the picker without choosing any,
+ * and submitted. Nothing objected. `ownPageServices` was empty, so the plan built one page,
+ * and `pagesDeliveredCheck` compared the delivered pages against the empty choice and passed.
+ * He was charged for five pages and received one, and every gate in the chain reported success.
+ *
+ * A service that is no longer in `services` does not count as allocated. Deselecting a service
+ * on a later pass must give its page back rather than stranding it.
+ */
+export function unallocatedPages(
+  pagesAllowed: number,
+  ownPageServices: string[] | undefined,
+  services: string[],
+): number {
+  const entitled = Math.max(0, (pagesAllowed || 1) - 1)
+  const chosen = (ownPageServices ?? []).filter((name) => services.includes(name))
+  return Math.max(0, entitled - chosen.length)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Step 3 - Service area
 // ---------------------------------------------------------------------------------------------

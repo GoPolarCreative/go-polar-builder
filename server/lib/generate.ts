@@ -1,4 +1,5 @@
 import type { AssetRecord, AuditFlag, GenerationEvent } from '../../shared/types.js'
+import { formatAuPhone } from '../../shared/phone.js'
 import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
 import { planSchema } from '../../shared/plan.js'
 import { config } from '../config.js'
@@ -25,7 +26,7 @@ import {
 import { buildFacts } from './facts.js'
 import { isUsablePhoto } from './audit.js'
 import { offlinePlan, offlineHtml } from './offline.js'
-import { enforcePagesAllowed } from './pages.js'
+import { enforcePagesAllowed, slugify } from './pages.js'
 
 export type Emit = (e: GenerationEvent) => void | Promise<void>
 
@@ -93,6 +94,7 @@ export async function generatePlan(args: {
     photoInventory,
     usablePhotoCount: usablePhotos.length,
     style: style.resolved,
+    pagesAllowed: args.pagesAllowed,
   })
 
   let lastError = ''
@@ -170,12 +172,51 @@ export function enforcePlanInvariants(
   // generous or forgetful; neither changes what the customer bought. Two rules failing in opposite
   // directions: never generate a page nobody paid for, and never silently drop one they did.
   const requested = (intake.ownPageServices ?? []).filter((name) => intake.services.includes(name))
-  out.servicePages = requested
-    .map((service) => {
-      const existing = out.servicePages.find((sp) => sp.service === service)
-      return existing ?? null
-    })
-    .filter((sp): sp is NonNullable<typeof sp> => sp !== null)
+
+  /*
+   * A PAID PAGE IS NEVER DROPPED, EVEN IF THE MODEL FORGOT IT.
+   *
+   * This used to look each requested service up in the model output and drop it when absent,
+   * turning "the model omitted a page" into "the customer silently received fewer pages than
+   * they paid for". It did exactly that on every real build, because the plan message never
+   * named the services (D55). The message names them now, but a prompt instruction is a hope.
+   * This synthesises an entry from the intake so a paid page always exists, and the
+   * pages_delivered check in buildSet.ts fails the build if one still goes missing.
+   *
+   * THE SYNTHESISED COPY INVENTS NOTHING. Every line is the service name, the suburbs from the
+   * intake, the years in business and the phone number. It is deliberately plainer than what the
+   * model writes, because a thin true page is recoverable with one edit and a fabricated one is
+   * not. It also satisfies the plan schema, so nothing downstream has to special-case it.
+   */
+  out.servicePages = requested.map((service) => {
+    const existing = out.servicePages.find((sp) => sp.service === service)
+    if (existing) return existing
+
+    const nearby = intake.suburbsServiced.slice(0, 3).map((s) => s.name)
+    const where = nearby.length > 0 ? nearby.join(", ") : intake.baseSuburb.name
+    const phone = formatAuPhone(intake.phone)
+    const meta = (
+      service + " by " + intake.businessName + ", servicing " + where + ". " +
+      "Call " + phone + " to talk through the job and get a price."
+    ).slice(0, 165)
+
+    return {
+      slug: slugify(service),
+      service,
+      title: (service + " | " + intake.businessName).slice(0, 70),
+      metaDescription: meta.length >= 70 ? meta : (meta + " " + intake.businessName + " services " + where + ".").slice(0, 165),
+      h1: (service + " in " + intake.baseSuburb.name).slice(0, 90),
+      intro: [
+        intake.businessName + " handles " + service.toLowerCase() + " across " + where +
+          ". Ring us and we will talk through what your job actually involves.",
+      ],
+      included: [
+        "Servicing " + where + " and the surrounding suburbs.",
+        intake.yearsInBusiness + " years in business.",
+        "Call " + phone + " to talk through the job.",
+      ],
+    }
+  })
 
   if (opts.pagesAllowed !== undefined) {
     const { plan: trimmed, dropped } = enforcePagesAllowed(out, opts.pagesAllowed)

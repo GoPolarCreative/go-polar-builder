@@ -27,6 +27,18 @@
   --color-polar-accent: #38b6ff;
   --color-polar-accent-hover: #1da7f5;
 
+  /*
+   * THE SAME BLUE, DARK ENOUGH TO BE READ AS TEXT ON A LIGHT GROUND.
+   *
+   * #38b6ff is a background colour. As ink on white it measures 2.26:1, which is under half of
+   * what WCAG AA asks for, and it was being used for every eyebrow and every arrow link in the
+   * builder. This is the same hue taken down until it measures 6.25:1, so accent-coloured text
+   * is readable without the interface stopping looking like Go Polar.
+   *
+   * Backgrounds keep --color-polar-accent. Text on a light ground uses this. Do not swap them.
+   */
+  --color-polar-accent-ink: #1f6690;
+
   --font-display: Poppins, system-ui, sans-serif;
   --font-sans: Poppins, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
@@ -90,8 +102,10 @@
 @layer components {
   /* Short ALL CAPS label above a heading. The most recognisable thing on his site:
      "START HERE", "WHO YOU'RE ACTUALLY DEALING WITH". */
+  /* 11px uppercase is the smallest text in the builder, so it needs the ink blue rather than
+     the background blue. It was 2.26:1 against white. */
   .eyebrow {
-    @apply mb-2 block text-[11px] font-bold text-polar-accent uppercase;
+    @apply mb-2 block text-[11px] font-bold text-polar-accent-ink uppercase;
     letter-spacing: var(--tracking-eyebrow);
   }
 
@@ -134,9 +148,23 @@
     @apply border-red-400 focus:border-red-500 focus:ring-red-100;
   }
 
-  /* Primary action: brand blue, lifts on hover. Straight off .gp-btn. */
+  /*
+   * Primary action: brand blue, lifts on hover. Straight off .gp-btn.
+   *
+   * THE LABEL IS NEAR-BLACK, NOT WHITE, AND THAT IS A CORRECTION RATHER THAN A PREFERENCE.
+   *
+   * White on #38b6ff measures 2.26:1. WCAG AA asks for 4.5:1 at this size, so the label on the
+   * most important button in the app was failing by a factor of two. A real customer walking the
+   * flow on a phone on 2026-08-26 reported that he could not read what the interface was telling
+   * him to do, and stopped there. Near-black on the same blue measures 9.3:1.
+   *
+   * THE BLUE ITSELF IS UNTOUCHED. It is the value read off itscold.com.au and it stays exactly
+   * that. Nothing about the brand colour changes here, only the ink sitting on top of it, which
+   * is the cheapest of the available fixes: darkening the blue enough for white to pass would
+   * have taken it to #267cad and that is a different colour from the one on the live site.
+   */
   .btn-accent {
-    @apply btn bg-polar-accent text-white;
+    @apply btn bg-polar-accent text-ice-700;
     box-shadow: var(--shadow-accent);
   }
   .btn-accent:hover:not(:disabled) {
@@ -181,14 +209,17 @@
   .chip-off {
     @apply chip border-ice-200 bg-white text-ice-700 hover:border-polar-accent hover:text-polar-accent;
   }
+  /* The same correction as .btn-accent, off the same measurement. A selected chip also has to
+     be readable, and the selected state deliberately changes weight as well as colour so that
+     "this one is on" is never carried by colour alone. */
   .chip-on {
-    @apply chip border-polar-accent bg-polar-accent text-white;
+    @apply chip border-polar-accent bg-polar-accent font-semibold text-ice-700;
   }
 
   /* Text link written as a phrase with an arrow: "See the work →". The arrow moves, not the text,
      so nothing reflows on hover. */
   .link-arrow {
-    @apply inline-flex items-center gap-1.5 font-bold text-polar-accent transition;
+    @apply inline-flex items-center gap-1.5 font-bold text-polar-accent-ink underline transition;
   }
   .link-arrow::after {
     content: '→';

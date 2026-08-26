@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { InboxBeforeBuild } from '../components/InboxSetup'
 import { Link, useParams } from 'react-router-dom'
 import type { CheckResult, GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamGeneration } from '../lib/api'
@@ -16,7 +17,6 @@ export default function Build() {
   const { jobId = '' } = useParams()
   const [stage, setStage] = useState<GenerationStage | null>(null)
   const [message, setMessage] = useState('')
-  const [html, setHtml] = useState('')
   const [report, setReport] = useState<VerificationReport | null>(null)
   const [version, setVersion] = useState<number | null>(null)
   const [running, setRunning] = useState(false)
@@ -25,7 +25,6 @@ export default function Build() {
   const [health, setHealth] = useState<Awaited<ReturnType<typeof api.health>> | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
 
-  const streamRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
     void api
@@ -34,15 +33,10 @@ export default function Build() {
       .catch(() => setHealth(null))
   }, [])
 
-  useEffect(() => {
-    if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight
-  }, [html])
-
   const run = async () => {
     setRunning(true)
     setStartedAt(Date.now())
     setError(null)
-    setHtml('')
     setReport(null)
     setSections([])
     setVersion(null)
@@ -55,7 +49,13 @@ export default function Build() {
             setMessage(event.message)
             break
           case 'html_chunk':
-            setHtml((h) => h + event.text)
+            /*
+             * Swallowed on purpose. The document still streams from the server, because the
+             * server streams it to prove liveness and other consumers read it, but this screen no
+             * longer shows raw markup to the customer and so has nothing to do with the bytes.
+             * Accumulating them into state was costing a full copy of the document in memory to
+             * feed a panel that has been removed.
+             */
             break
           case 'section_done':
             setSections((s) => [...s, `${event.index}/${event.total} ${event.section}`])
@@ -129,6 +129,20 @@ export default function Build() {
         </div>
       ) : null}
 
+      {/*
+        BEFORE THE BUILD, NOT AFTER IT. A tester walking the flow unguided finished his website,
+        was asked for a Web3Forms key on the editing page, and stopped. Asked here it is one more
+        setup question among the setup questions, and the generation they are about to wait five
+        minutes for gives them something to do while they make the account.
+
+        Hidden while a build runs and after one finishes in this session, so it is never competing
+        with the thing they came to watch. It is NOT hidden on a later visit to this page, because
+        version is not hydrated from the server: that is fine, because the card collapses itself to
+        a single green line once the key is verified, so the only person who sees it twice is the
+        person who has not done it yet.
+      */}
+      {!version && !running ? <InboxBeforeBuild jobId={jobId} /> : null}
+
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <button className="btn-accent" onClick={run} disabled={running}>
           {running ? 'Building' : version ? 'Build it again' : 'Start the build'}
@@ -154,28 +168,18 @@ export default function Build() {
         </div>
       ) : null}
 
-      {html ? (
-        <section className="mb-8">
-          <div className="mb-2 flex items-end justify-between gap-4">
-            <div>
-              <Eyebrow>Live</Eyebrow>
-              <h2 className="text-xl">Your website, being written</h2>
-            </div>
-            <p className="text-[13px] whitespace-nowrap text-ice-500">
-              {html.length.toLocaleString()} characters
-            </p>
-          </div>
-          <pre
-            ref={streamRef}
-            className="max-h-96 overflow-auto rounded-xl border border-ice-900 bg-ice-900 p-4 text-[11px] leading-relaxed text-white/70"
-          >
-            <code>{html.slice(-40000)}</code>
-          </pre>
-          <p className="field-hint">
-            This is the actual page being built. Nothing here is a template.
-          </p>
-        </section>
-      ) : null}
+      {/*
+        THE RAW HTML STREAM USED TO SIT HERE AND HAS BEEN REMOVED.
+
+        It printed the document as the model wrote it, under the heading "Your website, being
+        written", with a character counter. The intent was to prove the thing was working and that
+        nothing was a template. What it actually did was show a tradie forty thousand characters of
+        markup scrolling past for ten minutes.
+
+        The progress bar above does the same job honestly: it moves on stages the server has really
+        reached, names each one in words, and says how long it has been going. That is the
+        reassurance this screen owed the customer. The code was never the reassurance.
+      */}
 
       {report ? <ReportPanel report={report} /> : null}
 
@@ -197,14 +201,6 @@ export default function Build() {
             </Link>
             <a className="btn-ghost" href={previewUrl(jobId, version)} target="_blank" rel="noreferrer">
               Open in a new tab
-            </a>
-            <a
-              className="btn-ghost"
-              href={`/api/jobs/${jobId}/builds/${version}/html`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              See the code
             </a>
             <button
               className="btn-ghost"

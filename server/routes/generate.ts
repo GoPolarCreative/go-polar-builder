@@ -122,6 +122,10 @@ app.post('/jobs/:jobId/generate', async (c) => {
           homeHtml: outcome.html,
           homeReport: outcome.report,
           repairPasses: outcome.attempts,
+          // What they paid for, so the set is checked against the entitlement (D55).
+          paidPageServices: (intake.ownPageServices ?? []).filter((n) => intake.services.includes(n)),
+          // And what they are ENTITLED to, which is the thing the choice above can fall short of.
+          pagesAllowed: job.pagesAllowed,
         })
 
         const spend = usageReport()
@@ -198,7 +202,26 @@ app.post('/jobs/:jobId/generate', async (c) => {
         const message = err instanceof Error ? err.message : String(err)
         await recordEvent(jobId, 'generation.failed', { message })
         await setJobStatus(jobId, 'intake')
-        await emit({ type: 'error', message: 'The build did not finish.', detail: message })
+        /*
+         * THE CUSTOMER NEVER SEES THE UPSTREAM ERROR TEXT.
+         *
+         * This used to send `message` straight to the screen. A real customer who had just paid
+         * $220 was shown "Your credit balance is too low to access the Anthropic API. Please go to
+         * Plans & Billing to upgrade or purchase credits" - our billing problem, phrased as an
+         * instruction they cannot act on, about an account they do not have. Upstream errors are
+         * written for whoever holds the account, and that is never the tradie.
+         *
+         * The full message is already in the event log above, which is where a diagnosis belongs.
+         * What goes on screen is the only thing they actually need: nothing was lost, it was not
+         * their fault, and pressing the button again is safe. That last part is true because the
+         * job has just been set back to intake, so a retry costs them nothing.
+         */
+        await emit({
+          type: 'error',
+          message: 'The build did not finish.',
+          detail:
+            'Nothing has been lost. Your answers and your photos are saved, and this has not used up one of your ten changes. This is our end rather than yours, so there is nothing to fix on your side. Give it a few minutes and press Start the build again.',
+        })
       } finally {
         closed = true
         try {

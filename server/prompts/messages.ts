@@ -80,8 +80,23 @@ export function planUserMessage(args: {
   usablePhotoCount: number
   /** Already decided, by the customer or on their behalf. Not the model's to choose. */
   style: NamedStyleId
+  /** How many pages this job may build, home page included. Drives the PAGES section. */
+  pagesAllowed?: number
 }): string {
   const { intake, facts, auditFlags, photoInventory, usablePhotoCount } = args
+
+  /*
+   * WHAT THEY PAID FOR, STATED TO THE MODEL.
+   *
+   * This block did not exist, and its absence was a silent money bug. The house rules told the
+   * model "the facts tell you which services the customer asked to have their own page"; the
+   * facts did not. So the model correctly returned an empty servicePages array, and
+   * enforcePlanInvariants then dropped every paid-for page because it looks each one up in the
+   * model output. A customer could buy three pages, be charged for three, and receive one, with
+   * nothing anywhere reporting a problem. See DECISIONS.md D55.
+   */
+  const pageServices = (intake.ownPageServices ?? []).filter((name) => intake.services.includes(name))
+  const pagesAllowed = args.pagesAllowed ?? 1
 
   const areaServedGuidance =
     intake.travelRadius === 'statewide'
@@ -104,6 +119,16 @@ Services offered: ${intake.services.join(', ')}
 Primary service, this drives the h1: ${intake.primaryService}
 Free quotes offered: ${intake.freeQuotes ? 'YES, you may use the phrase "free quote"' : 'NO. The phrase "free quote" must not appear anywhere in the plan, in any casing.'}
 Emergency or after hours: ${intake.emergency ? 'YES, they take emergency and after hours calls' : 'NO, do not imply 24/7 availability'}
+
+# PAGES THEY HAVE PAID FOR
+
+${
+  pageServices.length === 0
+    ? 'None. This is a one page website. Return an empty servicePages array.'
+    : `The customer has paid for a dedicated page for each of these services, and ONLY these:\n${pageServices
+        .map((s) => `- ${s}`)
+        .join('\n')}\nWrite one servicePages entry for each name above, using that exact name in the service field. The allowance for this job is ${pagesAllowed} page(s) in total, home page included.`
+}
 
 # SERVICE AREA
 
@@ -305,7 +330,16 @@ The stylesheet must be complete. Later parts write markup only and cannot add CS
 
 Do not output any body content. Stop immediately after "<body>".`,
   },
-  { id: 'header', label: 'Sticky header', instruction: 'Output the <header> element only.' },
+  {
+    id: 'header',
+    label: 'Sticky header',
+    // The mobile sticky bar is house rule 16 and belongs to the footer section. Saying so here is
+    // what stops two sections both emitting it: this call cannot see what the footer call will do,
+    // and "sticky" plus "mobile" in the rules reads as this section's business without this line.
+    // checks/static.ts single_mobile_bar fails the build if it happens anyway.
+    instruction:
+      'Output the <header> element only. Do NOT output the mobile sticky call bar: it belongs to the footer section and emitting it here produces a duplicate. The header\'s own mobile call button lives inside the hamburger panel and is a different element.',
+  },
   { id: 'hero', label: 'Hero', instruction: 'Output the hero <section> only. It contains the single h1 and the quote form.' },
   { id: 'trust_strip', label: 'Trust strip', instruction: 'Output the trust strip <section> only.' },
   { id: 'about', label: 'About', instruction: 'Output the about <section> only.' },

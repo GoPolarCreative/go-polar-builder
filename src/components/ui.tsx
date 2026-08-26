@@ -52,7 +52,7 @@ export function BrandFooter() {
         <a className="font-semibold text-ice-700" href="mailto:hello@itscold.com.au">
           hello@itscold.com.au
         </a>
-        <span className="px-2 text-ice-300">·</span>
+        <span aria-hidden="true" className="px-2 text-ice-500">·</span>
         <a className="font-semibold text-ice-700" href="tel:+61435031044">
           +61 435 031 044
         </a>
@@ -207,7 +207,7 @@ export function CharCounter({ value, min, max }: { value: string; min: number; m
   const n = value.trim().length
   const ok = n >= min && n <= max
   return (
-    <span className={`text-xs ${ok ? 'text-ice-500' : 'text-amber-600'}`}>
+    <span className={`text-xs ${ok ? 'text-ice-500' : 'font-semibold text-amber-700'}`}>
       {n} characters. {min} to {max}.
     </span>
   )

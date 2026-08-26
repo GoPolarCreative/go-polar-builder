@@ -1,4 +1,5 @@
 import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
+import { headMetaTags } from './headMeta.js'
 import { styleSpec } from '../../../shared/styles.js'
 import {
   ICON_CHEVRON,
@@ -88,6 +89,13 @@ export function renderServicePage(args: {
     .map((p) => `<li>${icon(ICON_TICK)}<span>${esc(clean(p))}</span></li>`)
     .join('\n        ')
 
+  /*
+   * Same icon and card tags as the home page. The paths inside are bare (`assets/...`) rather
+   * than `../../assets/...` on purpose: og:image is built absolute from the canonical URL, and
+   * the favicon links are rewritten at publish time along with everything else.
+   */
+  const headMeta = headMetaTags(plan, facts, { esc })
+
   return `<!DOCTYPE html>
 <html lang="en-AU">
 <head>
@@ -101,10 +109,11 @@ export function renderServicePage(args: {
 <meta property="og:description" content="${esc(clean(content.metaDescription))}">
 <meta property="og:url" content="${esc(canonicalFor(baseUrl, page))}">
 <meta property="og:locale" content="en_AU">
-<meta name="twitter:card" content="summary_large_image">
+${headMeta.social}
 <meta name="geo.region" content="${esc(plan.meta.geoRegion)}">
 <meta name="geo.placename" content="${esc(plan.meta.geoPlacename)}">
 <meta name="theme-color" content="${plan.tokens.primary}">
+${headMeta.icons}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?${spec.fontsQuery}&display=swap">

@@ -197,10 +197,15 @@ describe('a page nobody paid for is never granted', () => {
  * at a checkout that does not work.
  */
 describe('what stops the app taking payments', () => {
+  /*
+   * THERE IS NO LONGER AN UNPRICED PRODUCT. 'extraEdits' was the only one and it was removed
+   * rather than priced (D66). The rule still holds and is still worth pinning: an unpriced
+   * product is never offered, so it can never block a launch. Written so it passes vacuously
+   * today and starts working the moment somebody adds one.
+   */
   it('an unpriced product does not block, because it is never offered', () => {
     const problems = productConfigProblems({})
     const unpriced = problems.filter((p) => PRICING[p.key].incGstCents === null)
-    expect(unpriced.length).toBeGreaterThan(0)
     for (const problem of unpriced) {
       expect(blocksPayments(problem), `${problem.key} should not block a launch`).toBe(false)
     }
@@ -221,8 +226,8 @@ describe('what stops the app taking payments', () => {
     ).toBe(true)
   })
 
-  it('the only things left to paste in are the six subscription ids', () => {
-    // These six are the whole gap between this repo and taking money. Everything else about the
+  it('the only things left to paste in are the subscription ids', () => {
+    // These five are the whole gap between this repo and taking money. Everything else about the
     // store is recorded in shared/pricing.ts and needs nothing at deploy time. If this list ever
     // grows, the runbook is out of date and somebody is going to hit it at 9pm on a launch night.
     const blocking = productConfigProblems({}).filter(blocksPayments)
@@ -230,18 +235,16 @@ describe('what stops the app taking payments', () => {
       [
         'SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR',
         'SHOPIFY_SELLING_PLAN_EMAIL_HOSTING',
-        'SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA',
+        'SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY',
         'SHOPIFY_VARIANT_DOMAIN_1_YEAR',
         'SHOPIFY_VARIANT_EMAIL_HOSTING',
-        'SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA',
       ].sort(),
     )
   })
 
-  it('with those six set, nothing blocks a launch', () => {
+  it('with those five set, nothing blocks a launch', () => {
     const env = {
-      SHOPIFY_VARIANT_WEBSITE_HOSTING_AUSTRALIA: '1',
-      SHOPIFY_SELLING_PLAN_WEBSITE_HOSTING_AUSTRALIA: '2',
+      SHOPIFY_SELLING_PLAN_DIY_HOSTING_MONTHLY: '2',
       SHOPIFY_VARIANT_DOMAIN_1_YEAR: '3',
       SHOPIFY_SELLING_PLAN_DOMAIN_1_YEAR: '4',
       SHOPIFY_VARIANT_EMAIL_HOSTING: '5',
@@ -250,7 +253,14 @@ describe('what stops the app taking payments', () => {
     const blocking = productConfigProblems(env).filter(blocksPayments)
     expect(blocking.map((p) => `${p.key}: ${p.missing}`)).toEqual([])
 
-    // And the unpriced add-on is still reported, just not as a blocker.
-    expect(productConfigProblems(env).length).toBeGreaterThan(0)
+    /*
+     * NOTHING IS REPORTED AT ALL NOW, not even a non-blocker.
+     *
+     * This used to assert that the unpriced add-on still showed up in the list. 'extraEdits' was
+     * the only thing in it and it was removed rather than priced (D66), so a clean configuration
+     * is now genuinely clean. Asserted as empty rather than deleted: "there is nothing left to
+     * configure" is a fact worth a test, and this is what will notice when that stops being true.
+     */
+    expect(productConfigProblems(env)).toEqual([])
   })
 })

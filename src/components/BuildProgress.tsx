@@ -68,12 +68,26 @@ export function BuildProgress(props: { stage: GenerationStage | null; done: bool
   return (
     <div className="mb-6 rounded-xl border border-ice-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-medium">{props.stage ? STAGE_COPY[props.stage] : 'Starting'}</p>
-        <p className="text-sm text-ice-600">{elapsedLabel(seconds)} so far</p>
+        <p className="text-base font-semibold">{props.stage ? STAGE_COPY[props.stage] : 'Starting'}</p>
+        <p className="text-sm font-semibold text-ice-500">
+          {pct}% <span className="font-normal">&middot; {elapsedLabel(seconds)} so far</span>
+        </p>
       </div>
 
+      {/*
+        THE FILL IS bg-polar-accent, AND THAT IS A BUG FIX RATHER THAN A RESTYLE.
+
+        This was `bg-accent`, which is not a class this project defines: the token is
+        --color-polar-accent, so the utility is bg-polar-accent. Tailwind emitted nothing for it,
+        which meant the fill was transparent and the bar was a light grey track on a white card
+        with an invisible indicator sliding along it. A tester watching a ten minute build said
+        the progress bar needed to be more obvious and carry some colour. It had none.
+
+        Taller as well, at 12px rather than 8px, because this is the only thing moving on the
+        screen for the length of the build and it is being watched on a phone.
+      */}
       <div
-        className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ice-100"
+        className="mt-3 h-3 w-full overflow-hidden rounded-full bg-ice-100 ring-1 ring-ice-200 ring-inset"
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}
@@ -81,7 +95,7 @@ export function BuildProgress(props: { stage: GenerationStage | null; done: bool
         aria-label="Build progress"
       >
         <div
-          className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
+          className="h-full rounded-full bg-polar-accent transition-all duration-700 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -90,7 +104,7 @@ export function BuildProgress(props: { stage: GenerationStage | null; done: bool
         {STAGE_ORDER.filter((s) => s !== 'repairing' || props.stage === 'repairing').map((s) => {
           const reached = props.done || STAGE_ORDER.indexOf(s) <= STAGE_ORDER.indexOf(props.stage ?? 'planning')
           return (
-            <li key={s} className={reached ? 'font-medium text-ice-900' : 'text-ice-400'}>
+            <li key={s} className={reached ? 'font-semibold text-ice-700' : 'text-ice-500'}>
               {reached ? '\u2713 ' : ''}
               {STAGE_COPY[s]}
             </li>

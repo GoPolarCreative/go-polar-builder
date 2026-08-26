@@ -1,5 +1,11 @@
 import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
-import { paletteCarriesDarkSurfaces, styleSpec, type StyleSpec } from '../../../shared/styles.js'
+import { headMetaTags } from './headMeta.js'
+import {
+  paletteCarriesDarkSurfaces,
+  styleSpec,
+  type SectionKey,
+  type StyleSpec,
+} from '../../../shared/styles.js'
 
 /**
  * The site renderer.
@@ -279,6 +285,23 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '@media (min-width:900px){.section{padding:var(--section-pad-lg) 0;}}',
     '.section--alt{background:var(--alt-bg);}',
     '.section--dark{background:var(--dark-block);color:var(--on-dark);}',
+    ...(spec.layout.parallax
+      ? [
+          // PARALLAX, WITH THE TWO CONDITIONS THAT MAKE IT SAFE.
+          //
+          // background-attachment:fixed has never worked on iOS Safari: it does not scroll the
+          // image, it rescales and crops it, and the result is a jumping, badly framed photo on
+          // exactly the device most of these customers are seen on. So it is behind a
+          // pointer:fine query, which excludes touch, and behind prefers-reduced-motion, which
+          // excludes anybody who has asked the OS for less movement. Everywhere else the band
+          // just holds still while the page moves over it.
+          '@media (pointer:fine) and (prefers-reduced-motion:no-preference){',
+          '.hero__bg img{background-attachment:fixed;}',
+          '.section--dark{background-attachment:fixed;background-size:cover;background-position:center;}',
+          '.stats-band{background-attachment:fixed;background-size:cover;background-position:center;}',
+          '}',
+        ]
+      : []),
     '.section--dark h2,.section--dark h3{color:var(--on-dark);}',
     '.section--dark p{color:var(--on-dark-72);}',
     '.eyebrow{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}',
@@ -319,7 +342,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;}',
     '.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}',
     '.brand__mark{width:40px;height:40px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.15rem;}',
-    '.brand__logo{max-height:42px;width:auto;}',
+    '.brand__logo{max-height:42px;max-width:260px;width:auto;height:auto;object-fit:contain;}',
     '.brand__name{font-family:var(--font-head);font-size:1.2rem;letter-spacing:var(--track-head);' +
       (spec.headingTransform === 'uppercase' ? 'text-transform:uppercase;' : '') +
       '}',
@@ -352,6 +375,33 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.hero__points li{display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;color:var(--on-dark-66);}',
     '.hero__points .icon{width:16px;height:16px;color:var(--accent);}',
     '@media (min-width:1000px){.hero__inner{grid-template-columns:1fr 440px;gap:3.75rem;}}',
+
+    // ---- hero variants ----------------------------------------------------------------
+    // The two-column rule above is the split hero. The other two override it, so a style that
+    // asks for centred or editorial does not inherit a 440px column it has nothing to put in.
+
+    // Centred: one column, everything stacked and centred under the h1. Where the form stays
+    // in the hero it sits below the CTAs at a readable width rather than beside them.
+    '.hero--centred .hero__inner{justify-items:center;text-align:center;}',
+    '.hero--centred .hero__copy{max-width:56rem;}',
+    '.hero--centred .hero__ctas{justify-content:center;}',
+    '.hero--centred .hero__points{justify-content:center;}',
+    '@media (min-width:1000px){.hero--centred .hero__inner{grid-template-columns:minmax(0,1fr);}',
+    '.hero--centred .form-card{max-width:34rem;margin-inline:auto;}}',
+
+    // Editorial: copy sits low and left over a full-bleed photo, with room under it. Taller,
+    // because the point of it is the photograph rather than what is written on top.
+    '.hero--editorial{min-height:78vh;align-items:flex-end;padding-bottom:5rem;}',
+    '.hero--editorial .hero__copy{max-width:44rem;}',
+    '@media (min-width:1000px){.hero--editorial .hero__inner{grid-template-columns:minmax(0,1fr);}}',
+
+    // No form in the hero at all: the copy is free to use the width.
+    '@media (min-width:1000px){.hero--noform .hero__inner{grid-template-columns:minmax(0,1fr);}}',
+
+    // The standalone quote section, used by the styles whose hero has no form.
+    '.section--quote .quote-wrap{display:grid;gap:2rem;align-items:center;}',
+    '@media (min-width:900px){.section--quote .quote-wrap{grid-template-columns:1fr 460px;gap:3rem;}}',
+    '.quote-intro p{color:var(--muted);max-width:34rem;}',
   ].join('\n')
 
   const form = [
@@ -529,7 +579,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.site-footer ul{list-style:none;padding:0;margin:0;display:grid;gap:9px;font-size:0.88rem;}',
     '.site-footer a{text-decoration:none;}',
     '.site-footer a:hover{color:var(--accent);}',
-    '.site-footer__logo{max-height:56px;width:auto;margin-bottom:1rem;}',
+    '.site-footer__logo{max-height:56px;max-width:min(280px,60vw);width:auto;height:auto;object-fit:contain;margin-bottom:1rem;}',
     '.site-footer__blurb{font-size:0.88rem;max-width:34ch;}',
     '.footer-bottom{border-top:1px solid var(--veil-12);padding:1.25rem 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;font-size:0.79rem;}',
     '.footer-bottom a{color:var(--accent);}',
@@ -558,14 +608,42 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
   ].join('\n')
 }
 
+/**
+ * The rendered box for a logo, from its REAL dimensions rather than a guess.
+ *
+ * FAILURE THIS FIXES, reported from a dress rehearsal on 2026-08-26: "logo in the footer is
+ * squished". The header emitted width="180" height="44" and the footer width="240" height="70",
+ * both hardcoded, neither having anything to do with the artwork. Those attributes are what the
+ * browser uses to reserve space before the image loads, so every logo that was not 4.09:1 in the
+ * header or 3.43:1 in the footer was laid out in the wrong shape and then jumped when it arrived.
+ * On a slow phone connection that wrong shape is what you look at for the first second, and the
+ * footer's 3.43:1 is wide enough that a squarish mark reserved a box more than three times too
+ * wide.
+ *
+ * Capped on width as well as height. A wide lockup, which the audit already flags at 3.2:1 and
+ * above, is over 190px wide at the footer's 56px cap, and there are phones narrower than that
+ * once padding is taken off.
+ */
+function logoBox(logo: { width: number; height: number }, maxH: number, maxW: number) {
+  const aspect = logo.width && logo.height ? logo.width / logo.height : 4
+  let height = Math.min(maxH, logo.height || maxH)
+  let width = Math.round(height * aspect)
+  if (width > maxW) {
+    width = maxW
+    height = Math.round(width / aspect)
+  }
+  return { width, height: Math.max(1, height) }
+}
+
 export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
   const name = esc(plan.brand.wordmarkText)
 
+
   if (plan.brand.logoTreatment === 'image' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="180" height="44"></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 42, 260).width}" height="${logoBox(facts.logo, 42, 260).height}"></a>`
   }
   if (plan.brand.logoTreatment === 'cropped-mark' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="180" height="44"><span class="brand__name">${name}</span></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 42, 260).width}" height="${logoBox(facts.logo, 42, 260).height}"><span class="brand__name">${name}</span></a>`
   }
 
   const initials = plan.brand.wordmarkText
@@ -632,7 +710,23 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
     .map((p) => `<li>${icon(ICON_TICK)}<span>${esc(clean(p))}</span></li>`)
     .join('\n        ')
 
-  return `<section class="hero" id="top">
+  const L = spec.layout
+
+  // The form card, only when this style keeps it in the hero. When it does not, the same card
+  // is rendered by the standalone quote section instead, so the page still has two forms.
+  const heroFormCard = L.heroForm
+    ? formMarkup({
+        id: 'heroForm',
+        heading: plan.hero.formHeading,
+        button: plan.hero.formButtonLabel,
+        subject: facts.heroFormSubject,
+        key: facts.web3formsKey,
+        headingLevel: 2,
+        eyebrow: 'Start a conversation',
+      })
+    : ''
+
+  return `<section class="hero hero--${L.hero}${L.heroForm ? '' : ' hero--noform'}" id="top">
   <div class="hero__bg">
     ${background}
     <div class="hero__scrim"></div>
@@ -651,15 +745,7 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
         ${points}
       </ul>
     </div>
-    ${formMarkup({
-      id: 'heroForm',
-      heading: plan.hero.formHeading,
-      button: plan.hero.formButtonLabel,
-      subject: facts.heroFormSubject,
-      key: facts.web3formsKey,
-      headingLevel: 2,
-      eyebrow: 'Start a conversation',
-    })}
+    ${heroFormCard}
   </div>
 </section>`
 }
@@ -708,56 +794,33 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
     .map((c) => `<!-- STYLE NOTE: ${clean(c)} -->`)
     .join('\n')
 
-  return `<!DOCTYPE html>
-<html lang="en-AU">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(clean(plan.meta.title))}</title>
-<meta name="description" content="${esc(clean(plan.meta.metaDescription))}">
-<link rel="canonical" href="${esc(facts.canonicalUrl)}">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${esc(clean(plan.meta.ogTitle))}">
-<meta property="og:description" content="${esc(clean(plan.meta.ogDescription))}">
-<meta property="og:url" content="${esc(facts.canonicalUrl)}">
-<meta property="og:locale" content="en_AU">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="geo.region" content="${esc(plan.meta.geoRegion)}">
-<meta name="geo.placename" content="${esc(plan.meta.geoPlacename)}">
-<meta name="geo.position" content="${plan.meta.geoPosition.lat};${plan.meta.geoPosition.lng}">
-<meta name="ICBM" content="${plan.meta.geoPosition.lat}, ${plan.meta.geoPosition.lng}">
-<meta name="theme-color" content="${t.primary}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${spec.fontsQuery}&display=swap">
-<script type="application/ld+json">
-${JSON.stringify(jsonLd, null, 2)}
-</script>
-<style>
-${stylesheet(plan, spec, surfaces)}
-</style>
-</head>
-<body>
-${assumptionComments}
-${supplyComments}
-${styleComments}
-<header class="site-header" id="siteHeader">
-  <div class="wrap site-header__inner">
-    ${brandMarkup(plan, facts)}
-    <nav class="nav" aria-label="Main">
-      ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n      ')}
-    </nav>
-    <a class="btn btn--primary header__cta" href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(facts.phoneDisplay)}</a>
-    <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="mobilePanel" aria-label="Open menu">${icon(ICON_MENU)}</button>
+  // THE BODY IS ASSEMBLED, NOT WRITTEN OUT IN ORDER.
+  //
+  // It used to be one template literal with the eleven sections hardcoded in a fixed order, so
+  // every style produced the same page with different fonts on it. The customer was being asked
+  // to choose between four skins and told it was a choice of layout. These are the same eleven
+  // sections, keyed, and the style says which ones appear and in what order.
+  const bodySections: Record<SectionKey, string> = {
+    quote: `
+<section class="section section--quote" id="quote">
+  <div class="wrap quote-wrap">
+    <div class="quote-intro">
+      <span class="eyebrow">Start a conversation</span>
+      <h2>${twoTone(plan.hero.formHeading, spec.twoTone)}</h2>
+      <p>${esc(clean(plan.hero.sub))}</p>
+    </div>
+    ${formMarkup({
+      id: 'heroForm',
+      heading: plan.hero.formHeading,
+      button: plan.hero.formButtonLabel,
+      subject: facts.heroFormSubject,
+      key: facts.web3formsKey,
+      headingLevel: 3,
+    })}
   </div>
-</header>
-<div class="mobile-panel" id="mobilePanel" data-open="false">
-  ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n  ')}
-  <a class="btn btn--solid btn--block" href="tel:${esc(facts.phoneE164)}">${esc(clean(plan.hero.ctaPrimary.label))}</a>
-</div>
-
-${heroMarkup(plan, facts, spec)}
-
+</section>
+`,
+    trust: `
 <section class="trust-bar">
   <div class="wrap trust-grid">
     ${plan.trustStrip
@@ -769,6 +832,8 @@ ${heroMarkup(plan, facts, spec)}
   </div>
 </section>
 
+`,
+    about: `
 <section class="section" id="about">
   <div class="wrap about-grid">
     <div class="about__copy">
@@ -798,6 +863,8 @@ ${heroMarkup(plan, facts, spec)}
   </div>
 </section>
 
+`,
+    services: `
 <section class="section section--alt" id="services">
   <div class="wrap">
     ${sectionHead({
@@ -822,6 +889,8 @@ ${heroMarkup(plan, facts, spec)}
   </div>
 </section>
 
+`,
+    work: `
 ${
   plan.gallery.enabled
     ? `<section class="section" id="work">
@@ -853,6 +922,8 @@ ${
     : `<!-- CLIENT TO SUPPLY: three or more job photos so the Our Work gallery can be built. No stock photography has been used. -->`
 }
 
+`,
+    why: `
 <section class="section section--dark" id="why">
   <div class="wrap">
     ${sectionHead({
@@ -876,6 +947,8 @@ ${
   </div>
 </section>
 
+`,
+    stats: `
 <section class="stats-band" id="stats">
   <div class="wrap stats-grid">
     ${plan.stats
@@ -887,6 +960,8 @@ ${
   </div>
 </section>
 
+`,
+    process: `
 <section class="section" id="process">
   <div class="wrap">
     ${sectionHead({
@@ -909,6 +984,8 @@ ${
   </div>
 </section>
 
+`,
+    areas: `
 <section class="section section--alt" id="areas">
   <div class="wrap areas-grid">
     <div>
@@ -922,6 +999,8 @@ ${
   </div>
 </section>
 
+`,
+    reviews: `
 ${
   plan.testimonials.enabled && plan.testimonials.items.length > 0
     ? `<section class="section" id="reviews">
@@ -948,6 +1027,8 @@ ${
     : `<!-- No testimonials section: the client supplied no reviews. Nothing has been invented. -->`
 }
 
+`,
+    faq: `
 <section class="section section--alt" id="faq">
   <div class="wrap">
     ${sectionHead({
@@ -981,6 +1062,8 @@ ${
   </div>
 </section>
 
+`,
+    contact: `
 <section class="section" id="contact">
   <div class="wrap contact-grid">
     <div>
@@ -1020,6 +1103,71 @@ ${
     })}
   </div>
 </section>
+`,
+  }
+
+  // A style whose hero holds the form must not also render the standalone quote section, or
+  // the page gets the same card twice under two headings. Enforced here rather than trusted to
+  // the data, because the spec is hand written and this is a silent duplication if it is wrong.
+  const orderedBody = spec.layout.order
+    .filter((key) => key !== 'quote' || !spec.layout.heroForm)
+    .map((key) => bodySections[key])
+    .join(`\n`)
+
+  // The tab icon and the share card. See headMeta.ts for why both were missing.
+  const headMeta = headMetaTags(plan, facts, { esc })
+
+  return `<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(clean(plan.meta.title))}</title>
+<meta name="description" content="${esc(clean(plan.meta.metaDescription))}">
+<link rel="canonical" href="${esc(facts.canonicalUrl)}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${esc(clean(plan.meta.ogTitle))}">
+<meta property="og:description" content="${esc(clean(plan.meta.ogDescription))}">
+<meta property="og:url" content="${esc(facts.canonicalUrl)}">
+<meta property="og:locale" content="en_AU">
+${headMeta.social}
+<meta name="geo.region" content="${esc(plan.meta.geoRegion)}">
+<meta name="geo.placename" content="${esc(plan.meta.geoPlacename)}">
+<meta name="geo.position" content="${plan.meta.geoPosition.lat};${plan.meta.geoPosition.lng}">
+<meta name="ICBM" content="${plan.meta.geoPosition.lat}, ${plan.meta.geoPosition.lng}">
+<meta name="theme-color" content="${t.primary}">
+${headMeta.icons}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${spec.fontsQuery}&display=swap">
+<script type="application/ld+json">
+${JSON.stringify(jsonLd, null, 2)}
+</script>
+<style>
+${stylesheet(plan, spec, surfaces)}
+</style>
+</head>
+<body>
+${assumptionComments}
+${supplyComments}
+${styleComments}
+<header class="site-header" id="siteHeader">
+  <div class="wrap site-header__inner">
+    ${brandMarkup(plan, facts)}
+    <nav class="nav" aria-label="Main">
+      ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n      ')}
+    </nav>
+    <a class="btn btn--primary header__cta" href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(facts.phoneDisplay)}</a>
+    <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="mobilePanel" aria-label="Open menu">${icon(ICON_MENU)}</button>
+  </div>
+</header>
+<div class="mobile-panel" id="mobilePanel" data-open="false">
+  ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n  ')}
+  <a class="btn btn--solid btn--block" href="tel:${esc(facts.phoneE164)}">${esc(clean(plan.hero.ctaPrimary.label))}</a>
+</div>
+
+${heroMarkup(plan, facts, spec)}
+${orderedBody}
 
 <footer class="site-footer">
   <div class="wrap">
@@ -1027,7 +1175,7 @@ ${
       <div>
         ${
           plan.brand.logoTreatment !== 'css-logotype' && facts.logo
-            ? `<img class="site-footer__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="240" height="70">`
+            ? `<img class="site-footer__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 56, 280).width}" height="${logoBox(facts.logo, 56, 280).height}">`
             : `<p class="brand__name">${esc(plan.brand.wordmarkText)}</p>`
         }
         <p class="site-footer__blurb">${esc(clean(plan.brand.tagline))}</p>

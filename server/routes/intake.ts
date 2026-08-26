@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
-import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
-import { SeedSuburbProvider, suburbKey } from '../../shared/suburbs.js'
+import { intakeSchema, unallocatedPages, type IntakePayload } from '../../shared/intake.js'
+import { suburbKey } from '../../shared/suburbs.js'
+import { AuSuburbProvider } from '../lib/suburbs.js'
 import { normaliseAuPhone } from '../../shared/phone.js'
 import { getJob, listAssets, recordEvent, saveIntakeDraft, submitIntake } from '../lib/db.js'
 import { runGapAudit } from '../lib/audit.js'
 
 const app = new Hono()
-const suburbs = new SeedSuburbProvider()
+const suburbs = new AuSuburbProvider()
 
 /** Autosave. Deliberately unvalidated: a half-filled form is the normal state of a draft. */
 app.put('/jobs/:jobId/intake', async (c) => {
@@ -60,6 +61,40 @@ app.post('/jobs/:jobId/intake/submit', async (c) => {
         error: 'validation_failed',
         detail: 'Service areas must be picked from the suburb list',
         issues: unknown.map((u) => ({ path: 'suburbsServiced', message: `Unknown suburb: ${u}` })),
+      },
+      422,
+    )
+  }
+
+  /*
+   * EVERY PAGE THEY PAID FOR MUST BE POINTED AT A SERVICE BEFORE THE BUILD RUNS.
+   *
+   * This sits beside the suburb check for the same reason that one exists: the browser already
+   * prevents it, and the browser is not the gate. The entitlement is on the job row rather than
+   * in the payload, so no amount of schema work can catch it and it has to be checked here.
+   *
+   * REFUSING IS THE KIND ANSWER. The alternative, taken until now, was to accept the submission
+   * and build whatever was chosen, which quietly delivered less than the customer bought and
+   * reported that everything passed. A 422 sends them back to a picker they can complete in a
+   * few seconds. A silent short build is found weeks later, by them.
+   */
+  const unallocated = unallocatedPages(job.pagesAllowed ?? 1, payload.ownPageServices, payload.services)
+  if (unallocated > 0) {
+    return c.json(
+      {
+        error: 'validation_failed',
+        detail:
+          unallocated === 1
+            ? 'One page you have paid for has not been given a service yet'
+            : unallocated + ' pages you have paid for have not been given a service yet',
+        issues: [
+          {
+            path: 'ownPageServices',
+            message:
+              'You paid for ' + Math.max(0, (job.pagesAllowed ?? 1) - 1) + ' extra page(s). ' +
+              'Choose which service goes on each one. They are already paid for.',
+          },
+        ],
       },
       422,
     )
