@@ -1,4 +1,11 @@
 import { Hono } from 'hono'
+import {
+  TTL_MINUTES,
+  checkCode,
+  issueCode,
+  jobForEmail,
+  normaliseEmail,
+} from '../lib/loginCode.js'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import {
@@ -38,6 +45,110 @@ const app = new Hono()
  * THE EMAIL PATH STILL WORKS. This is a second door, not a replacement, because somebody coming
  * back a fortnight later will not have the order number to hand.
  */
+/**
+ * The returning customer's door. Email, then a six digit code.
+ *
+ *   POST /api/auth/code/request  { email }
+ *   POST /api/auth/code/verify   { email, code }
+ *
+ * THIS IS THE ONLY WAY INTO A LIVE SITE. Email plus order number stays for the pre-launch build
+ * phase, where the customer has the confirmation on screen and the thing behind the door is a
+ * draft on our servers. Once a site is public the stakes change: neither an email address nor an
+ * order number is secret, so the only acceptable evidence is control of the inbox.
+ *
+ * THE ANSWER IS THE SAME WHETHER OR NOT THE ADDRESS IS A CUSTOMER. Otherwise this endpoint
+ * cheerfully reports who has bought a website to anyone who asks.
+ */
+app.post('/auth/code/request', async (c) => {
+  const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string })
+  const email = normaliseEmail(body.email ?? '')
+
+  const generic = {
+    ok: true,
+    detail:
+      'If that address has a website with us, a six digit code is on its way. It expires in ten minutes.',
+  }
+
+  if (!email.includes('@')) return c.json(generic)
+
+  const issued = await issueCode(email)
+  if (!issued.ok) {
+    return c.json(
+      {
+        error: 'too_many_codes',
+        detail: `We have already sent a few codes to that address. Give it ${issued.retryAfterMinutes} minutes, and check your junk folder in the meantime.`,
+      },
+      429,
+    )
+  }
+
+  const jobId = await jobForEmail(email)
+  if (jobId) {
+    // Only send when there is something to open. The caller cannot tell the difference.
+    await trackKlaviyoSafely({
+      metric: 'login_code',
+      profile: { email },
+      jobId,
+      properties: {
+        login_code: issued.issued.code,
+        expires_in_minutes: TTL_MINUTES,
+      },
+    })
+    await recordEvent(jobId, 'auth.code_sent', { email })
+  } else {
+    await recordEvent(null, 'auth.code_no_account', { email })
+  }
+
+  return c.json(generic)
+})
+
+app.post('/auth/code/verify', async (c) => {
+  const body = await c.req
+    .json<{ email?: string; code?: string }>()
+    .catch(() => ({}) as { email?: string; code?: string })
+  const email = normaliseEmail(body.email ?? '')
+
+  const result = await checkCode(email, body.code ?? '')
+
+  if (!result.ok) {
+    const message: Record<typeof result.reason, string> = {
+      no_code: 'That code has already been used, or none was sent to that address. Ask for a new one.',
+      expired: 'That code has expired. They only last ten minutes. Ask for a new one.',
+      locked: 'Too many wrong tries, so that code is now dead. Ask for a new one.',
+      wrong:
+        result.attemptsLeft === 1
+          ? 'That is not right. One more wrong try and the code stops working.'
+          : `That is not right. Check the email again, ${result.attemptsLeft} tries left.`,
+    }
+    return c.json({ error: result.reason, detail: message[result.reason] }, 401)
+  }
+
+  /*
+   * The job comes from the VERIFIED email and nothing else. No job id is accepted from the
+   * caller, so a code can only ever open a job belonging to the address it was sent to.
+   */
+  const jobId = await jobForEmail(result.email)
+  if (!jobId) {
+    return c.json(
+      { error: 'no_job', detail: 'That address does not have a website with us. Check which one you paid with.' },
+      404,
+    )
+  }
+
+  const session = await signClaims({
+    kind: 'session',
+    jobId,
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_DAYS * 86_400,
+  })
+
+  await recordEvent(jobId, 'auth.code_verified', { email: result.email })
+
+  return new Response(JSON.stringify({ ok: true, jobId }), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(session) },
+  })
+})
+
 app.post('/auth/claim', async (c) => {
   const body = await c.req
     .json<{ email?: string; orderNumber?: string }>()
@@ -148,6 +259,55 @@ app.post('/auth/claim', async (c) => {
     )
   }
 
+  /*
+   * ONCE THE SITE IS LIVE, THIS STOPS BEING A DOOR AND BECOMES A KNOCK.
+   *
+   * Email plus order number is evidence of a purchase, and it is enough to get into a build that
+   * only exists on our servers. It is NOT enough to edit a website the public is already looking
+   * at. Neither half is secret: an email address is on the side of the van, and an order number
+   * is on a receipt that has been forwarded, printed and left in a ute. Together they are two
+   * things a determined person can find, and the thing they would unlock is a live tradie's
+   * business changing under them.
+   *
+   * So for a live job the match is the CLAIM step only. We mint a fresh link and Klaviyo emails
+   * it to the address on record, which is the pattern the rest of the product already uses. The
+   * person holding the inbox is the person who gets in.
+   *
+   * THIS WORKS FOR SOMEBODY WHOSE ORIGINAL LINK LAPSED MONTHS AGO, which is the normal case here:
+   * they went live in March and want a change in July. createBuildToken mints a NEW token with a
+   * new expiry rather than resurrecting the old one, so the age of whatever is in their inbox
+   * does not matter.
+   *
+   * PRE-LAUNCH IS UNCHANGED. A customer who has just paid and is standing at the builder with the
+   * confirmation still on screen gets straight in, and that flow is working and verified. This
+   * only tightens the case where the stakes actually changed.
+   */
+  const db2 = await getDb()
+  const [liveSite] = await db2
+    .select({ live: schema.sites.live })
+    .from(schema.sites)
+    .where(eq(schema.sites.jobId, jobId))
+    .limit(1)
+
+  if (liveSite?.live) {
+    const token = await createBuildToken(jobId)
+    const sent = await trackKlaviyoSafely({
+      metric: 'link_requested',
+      profile: { email },
+      jobId,
+      properties: { builder_login_link: buildLink(token), reason: 'claim_on_live_site' },
+    })
+
+    await recordEvent(jobId, 'auth.claim_emailed', { email, orderNumber, sent, live: true })
+
+    return c.json({
+      ok: true,
+      emailed: true,
+      detail:
+        'That matches. Because your website is already online, we have emailed a sign in link to the address on your order rather than letting anyone with the order number straight in. Check your inbox, including junk.',
+    })
+  }
+
   const session = await signClaims({
     kind: 'session',
     jobId,
@@ -156,7 +316,7 @@ app.post('/auth/claim', async (c) => {
 
   await recordEvent(jobId, 'auth.claim', { email, orderNumber })
 
-  return new Response(JSON.stringify({ ok: true, jobId }), {
+  return new Response(JSON.stringify({ ok: true, jobId, emailed: false }), {
     status: 200,
     headers: { 'content-type': 'application/json', 'set-cookie': sessionCookie(session) },
   })
