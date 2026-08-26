@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ApiCallError, api, type FormsKeyState } from '../lib/api'
 import { Banner, BrandFooter, BrandHeader, Eyebrow, Field, Spinner, TextInput, YesNo } from '../components/ui'
+import { InboxOutstanding } from '../components/InboxSetup'
 
 /**
  * Phase 5, brief s8. Going live, in three screens.
@@ -11,8 +12,33 @@ import { Banner, BrandFooter, BrandHeader, Eyebrow, Field, Spinner, TextInput, Y
  * uncooperative third parties are outside Go Polar's control.
  */
 
-type Screen = 'inbox' | 'plan' | 'domain' | 'confirmation'
+/*
+ * THE ORDER IS THE DOMAIN, THEN THE MONEY. It used to be the other way round and that was a real
+ * problem, not a matter of taste: the plan screen asked them to tick "I need a domain, +$5.50"
+ * BEFORE anybody had checked whether the name they wanted was free. Someone could pay for a
+ * domain that was taken, or pay for one they already owned. Ask, check, then charge.
+ *
+ * blocked is not a step. It is the dead end for somebody who reached this page without setting
+ * up their enquiry inbox back on the build page, and its only job is to send them there.
+ */
+type Screen = 'blocked' | 'domain' | 'plan' | 'confirmation'
 type Branch = 'own' | 'new' | 'locked'
+
+/*
+ * The five that cover almost every Australian tradie, plus two honest escape hatches. Ordered by
+ * how often they actually come up rather than alphabetically. "I am not sure" is a real answer
+ * and gets a real button: it tells us to look it up ourselves, which is different from the
+ * question being skipped.
+ */
+const REGISTRARS = [
+  'GoDaddy',
+  'Crazy Domains',
+  'VentraIP',
+  'Netregistry',
+  'Squarespace or Wix',
+  'Somewhere else',
+  'I am not sure',
+] as const
 
 interface GoLiveState {
   jobStatus: string
@@ -25,7 +51,7 @@ interface GoLiveState {
     checkoutUrl: string | null
     paidAt: string | null
   } | null
-  domain: { name: string; branch: string; status: string; report: unknown } | null
+  domain: { name: string; branch: string; status: string; registrar: string | null; report: unknown } | null
   pricing: Record<string, { label: string; price: string | null; required: boolean }>
   formsKey: FormsKeyState
   promise: string
@@ -44,7 +70,7 @@ interface DomainReport {
 export default function GoLive() {
   const { jobId = '' } = useParams()
   const [state, setState] = useState<GoLiveState | null>(null)
-  const [screen, setScreen] = useState<Screen>('plan')
+  const [screen, setScreen] = useState<Screen>('domain')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -58,12 +84,23 @@ export default function GoLive() {
         const s = await api.goLive(jobId)
         setState(s)
         setEmailAddon(s.selection?.emailAddon ?? false)
-        setNeedsDomain(s.selection?.domainAddon ?? false)
-        if (s.domain) setScreen('confirmation')
-        else if (s.selection?.paidAt) setScreen('domain')
+        /*
+         * THE RECORDED BRANCH WINS ON RESUME. selection.domainAddon is only written when the
+         * plan POST runs, so on a reload between answering the domain question and paying it is
+         * still false. Reading it alone would show someone who asked us to register a domain a
+         * summary saying they already have one, and a total that leaves it out.
+         */
+        setNeedsDomain(s.domain?.branch === 'new' || (s.selection?.domainAddon ?? false))
+        /*
+         * PAYMENT IS WHAT FINISHES THIS, NOT THE DOMAIN. Worth stating because it was the other
+         * way round when the domain came last: a recorded domain used to mean done, and now it
+         * only means they are half way.
+         */
+        if (s.selection?.paidAt) setScreen('confirmation')
+        else if (s.domain) setScreen('plan')
         // The enquiry inbox comes first and cannot be skipped. Anyone already past it goes
         // straight to the plan, so it is a step rather than a wall.
-        else if (!s.formsKey.verified) setScreen('inbox')
+        else if (!s.formsKey.verified) setScreen('blocked')
       } catch (err) {
         setError(err instanceof ApiCallError ? (err.detail ?? err.message) : 'Could not load this page')
       } finally {
@@ -94,14 +131,18 @@ export default function GoLive() {
         </div>
       ) : null}
 
-      {screen === 'inbox' && state ? (
-        <InboxScreen
+      {screen === 'blocked' ? <InboxOutstanding jobId={jobId} /> : null}
+
+      {screen === 'domain' ? (
+        <DomainScreen
           jobId={jobId}
-          formsKey={state.formsKey}
           busy={busy}
           setBusy={setBusy}
-          onVerified={(next) => {
-            setState({ ...state, formsKey: next })
+          setError={setError}
+          onDone={(branch) => {
+            // Carried straight into the plan screen so the cart it builds already reflects the
+            // answer they just gave. The server enforces the same thing independently.
+            setNeedsDomain(branch === 'new')
             setScreen('plan')
           }}
         />
@@ -118,18 +159,7 @@ export default function GoLive() {
           busy={busy}
           setBusy={setBusy}
           setError={setError}
-          onPaid={() => setScreen('domain')}
-        />
-      ) : null}
-
-      {screen === 'domain' ? (
-        <DomainScreen
-          jobId={jobId}
-          suggestNew={needsDomain}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          onDone={() => setScreen('confirmation')}
+          onPaid={() => setScreen('confirmation')}
         />
       ) : null}
 
@@ -142,116 +172,6 @@ export default function GoLive() {
       </p>
 
       <BrandFooter />
-    </div>
-  )
-}
-
-/**
- * Screen 0. Where the customer's enquiries will actually go.
- *
- * This used to sit in the intake, where 59 submissions produced almost nothing usable, because at
- * that point there is no site and no reason to care. Here there is a website on the other side of
- * the button and something concrete to protect, and the step explains itself rather than asking
- * a tradie to know what an access key is. See DECISIONS.md D29.
- */
-function InboxScreen(props: {
-  jobId: string
-  formsKey: FormsKeyState
-  busy: boolean
-  setBusy: (v: boolean) => void
-  onVerified: (next: FormsKeyState) => void
-}) {
-  const [key, setKey] = useState('')
-  const [problem, setProblem] = useState<string | null>(null)
-  const [done, setDone] = useState<string | null>(null)
-
-  const submit = async () => {
-    props.setBusy(true)
-    setProblem(null)
-    setDone(null)
-    try {
-      const res = await api.goLiveFormsKey(props.jobId, key)
-      setDone(res.detail)
-      // Held for a moment so they can read that the test enquiry went through, then on to the
-      // plan. Nothing about their site changed except where the forms send.
-      setTimeout(
-        () =>
-          props.onVerified({
-            ...props.formsKey,
-            verified: true,
-            keyMasked: res.keyMasked,
-            blocksGoLive: false,
-          }),
-        2500,
-      )
-    } catch (err) {
-      // Every rejection has a reason worth reading: the shape was wrong, or Web3Forms tested the
-      // key and refused it. Both come back as plain sentences from the server.
-      setProblem(
-        err instanceof ApiCallError
-          ? (err.detail ?? err.message)
-          : 'Something went wrong checking that key. Nothing has been saved.',
-      )
-    } finally {
-      props.setBusy(false)
-    }
-  }
-
-  return (
-    <div className="card space-y-5">
-      <div>
-        <Eyebrow>Before it goes live</Eyebrow>
-        <h2 className="text-xl">Where should your enquiries go?</h2>
-        <p className="mt-2 text-sm text-ice-600">{props.formsKey.why}</p>
-      </div>
-
-      <div className="rounded-lg border border-ice-200 bg-ice-50 p-4">
-        <p className="text-sm font-semibold">What you need to do, once</p>
-        <ol className="mt-2 space-y-1.5 text-sm text-ice-700">
-          {props.formsKey.whatToExpect.map((line, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="font-semibold text-ice-500">{i + 1}.</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ol>
-        <a
-          className="btn-ghost mt-3 inline-flex"
-          href={props.formsKey.signUpUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          Open web3forms.com in a new tab
-        </a>
-      </div>
-
-      <Field
-        label="Your Web3Forms access key"
-        hint="It looks like 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809. Paste the whole thing."
-      >
-        <TextInput
-          value={key}
-          onChange={(v) => {
-            setKey(v)
-            setProblem(null)
-          }}
-          disabled={props.busy || Boolean(done)}
-          placeholder="Paste your access key here"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </Field>
-
-      {problem ? <Banner tone="error" title="That key was not accepted">{problem}</Banner> : null}
-      {done ? <Banner tone="ok" title="Your forms are working">{done}</Banner> : null}
-
-      <button className="btn-accent" onClick={submit} disabled={props.busy || !key.trim() || Boolean(done)}>
-        {props.busy ? 'Sending a test enquiry' : 'Check my key and switch my forms over'}
-      </button>
-      <p className="field-hint">
-        We send one test enquiry through your account to be certain it reaches you. It arrives in
-        the inbox you gave Web3Forms, and you do not need to reply to it.
-      </p>
     </div>
   )
 }
@@ -298,17 +218,19 @@ function PlanScreen(props: {
   return (
     <div className="card space-y-5">
       <div>
-        <Eyebrow>The ongoing bit</Eyebrow>
-        <h2 className="text-xl">What it costs to keep it online.</h2>
+        <Eyebrow>Last thing</Eyebrow>
+        <h2 className="text-xl">Let's get your hosting sorted.</h2>
         <ul className="mt-3 space-y-2 text-sm">
           <li className="flex justify-between border-b border-ice-100 pb-2">
             <span>{state?.pricing.hosting?.label}</span>
             <span className="font-semibold">{state?.pricing.hosting?.price}</span>
           </li>
-          <li className="flex justify-between border-b border-ice-100 pb-2">
-            <span>{state?.pricing.domain?.label}</span>
-            <span className="font-semibold">{state?.pricing.domain?.price}</span>
-          </li>
+          {props.needsDomain ? (
+            <li className="flex justify-between border-b border-ice-100 pb-2">
+              <span>{state?.pricing.domain?.label}</span>
+              <span className="font-semibold">{state?.pricing.domain?.price}</span>
+            </li>
+          ) : null}
         </ul>
         <p className="field-hint mt-2">No maintenance retainer. No lock-in contract. Cancel whenever.</p>
       </div>
@@ -326,17 +248,31 @@ function PlanScreen(props: {
         />
       </div>
 
-      <div className="rounded-lg border border-ice-200 p-4">
-        <span className="field-label">Do you need us to get you a domain name?</span>
-        <p className="field-hint mb-2">
-          {state?.pricing.domain?.price}. Say no if you already own one, you can connect it on the next screen.
-        </p>
-        <YesNo
-          value={props.needsDomain}
-          onChange={props.setNeedsDomain}
-          yesLabel="I need one"
-          noLabel="I have one"
-        />
+      {/*
+        READ-ONLY. This is the answer from the previous screen, shown so the total is not a
+        surprise, not asked again. A second control over the same fact is how the two copies end
+        up disagreeing, and the server derives the cart from the recorded domain branch anyway,
+        so a control here would be decorative at best and misleading at worst.
+      */}
+      <div className="rounded-lg border border-ice-200 bg-ice-50 p-4">
+        <span className="field-label">Your web address</span>
+        {state?.domain ? (
+          <p className="mt-1 text-sm text-ice-700">
+            {props.needsDomain ? (
+              <>
+                We are registering <span className="font-semibold">{state.domain.name}</span> for
+                you, so {state.pricing.domain?.price} is included below.
+              </>
+            ) : (
+              <>
+                You already have <span className="font-semibold">{state.domain.name}</span>, so
+                there is nothing extra to pay for it.
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-ice-700">Answered on the previous screen.</p>
+        )}
       </div>
 
       {configProblem ? (
@@ -361,7 +297,7 @@ function PlanScreen(props: {
         {props.busy ? 'Setting it up' : 'Continue to payment →'}
       </button>
       <p className="field-hint">
-        Hosting only starts billing now, at go live. It has not been charged up to this point.
+        Hosting starts billing now, at go live. Nothing has been charged for it up to this point.
       </p>
     </div>
   )
@@ -369,13 +305,15 @@ function PlanScreen(props: {
 
 function DomainScreen(props: {
   jobId: string
-  suggestNew: boolean
   busy: boolean
   setBusy: (v: boolean) => void
   setError: (v: string | null) => void
-  onDone: () => void
+  onDone: (branch: Branch) => void
 }) {
-  const [branch, setBranch] = useState<Branch>(props.suggestNew ? 'new' : 'own')
+  // 'own' is the default because most tradies calling us already bought a domain years ago and
+  // forgot about it. Defaulting to 'new' would sell a second one to someone who has one.
+  const [branch, setBranch] = useState<Branch>('own')
+  const [registrar, setRegistrar] = useState('')
   const [domain, setDomain] = useState('')
   const [abn, setAbn] = useState('')
   const [entityName, setEntityName] = useState('')
@@ -415,7 +353,7 @@ function DomainScreen(props: {
     props.setBusy(true)
     setFieldError(null)
     try {
-      const res = await api.submitDomain(props.jobId, { branch, domain, abn, entityName })
+      const res = await api.submitDomain(props.jobId, { branch, domain, abn, entityName, registrar })
       setNextSteps(res.nextSteps)
     } catch (err) {
       if (err instanceof ApiCallError && (err.status === 422 || err.status === 400)) {
@@ -437,8 +375,8 @@ function DomainScreen(props: {
             <li key={i}>{s}</li>
           ))}
         </ul>
-        <button className="btn-primary" onClick={props.onDone}>
-          Continue
+        <button className="btn-primary" onClick={() => props.onDone(branch)}>
+          Next: your hosting
         </button>
       </div>
     )
@@ -484,6 +422,34 @@ function DomainScreen(props: {
 
       {branch === 'own' || branch === 'locked' ? (
         <>
+          {/*
+            WHO THEY BOUGHT IT FROM, IN THEIR WORDS.
+
+            The lookup below reports what the internet says, which is the reseller. That is often
+            not the brand on the login page the customer will have to open, and the first question
+            on the phone call is always "where do we log in". A list rather than a text box
+            because the answer needs to be scannable in an alert, and because a tradie who cannot
+            remember gets a real option to pick instead of guessing into an empty field.
+          */}
+          <Field label="Where did you buy it?" hint="A rough answer is fine. It just tells us which login screen to expect.">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {REGISTRARS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`rounded-lg border px-3 py-2.5 text-left text-sm ${
+                    registrar === name
+                      ? 'border-ice-700 bg-ice-100 font-medium'
+                      : 'border-ice-200 bg-white hover:border-ice-300'
+                  }`}
+                  onClick={() => setRegistrar(registrar === name ? '' : name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </Field>
+
           <button className="btn-ghost" onClick={inspect} disabled={props.busy || domain.length < 4}>
             {props.busy ? 'Looking it up' : 'Look it up'}
           </button>
@@ -603,8 +569,13 @@ function ConfirmationScreen({ jobId }: { jobId: string }) {
             </li>
           ))}
         </ul>
+        {/*
+          The price is deliberately null on the DIY tier: changes are included, so there is no
+          number to show and printing "null" or "$0" would both be worse than the sentence.
+        */}
         <p className="field-hint mt-2">
-          {data.afterLaunch.detail} {data.afterLaunch.label}: {data.afterLaunch.price}.
+          <span className="font-semibold">{data.afterLaunch.label}.</span> {data.afterLaunch.detail}
+          {data.afterLaunch.price ? ` ${data.afterLaunch.price}.` : ''}
         </p>
       </div>
 

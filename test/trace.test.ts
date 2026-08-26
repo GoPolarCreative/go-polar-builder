@@ -172,19 +172,19 @@ describe('once a job exists', () => {
   it('a failed send: step 4, with the real reason and the matching fix', async () => {
     await clearEvents()
     await event('webhook.received', { topic: 'orders/paid' })
-    await event('email.failed', { kind: 'build_link', error: 'RESEND_API_KEY is not set' }, jobId)
+    await event('klaviyo.failed', { metric: 'Website Build Purchased', error: 'KLAVIYO_API_KEY is not set' }, jobId)
 
     const body = await trace(email)
     expect(body.verdict).toMatch(/step 4/i)
     expect(body.steps[3]!.status).toBe('failed')
-    expect(body.steps[3]!.detail).toMatch(/RESEND_API_KEY is not set/)
-    expect(body.steps[3]!.fix).toMatch(/RESEND_API_KEY is not set in Vercel/)
+    expect(body.steps[3]!.detail).toMatch(/KLAVIYO_API_KEY is not set/)
+    expect(body.steps[3]!.fix).toMatch(/KLAVIYO_API_KEY is not set in Vercel/)
   })
 
   it('a send blocked by the live flag says that, not "check your domain"', async () => {
     await clearEvents()
     await event('webhook.received', { topic: 'orders/paid' })
-    await event('email.failed', { error: 'Refusing to perform a live email action: ENABLE_LIVE_EMAIL' }, jobId)
+    await event('klaviyo.failed', { error: 'Refusing to perform a live email action: ENABLE_LIVE_EMAIL' }, jobId)
 
     const body = await trace(email)
     expect(body.steps[3]!.fix).toMatch(/ENABLE_LIVE_EMAIL/)
@@ -193,22 +193,22 @@ describe('once a job exists', () => {
   it('an unexplained send failure points at the usual cause without asserting it', async () => {
     await clearEvents()
     await event('webhook.received', { topic: 'orders/paid' })
-    await event('email.failed', { error: 'Resend returned 403' }, jobId)
+    await event('klaviyo.failed', { error: 'Klaviyo returned 403' }, jobId)
 
     const body = await trace(email)
-    expect(body.steps[3]!.fix).toMatch(/sending domain/i)
+    expect(body.steps[3]!.fix).toMatch(/klaviyo refused/i)
     expect(body.steps[3]!.fix).toMatch(/sweep retries/i)
   })
 
   it('everything worked: no step reports failed, and the verdict says so', async () => {
     await clearEvents()
     await event('webhook.received', { topic: 'orders/paid' })
-    await event('email.sent', { kind: 'build_link', to: email }, jobId)
+    await event('klaviyo.sent', { metric: 'Website Build Purchased' }, jobId)
 
     const body = await trace(email)
     expect(body.steps.every((s) => s.status === 'ok')).toBe(true)
     expect(body.verdict).toMatch(/whole path worked/i)
-    // And it does not claim the email was delivered, only that Resend took it.
+    // And it does not claim the email was delivered, only that Klaviyo took the event.
     expect(body.steps[3]!.detail).toMatch(/accepted/i)
   })
 })

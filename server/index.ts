@@ -76,9 +76,34 @@ api.get('/health', async (c) => {
     databaseDriver: cfg.databaseDriver,
     storageDriver: cfg.storageDriver,
     shopifyConfigured: Boolean(cfg.shopify.webhookSecret),
-    emailConfigured: Boolean(cfg.resendApiKey),
+    /*
+     * THE ONE VARIABLE THAT DECIDES WHETHER A SUBSCRIPTION CAN BE BOUGHT AT ALL.
+     *
+     * Without it every checkout falls back to a cart permalink, and a permalink binds no selling
+     * plan, so hosting, domain and email cannot be sold. It was missing for a while and nothing on
+     * this endpoint said so: the gap only showed up as a customer hitting a Shopify error page.
+     * Presence only, never the value.
+     */
+    storefrontTokenPresent: Boolean(cfg.shopify.storefrontToken),
+    checkoutMethod: cfg.shopify.storefrontToken
+      ? 'storefront'
+      : 'permalink (CANNOT sell any subscription: hosting, domain and email all need a selling plan)',
+    /*
+     * Email is Klaviyo, and this reports on Klaviyo. It used to report Boolean(resendApiKey)
+     * after D48 had already moved every customer email to Klaviyo, so production said
+     * "emailConfigured: false" while the build-link email was working end to end — a false
+     * blocker that got relayed to Chris twice. A health check must inspect the provider in use.
+     */
+    emailConfigured: Boolean(cfg.klaviyoApiKey),
     klaviyoConfigured: Boolean(cfg.klaviyoApiKey),
     sessionsConfigured: Boolean(cfg.appSecret),
+    /*
+     * Domains report PRESENCE, and say so. Whether the token actually works can only be known by
+     * calling Vercel, which /api/admin/domain-check does. Two lines rather than one because
+     * "configured" collapsing those two facts is exactly how emailConfigured came to lie.
+     */
+    domainsEnabled: cfg.live.domains,
+    domainCredentialsPresent: Boolean(cfg.vercelApiToken && cfg.vercelProjectId),
     live: cfg.live,
   })
 })

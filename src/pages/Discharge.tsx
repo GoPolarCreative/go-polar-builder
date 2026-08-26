@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ApiCallError, api } from '../lib/api'
+import { testWeb3FormsKey, ApiCallError, api } from '../lib/api'
 import { Banner, Field, Spinner, TextInput, BrandFooter, BrandHeader, Eyebrow } from '../components/ui'
 
 /**
@@ -53,7 +53,12 @@ export default function Discharge() {
     setKeyError(null)
     setConfigProblem(null)
     try {
-      const res = await api.requestDischarge(jobId, key.trim() || undefined)
+      // Same reason as go-live: Web3Forms blocks server-side calls at the TLS layer, so the test
+      // submission has to leave from here. Skipped entirely when they did not type a key, because
+      // the one they verified at go-live is reused.
+      const trimmed = key.trim()
+      const proof = trimmed ? await testWeb3FormsKey(trimmed) : null
+      const res = await api.requestDischarge(jobId, trimmed || undefined, proof)
       if (res.checkoutUrl) window.location.href = res.checkoutUrl
       await load()
     } catch (err) {

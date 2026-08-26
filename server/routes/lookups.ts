@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { SeedSuburbProvider } from '../../shared/suburbs.js'
+import { AuSuburbProvider } from '../lib/suburbs.js'
 import { formatAbn, isValidAbn, normaliseAbn } from '../../shared/abn.js'
 import { normaliseAuPhone, phoneKind } from '../../shared/phone.js'
 
@@ -7,7 +7,7 @@ const app = new Hono()
 
 // Suburb lookup backs the only way suburbs can enter the system. See shared/suburbs.ts for the
 // note about swapping the seed dataset for the authoritative one before launch.
-const suburbs = new SeedSuburbProvider()
+const suburbs = new AuSuburbProvider()
 
 app.get('/lookup/suburbs', async (c) => {
   const q = c.req.query('q') ?? ''

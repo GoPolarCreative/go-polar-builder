@@ -14,7 +14,7 @@ import { ShopifyConfigError, createCheckout } from '../lib/shopify.js'
 import { refForCheckout } from '../lib/products.js'
 import { readClaims, signClaims } from '../lib/signing.js'
 import { requireAdmin } from '../lib/auth.js'
-import { dischargeReadyEmail, sendSafely } from '../lib/email.js'
+import { trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { storage, toBody } from '../lib/storage.js'
 import { loadPageSet } from '../lib/buildSet.js'
 
@@ -83,7 +83,11 @@ app.post('/jobs/:jobId/discharge/request', async (c) => {
     return c.json({ error: 'not_ready', detail: 'There is no website to hand over yet.' }, 409)
   }
 
-  const body = await c.req.json<{ web3formsKey?: string }>().catch(() => ({}) as { web3formsKey?: string })
+  type DischargeBody = {
+    web3formsKey?: string
+    web3formsProof?: { success?: boolean; message?: string; status?: number }
+  }
+  const body = await c.req.json<DischargeBody>().catch(() => ({}) as DischargeBody)
 
   // One validated path, shared with go-live (DECISIONS.md D29). A customer who already went
   // through go-live has a key on the job that is known to work, so they are not asked twice.
@@ -106,7 +110,7 @@ app.post('/jobs/:jobId/discharge/request', async (c) => {
     // and there is nobody watching it.
     const verification = await verifyWeb3FormsKey(
       shape.key,
-      { businessName: job.businessName ?? 'your business', jobId },
+      { businessName: job.businessName ?? 'your business', jobId, proof: body.web3formsProof ?? null },
       config(),
     )
     if (!verification.ok) {
@@ -329,14 +333,20 @@ app.post('/jobs/:jobId/discharge/release', async (c) => {
   const job = await getJob(jobId)
   const user = await getUserForJob(jobId)
   if (user?.email) {
-    await sendSafely(jobId, 'discharge_ready', {
-      ...dischargeReadyEmail({
-        businessName: job?.businessName ?? 'Your',
-        downloadLink: downloadUrl,
-        expiresAt: expiresAt.toISOString(),
-        usedPlaceholder: row.usedPlaceholder ?? false,
-      }),
-      to: user.email,
+    // Klaviyo sends it, on the "Website Files Ready" flow (D48: Klaviyo sends every customer
+    // email). The event carries the link and the facts the template needs; the copy lives in
+    // Klaviyo. used_placeholder matters: a package whose forms carry a placeholder cannot
+    // receive enquiries until the customer swaps in their own key, and the email has to say so.
+    await trackKlaviyoSafely({
+      metric: 'files_ready',
+      profile: { email: user.email, businessName: job?.businessName ?? null },
+      jobId,
+      properties: {
+        download_link: downloadUrl,
+        expires_at: expiresAt.toISOString(),
+        used_placeholder: row.usedPlaceholder ?? false,
+        business_name: job?.businessName ?? '',
+      },
     })
   }
 

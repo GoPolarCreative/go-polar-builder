@@ -29,6 +29,30 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 const WEB3FORMS_SUBMIT_URL = 'https://api.web3forms.com/submit'
 
+/*
+ * WEB3FORMS CANNOT BE REACHED FROM A SERVER AT ALL, SO THE BROWSER DOES THE TEST.
+ *
+ * api.web3forms.com sits behind Cloudflare bot protection that fingerprints the TLS handshake.
+ * Every request out of Node gets a "Just a moment..." HTML challenge and a 403, no matter what
+ * headers it carries. Measured: node's default UA, a real Chrome UA, an Origin and Referer, both
+ * JSON and form encoding, all 403 HTML. The identical body from a browser gets clean JSON back.
+ * Header spoofing cannot fix this; the handshake is the tell.
+ *
+ * So the customer's browser sends the test submission and reports what Web3Forms said, and this
+ * function reads that verdict. THAT IS ALSO THE BETTER TEST. Every enquiry form on the live site
+ * posts from a visitor's browser to Web3Forms. The server-side check proved a path that no real
+ * enquiry ever takes; the browser check proves the one they all take.
+ *
+ * A customer could forge a success. The only thing they would break is their own enquiry forms,
+ * and the failure this module exists to prevent - a mistyped key silently swallowing leads - is
+ * still caught, because a mistyped key genuinely comes back success:false in their own browser.
+ *
+ * The server-side path below is kept for demo mode, the local stub the tests point at, and the
+ * chance that Web3Forms stops challenging us one day. It is never the only thing standing between
+ * a bad key and a live site.
+ */
+const USER_AGENT = 'GoPolarBuilder/1.0 (+https://www.itscold.com.au)'
+
 export type KeyRejection = 'empty' | 'email' | 'phone' | 'url' | 'placeholder' | 'not_uuid'
 
 export interface KeyShapeResult {
@@ -122,6 +146,16 @@ export function maskKey(key: string): string {
   return `${value.slice(0, 8)}${'*'.repeat(19)}${value.slice(-4)}`
 }
 
+/**
+ * What the customer's browser got back from Web3Forms. Passed through untouched so the decision
+ * is made in one place rather than in the page.
+ */
+export interface BrowserProof {
+  success?: boolean
+  message?: string
+  status?: number
+}
+
 export interface KeyVerification {
   ok: boolean
   /** What went wrong, in words the customer can act on. Null when it worked. */
@@ -144,7 +178,7 @@ export interface KeyVerification {
  */
 export async function verifyWeb3FormsKey(
   key: string,
-  args: { businessName: string; jobId: string },
+  args: { businessName: string; jobId: string; proof?: BrowserProof | null },
   cfg: AppConfig = config(),
 ): Promise<KeyVerification> {
   const shape = classifyWeb3FormsKey(key)
@@ -153,6 +187,24 @@ export async function verifyWeb3FormsKey(
   }
 
   if (cfg.demoMode) return fakeVerification(shape.key, args)
+
+  /*
+   * The browser already sent the real submission, so this is the answer that counts. A test
+   * enquiry genuinely landed in their inbox, which is why live is true here.
+   */
+  if (args.proof) {
+    assertLiveEnabled('email', cfg)
+    if (args.proof.success === true) {
+      return { ok: true, message: null, detail: 'browser:accepted', live: true }
+    }
+    const said = (args.proof.message ?? '').trim() || 'no reason given'
+    return {
+      ok: false,
+      message: `Web3Forms rejected that key, so we have not saved it. They said: "${said}". Check you copied the whole key out of their email, and that the Web3Forms account is verified.`,
+      detail: `browser:${args.proof.status ?? 0}:${said}`,
+      live: false,
+    }
+  }
 
   // A real email lands in a real inbox, so it goes through the same gate as everything else that
   // reaches a person. If the flag is off this throws by name rather than quietly passing a key
@@ -177,7 +229,11 @@ export async function verifyWeb3FormsKey(
   try {
     res = await fetch(cfg.web3formsApiUrl || WEB3FORMS_SUBMIT_URL, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'user-agent': USER_AGENT,
+      },
       body: JSON.stringify(payload),
     })
   } catch (err) {
@@ -194,15 +250,47 @@ export async function verifyWeb3FormsKey(
   }
 
   const body = await res.text()
-  let parsed: { success?: boolean; message?: string } = {}
+
+  let parsed: { success?: boolean; message?: string } | null = null
   try {
     parsed = JSON.parse(body) as { success?: boolean; message?: string }
   } catch {
-    parsed = {}
+    parsed = null
   }
 
-  if (res.ok && parsed.success === true) {
+  if (res.ok && parsed?.success === true) {
     return { ok: true, message: null, detail: parsed.message ?? 'accepted', live: true }
+  }
+
+  /*
+   * ONLY A JSON ANSWER FROM WEB3FORMS MAY BE READ AS A VERDICT ON THE KEY.
+   *
+   * Anything that is not JSON is Cloudflare, a proxy or an outage talking, not Web3Forms. Telling
+   * somebody their key is wrong when the key is fine is the worst thing this function can do: it is
+   * unfixable from their side, so they retype a correct key over and over and eventually give up on
+   * going live. The body still reaches the event log, truncated, because that is where a diagnosis
+   * belongs rather than in front of a tradie on a phone.
+   */
+  if (parsed === null) {
+    const challenge = /just a moment|cf-browser-verification|cloudflare|<!doctype html/i.test(body)
+    return {
+      ok: false,
+      message:
+        'We could not get a proper answer out of Web3Forms just now, so we have not saved your key yet. This is our end rather than yours, and your key is probably fine. Give it a minute and try again.',
+      detail: `unreadable:${res.status}:${challenge ? 'challenge' : 'non-json'}:${body.slice(0, 160).replace(/\s+/g, ' ')}`,
+      live: false,
+    }
+  }
+
+  /* JSON, but about their infrastructure rather than about the key. */
+  if (res.status === 403 || res.status === 429 || res.status >= 500) {
+    return {
+      ok: false,
+      message:
+        'Web3Forms is not answering properly just now, so we have not saved your key yet. This is our end rather than yours. Give it a minute and try again.',
+      detail: `upstream:${res.status}:${(parsed.message ?? '').slice(0, 160)}`,
+      live: false,
+    }
   }
 
   const reported = (parsed.message ?? body.slice(0, 200)).trim()

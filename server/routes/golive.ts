@@ -3,13 +3,15 @@ import { and, desc, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { PRICING, ProductNotOnStoreError, formatPrice } from '../../shared/pricing.js'
 import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
+import { LIVE_EDITS_PER_MONTH } from '../../shared/allowance.js'
 import { isValidAbn } from '../../shared/abn.js'
 import type { Job } from '../../shared/types.js'
 import { config, web3formsKey } from '../config.js'
 import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db.js'
 import { id } from '../lib/ids.js'
 import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify.js'
-import { refForCheckout } from '../lib/products.js'
+import { previewLink, trackKlaviyoSafely } from '../lib/klaviyo.js'
+import { goLiveCartLines } from '../lib/products.js'
 import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains.js'
 import { buildFacts } from '../lib/facts.js'
 import { copyPageSet } from '../lib/buildSet.js'
@@ -56,16 +58,24 @@ function formsKeyState(job: Job) {
     keyMasked: job.web3formsKeyMasked,
     verifiedAt: job.web3formsVerifiedAt,
     blocksGoLive: !verified,
-    // The screen is written from this, so the reason lives with the rule rather than in the UI.
+    /*
+     * The screen is written from this, so the reason lives with the rule rather than in the UI.
+     *
+     * WRITTEN SO IT IS TRUE IN BOTH PLACES IT APPEARS. This task is now asked before the build and
+     * repeated on the editing page afterwards. The previous wording opened with "Right now the
+     * enquiry forms on your website send to our account", which is a plain falsehood on the first
+     * of those screens, because at that point there is no website and no form. It now describes
+     * the rule rather than the current state, which is accurate whenever it is read.
+     */
     why: verified
       ? 'Your enquiry forms send to your own Web3Forms account, so enquiries come straight to you.'
-      : 'Right now the enquiry forms on your website send to our account, which is fine while you are still working on it but not once it is live. Before we can put it online we need your own free Web3Forms account, so every enquiry goes straight to your inbox and nowhere else.',
+      : 'The contact form on your website needs somewhere to send enquiries. That has to be your own free Web3Forms account rather than ours, so every enquiry goes straight to your inbox and nowhere else. It is free and it takes a couple of minutes.',
     signUpUrl: 'https://web3forms.com/',
     whatToExpect: [
       'Open web3forms.com and put in the email address you want your enquiries to go to.',
       'They email you an access key straight away. It is free, and there is nothing to install.',
       'Copy that key back into the box below.',
-      'We send a test enquiry through it to make sure it reaches you, then put your website live.',
+      'We send one test enquiry through it, so you can see for yourself that it reaches you.',
     ],
   }
 }
@@ -103,7 +113,7 @@ app.get('/jobs/:jobId/golive', async (c) => {
         }
       : null,
     domain: domain
-      ? { name: domain.name, branch: domain.branch, status: domain.status, report: domain.whois }
+      ? { name: domain.name, branch: domain.branch, status: domain.status, registrar: domain.registrar, report: domain.whois }
       : null,
     // Prices come from one place and always carry the GST label.
     pricing: {
@@ -137,7 +147,8 @@ app.post('/jobs/:jobId/golive/forms-key', async (c) => {
     return c.json({ error: 'not_ready', detail: 'There is no website built yet.' }, 409)
   }
 
-  const body = await c.req.json<{ key?: string }>().catch(() => ({}) as { key?: string })
+  type KeyBody = { key?: string; proof?: { success?: boolean; message?: string; status?: number } }
+  const body = await c.req.json<KeyBody>().catch(() => ({}) as KeyBody)
   const raw = body.key ?? ''
 
   const shape = classifyWeb3FormsKey(raw)
@@ -149,7 +160,7 @@ app.post('/jobs/:jobId/golive/forms-key', async (c) => {
   // somebody will later assume was checked.
   const verification = await verifyWeb3FormsKey(
     shape.key,
-    { businessName: job.businessName ?? 'your business', jobId },
+    { businessName: job.businessName ?? 'your business', jobId, proof: body.proof ?? null },
     config(),
   )
 
@@ -308,15 +319,46 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
 
   const db = await getDb()
   const now = new Date()
+
+  /*
+   * THE DOMAIN ANSWER DECIDES THE CART, NOT THE CHECKBOX.
+   *
+   * The domain question is now asked BEFORE this screen, so by the time anybody pays we already
+   * know whether they said "I need one". If they did, the domain line goes in the cart whatever
+   * the client sent. A customer who answers "I need a domain" and then reaches a checkout with
+   * no domain on it goes live with no address, and nothing downstream would catch that: the
+   * build passes, the payment clears, and the failure only surfaces as a phone call. Same rule
+   * as the paid-pages check in D55 - an intention recorded on one screen must not be lost by a
+   * flag on the next one.
+   */
+  const [recordedDomain] = await db
+    .select({ branch: schema.domains.branch })
+    .from(schema.domains)
+    .where(eq(schema.domains.jobId, jobId))
+    .orderBy(desc(schema.domains.createdAt))
+    .limit(1)
+  const needsDomainPurchase = recordedDomain?.branch === 'new'
+  const domainAddon = Boolean(body.domainAddon) || needsDomainPurchase
+
+  // Read the existing state BEFORE the upsert, because "the customer just pressed go live for
+  // the first time" is the moment the manual flow hangs off, and the upsert erases the evidence.
+  const [priorGoLive] = await db
+    .select({ checkoutUrl: schema.golive.checkoutUrl })
+    .from(schema.golive)
+    .where(eq(schema.golive.jobId, jobId))
+    .limit(1)
+
   let checkoutUrl: string | null = null
   let configError: { detail: string; missing: string[] } | null = null
 
   try {
     // checkoutHandle throws by name for a product that is not on the store, rather than putting a
     // guessed handle into a cart link that would 404 in front of a paying customer.
-    const lines: CheckoutLine[] = [{ ref: refForCheckout('hosting'), quantity: 1 }]
-    if (body.emailAddon) lines.push({ ref: refForCheckout('email'), quantity: 1 })
-    if (body.domainAddon) lines.push({ ref: refForCheckout('domain'), quantity: 1 })
+    const lines: CheckoutLine[] = goLiveCartLines({
+      domainBranch: recordedDomain?.branch ?? null,
+      domainAddon: body.domainAddon,
+      emailAddon: body.emailAddon,
+    })
 
     const checkout = await createCheckout({
       jobId,
@@ -345,7 +387,7 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
       jobId,
       hosting: true,
       emailAddon: Boolean(body.emailAddon),
-      domainAddon: Boolean(body.domainAddon),
+      domainAddon,
       checkoutUrl,
       checkoutCreatedAt: now,
       status: checkoutUrl ? 'awaiting_payment' : 'selecting',
@@ -355,7 +397,7 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
       target: schema.golive.jobId,
       set: {
         emailAddon: Boolean(body.emailAddon),
-        domainAddon: Boolean(body.domainAddon),
+        domainAddon,
         checkoutUrl,
         checkoutCreatedAt: now,
         status: checkoutUrl ? 'awaiting_payment' : 'selecting',
@@ -365,10 +407,63 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
 
   await recordEvent(jobId, 'golive.requested', {
     emailAddon: Boolean(body.emailAddon),
-    domainAddon: Boolean(body.domainAddon),
+    domainAddon,
     checkoutBuilt: Boolean(checkoutUrl),
     notify: 'chris',
   })
+
+  /*
+   * THE MANUAL GO-LIVE FLOW (DECISIONS.md D53). Deliberately manual-first for the first
+   * customers: Chris is told the same minute somebody wants to go live, the customer is
+   * automatically sent what they need, and /ops shows who has been waiting more than 24 hours
+   * so he can ring them. Both fire once, on the FIRST press, not on every revisit of the plan
+   * screen; the /ops waiting list is keyed on the first golive.requested event either way.
+   *
+   * The customer event fires the first time a checkout link exists (if the first press hit a
+   * config error, the first successful retry sends it), so the email always carries a working
+   * link. The wording rule is the brief's and applies to the Klaviyo template as much as here:
+   * contact within one business day, never "connected within 24 hours".
+   */
+  const cfg = config()
+  const intakeRow = await getIntake(jobId)
+  const intakePhone = (intakeRow?.payload as { phone?: string } | null)?.phone ?? null
+
+  if (checkoutUrl && !priorGoLive?.checkoutUrl) {
+    await trackKlaviyoSafely({
+      metric: 'go_live_started',
+      profile: { email, businessName: job.businessName, phone: intakePhone },
+      jobId,
+      properties: {
+        checkout_url: checkoutUrl,
+        business_name: job.businessName ?? '',
+        email_addon: Boolean(body.emailAddon),
+        domain_addon: domainAddon,
+        preview_link: previewLink(jobId),
+      },
+    })
+  }
+
+  if (!priorGoLive) {
+    await trackKlaviyoSafely({
+      metric: 'operator_alert',
+      profile: { email: cfg.operatorEmail },
+      jobId,
+      properties: {
+        alert: 'go_live_requested',
+        business_name: job.businessName ?? 'Unnamed business',
+        customer_email: email,
+        customer_phone: intakePhone,
+        wants_email_addon: Boolean(body.emailAddon),
+        wants_domain_addon: domainAddon,
+        checkout_built: Boolean(checkoutUrl),
+        job_id: jobId,
+        // Deep link, not just the list. Chris opens this from his phone and should land on the
+        // customer, not on a page of cards he has to search.
+        ops_link: `${cfg.publicAppUrl.replace(/\/$/, '')}/ops#job-${jobId}`,
+        preview_link: previewLink(jobId),
+      },
+    })
+  }
 
   if (configError) {
     return c.json(
@@ -424,7 +519,7 @@ app.post('/jobs/:jobId/golive/domain', async (c) => {
   if (!job) return c.json({ error: 'not_found' }, 404)
 
   const body = await c.req
-    .json<{ branch?: string; domain?: string; abn?: string; entityName?: string }>()
+    .json<{ branch?: string; domain?: string; abn?: string; entityName?: string; registrar?: string }>()
     .catch(() => ({}) as Record<string, never>)
 
   const branch = body.branch
@@ -483,6 +578,8 @@ app.post('/jobs/:jobId/golive/domain', async (c) => {
     jobId,
     name: domain,
     branch,
+    // Their answer, capped so a paste of an entire confirmation email cannot fill the column.
+    registrar: (body.registrar ?? '').trim().slice(0, 120) || null,
     whois: report,
     mx,
     status: branch === 'new' ? 'purchase_queued' : branch === 'locked' ? 'recovery' : 'connection_queued',
@@ -537,10 +634,23 @@ app.get('/jobs/:jobId/golive/confirmation', async (c) => {
     monthly,
     domain: domain ? { name: domain.name, branch: domain.branch, status: domain.status } : null,
     promise: CONTACT_PROMISE,
+    /*
+     * WHAT HAPPENS AFTER LAUNCH, ON THE TIER THEY JUST BOUGHT.
+     *
+     * This used to quote the $110 post-launch edit product with "handled by our team", on the last
+     * screen of the purchase flow, to a customer who had just paid for the tier that includes TEN
+     * SELF-SERVE CHANGES A MONTH. It contradicted the landing page, the comparison section and the
+     * product itself, and it was the final thing they read before the checkout.
+     *
+     * The $110 product is not retired: it is what a legacy $33 subscriber pays, because that tier
+     * genuinely has no editor. It just has nothing to do with anybody arriving here.
+     *
+     * Taken from shared/allowance.ts so the number cannot drift from the one the editor enforces.
+     */
     afterLaunch: {
-      label: PRICING.postLiveEdit.label,
-      price: formatPrice('postLiveEdit'),
-      detail: 'Changes after you are live are handled by our team.',
+      label: 'Changes after you go live',
+      price: null,
+      detail: `Included. You get ${LIVE_EDITS_PER_MONTH} changes a month, and you make them yourself in the same chat box you used to build it.`,
     },
   })
 })

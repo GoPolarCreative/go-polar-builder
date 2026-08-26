@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ReturningCustomer } from '../components/ReturningCustomer'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiCallError, api } from '../lib/api'
 import { Banner, BrandFooter, BrandHeader, Eyebrow, Field, Spinner, Stat, TextInput } from '../components/ui'
@@ -88,6 +89,14 @@ export default function Start() {
 
       <ClaimBuild />
       <ResendLink />
+
+      {/*
+        LAST ON THE PAGE ON PURPOSE. Everything above is for somebody who has just paid and is
+        starting, which is most of the traffic here. A returning customer is looking for a way in
+        rather than reading the page, and the bottom is where a person scrolls when nothing at the
+        top is what they came for.
+      */}
+      <ReturningCustomer />
 
       {health && !health.shopifyConfigured ? <DevStart health={health} /> : null}
 

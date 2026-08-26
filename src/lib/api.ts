@@ -16,6 +16,15 @@ export class ApiCallError extends Error {
     readonly status: number,
     readonly detail?: string,
     readonly issues?: Array<{ path: string; message: string }>,
+    /*
+     * The whole parsed response body.
+     *
+     * A refusal from the publish gate carries a list of exactly which checks failed on which
+     * page, and that list is the only genuinely useful part of it. Flattening every error to a
+     * message and a detail threw it away, leaving the customer with "checks failed" and nothing
+     * to act on.
+     */
+    readonly body?: unknown,
   ) {
     super(message)
     this.name = 'ApiCallError'
@@ -46,7 +55,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const b = (body ?? {}) as { error?: string; detail?: string; issues?: Array<{ path: string; message: string }> }
-    throw new ApiCallError(b.error ?? `Request failed (${res.status})`, res.status, b.detail, b.issues)
+    throw new ApiCallError(b.error ?? `Request failed (${res.status})`, res.status, b.detail, b.issues, body)
   }
   return body as T
 }
@@ -73,6 +82,55 @@ export interface FormsKeyState {
   why: string
   signUpUrl: string
   whatToExpect: string[]
+}
+
+/**
+ * The test submission, sent from the customer's own browser.
+ *
+ * IT HAS TO HAPPEN HERE RATHER THAN ON THE SERVER. Web3Forms sits behind Cloudflare bot protection
+ * that fingerprints the TLS handshake, so every request from our server comes back as a 403 HTML
+ * challenge whatever headers it carries. A browser gets straight through. See the long note in
+ * server/lib/web3forms.ts.
+ *
+ * It is also the honest test: this is the exact call every enquiry form on their finished website
+ * will make. If it works here, the forms work.
+ *
+ * A thrown request returns null rather than a failure, because "we could not reach Web3Forms" and
+ * "your key is wrong" must never be the same answer. The server decides what to do with null.
+ */
+export interface Web3FormsProof {
+  success?: boolean
+  message?: string
+  status?: number
+}
+
+export async function testWeb3FormsKey(
+  key: string,
+  businessName = 'your business',
+): Promise<Web3FormsProof | null> {
+  try {
+    const res = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        access_key: key,
+        subject: 'Test enquiry from your new website',
+        from_name: 'Go Polar Creative',
+        message: [
+          `This is a test enquiry sent by Go Polar Creative while setting up ${businessName}.`,
+          '',
+          'It confirms the enquiry forms on your new website reach this inbox. You do not need to reply to it.',
+          '',
+          'If a real customer fills in the form on your website, it will arrive looking like this one.',
+        ].join('\n'),
+      }),
+    })
+    const parsed = (await res.json().catch(() => null)) as { success?: boolean; message?: string } | null
+    if (!parsed) return null
+    return { success: parsed.success, message: parsed.message, status: res.status }
+  } catch {
+    return null
+  }
 }
 
 export const api = {
@@ -219,8 +277,58 @@ export const api = {
       capability: { available: boolean; reason: string | null }
     }>(`/api/jobs/${jobId}/versions`),
 
+  /*
+   * LIVE MODE. What the public is seeing, versus what the customer is editing.
+   *
+   * publishedVersion and currentVersion differing is the whole reason the live view exists: it
+   * is the difference between a change they have made and a change the world can see.
+   */
+  live: (jobId: string) =>
+    request<{
+      isLive: boolean
+      hostname: string | null
+      siteUrl: string | null
+      publishedVersion: number | null
+      currentVersion: number
+      hasUnpublishedChanges: boolean
+      monthly: {
+        used: number
+        allowed: number
+        remaining: number
+        exhausted: boolean
+        resetsAt: string
+        resetsIntoMonth: string
+      } | null
+    }>(`/api/jobs/${jobId}/live`),
+
+  publish: (jobId: string) =>
+    request<{ ok: true; hostname: string; version: number; pages: number; siteUrl: string }>(
+      `/api/jobs/${jobId}/publish`,
+      { method: 'POST' },
+    ),
+
+  /*
+   * The returning customer door. Two calls: ask for a code, then type it in.
+   *
+   * The request call answers the same way whether or not the address is a customer, so nothing
+   * here can be used to find out who has bought a website.
+   */
+  requestLoginCode: (email: string) =>
+    request<{ ok: true; detail: string }>(`/api/auth/code/request`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyLoginCode: (email: string, code: string) =>
+    request<{ ok: true; jobId: string }>(`/api/auth/code/verify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    }),
+
   rollback: (jobId: string, version: number) =>
-    request<{ ok: true; currentVersion: number; editsCharged: number }>(`/api/jobs/${jobId}/rollback`, {
+    request<{ ok: true; currentVersion: number; editsCharged: number; republished?: boolean }>(`/api/jobs/${jobId}/rollback`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ version }),
@@ -239,7 +347,7 @@ export const api = {
         checkoutUrl: string | null
         paidAt: string | null
       } | null
-      domain: { name: string; branch: string; status: string; report: unknown } | null
+      domain: { name: string; branch: string; status: string; registrar: string | null; report: unknown } | null
       pricing: Record<string, { label: string; price: string | null; required: boolean }>
       formsKey: FormsKeyState
       promise: string
@@ -256,7 +364,7 @@ export const api = {
    * Submit the customer's own Web3Forms key. The server tests it with a real submission before
    * saving, so this call is slow by design and can come back rejected with a reason.
    */
-  goLiveFormsKey: (jobId: string, key: string) =>
+  goLiveFormsKey: (jobId: string, key: string, proof?: Web3FormsProof | null) =>
     request<{
       ok: boolean
       version: number
@@ -267,7 +375,7 @@ export const api = {
     }>(`/api/jobs/${jobId}/golive/forms-key`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ key }),
+      body: JSON.stringify({ key, proof }),
     }),
 
   inspectDomain: (jobId: string, domain: string) =>
@@ -282,7 +390,7 @@ export const api = {
 
   submitDomain: (
     jobId: string,
-    body: { branch: string; domain: string; abn?: string; entityName?: string },
+    body: { branch: string; domain: string; abn?: string; entityName?: string; registrar?: string },
   ) =>
     request<{ ok: true; branch: string; domain: string; report: unknown; nextSteps: string[] }>(
       `/api/jobs/${jobId}/golive/domain`,
@@ -320,13 +428,13 @@ export const api = {
       } | null
     }>(`/api/jobs/${jobId}/discharge`),
 
-  requestDischarge: (jobId: string, web3formsKey?: string) =>
+  requestDischarge: (jobId: string, web3formsKey?: string, web3formsProof?: Web3FormsProof | null) =>
     request<{ dischargeId: string; checkoutUrl: string | null; price: string | null }>(
       `/api/jobs/${jobId}/discharge/request`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ web3formsKey }),
+        body: JSON.stringify({ web3formsKey, web3formsProof }),
       },
     ),
 
@@ -342,7 +450,14 @@ export const api = {
     ),
 
   extraEdits: (jobId: string) =>
-    request<{ available: boolean; quantity: number; price: string | null; included: number; detail: string | null }>(
+    request<{
+      available: false
+      goLiveInstead: true
+      included: number
+      monthlyAllowance: number
+      detail: string
+      ifStuck: string
+    }>(
       `/api/jobs/${jobId}/edits/extra`,
     ),
 
