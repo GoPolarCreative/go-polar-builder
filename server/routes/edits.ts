@@ -10,7 +10,8 @@ import { editCapability } from '../config.js'
 import { getIntake, getJob, holdJob, listAssets, nextVersion, recordEvent, setJobStatus } from '../lib/db.js'
 import { id } from '../lib/ids.js'
 import { buildFacts } from '../lib/facts.js'
-import { diffPlans, generateEditedPlan, rebuildFromPlan, summariseDiff } from '../lib/edit.js'
+import { diffPlans, generateEditedPlan, patchSections, rebuildFromPlan, summariseDiff } from '../lib/edit.js'
+import { planEdit } from '../lib/sections.js'
 import { storage } from '../lib/storage.js'
 import { summarise, verifyAndRepair } from '../lib/verify.js'
 import { persistPageSet } from '../lib/buildSet.js'
@@ -293,7 +294,7 @@ app.post('/jobs/:jobId/edits', async (c) => {
         const facts = buildFacts(intake, assets)
         await emit({ type: 'status', stage: 'planning', message: 'Working out what to change' })
 
-        const revisedPlan = await generateEditedPlan({
+        const edited = await generateEditedPlan({
           plan: currentPlan,
           facts,
           intake,
@@ -301,6 +302,25 @@ app.post('/jobs/:jobId/edits', async (c) => {
           request,
           previousRequests: priorEdits.map((e) => e.prompt!).filter(Boolean),
         })
+        const revisedPlan = edited.plan
+
+        /*
+         * WHAT THE EDIT STEP WANTED TO CHANGE BUT WAS NOT ALLOWED TO.
+         *
+         * Recorded rather than filtered quietly. The model declares which sections it intends to
+         * touch and anything outside that declaration is dropped before the page is rebuilt, which
+         * fixes the customer-facing problem on its own. But a model that keeps reaching for the FAQ
+         * when somebody asked about the process section is telling us something about the prompt,
+         * and that is only visible if the drops are written down.
+         */
+        if (edited.droppedKeys.length > 0) {
+          await recordEvent(jobId, 'edit.keys_dropped', {
+            declared: edited.declaredSections,
+            dropped: edited.droppedKeys,
+            request: request.slice(0, 200),
+            notify: 'chris',
+          })
+        }
 
         const changes = diffPlans(currentPlan, revisedPlan)
         await emit({ type: 'plan', plan: revisedPlan })
@@ -314,13 +334,58 @@ app.post('/jobs/:jobId/edits', async (c) => {
             set: { plan: revisedPlan },
           })
 
-        const html = await rebuildFromPlan({
-          plan: revisedPlan,
-          facts,
-          previousHtml: currentHtml,
-          changes,
-          request,
-          emit,
+        /*
+         * PATCH THE SECTIONS THE CHANGE REACHES, OR REBUILD THE PAGE. See server/lib/sections.ts.
+         *
+         * Rebuilding is still the honest answer for a colour change, a font change, anything in
+         * the head, and anything whose blast radius is not confidently known. The fast path is
+         * only taken when the plan diff points at a specific, self-contained set of sections.
+         */
+        const decision = planEdit({ changes, request, html: currentHtml })
+        const rebuild = () =>
+          rebuildFromPlan({ plan: revisedPlan, facts, previousHtml: currentHtml, changes, request, emit })
+
+        let html: string
+        let editMode: string = decision.mode
+
+        if (decision.mode === 'patch') {
+          try {
+            html = await patchSections({
+              plan: revisedPlan,
+              facts,
+              previousHtml: currentHtml,
+              targets: decision.targets,
+              request,
+              emit,
+            })
+          } catch (err) {
+            /*
+             * A PATCH THAT CANNOT BE APPLIED CLEANLY IS ABANDONED WHOLE.
+             *
+             * Never half. spliceInto is all-or-nothing and patchSections throws before returning
+             * anything if any single section came back truncated, empty or without its marker, so
+             * there is no partially edited document to salvage. Falling back costs the customer
+             * time they would have spent anyway before this existed, and costs them no allowance,
+             * because the round is only counted further down on success.
+             */
+            editMode = 'rebuild_after_patch_failed'
+            await recordEvent(jobId, 'edit.patch_fallback', {
+              targets: decision.targets,
+              reason: String(err).slice(0, 600),
+              request: request.slice(0, 200),
+              editCharged: false,
+            })
+            html = await rebuild()
+          }
+        } else {
+          html = await rebuild()
+        }
+
+        await recordEvent(jobId, 'edit.mode', {
+          mode: editMode,
+          reason: decision.reason,
+          targets: decision.mode === 'patch' ? decision.targets : [],
+          fromVersion,
         })
 
         await emit({ type: 'status', stage: 'verifying', message: 'Checking every line of it' })

@@ -59,7 +59,15 @@ Always set width and height so nothing shifts as images load. The hero image is 
 <!-- CONFIRM WITH CLIENT BEFORE LAUNCH: what was assumed and why -->
 Testimonials, opening hours, service areas and contact details are the usual suspects. Never invent a testimonial, a review count, a star rating, a licence number, an insurance figure, an award or a client name. If the plan does not contain it, it does not go on the site.
 
-8. FORMS. Both forms post to https://api.web3forms.com/submit. Use the exact access key, and the exact subject strings, given in the facts. The hero form subject and the contact form subject are different and both are given to you. Every form carries a hidden honeypot input named "botcheck" that is visually hidden with CSS, not with the hidden attribute.
+8. FORMS. There are exactly two: one in the hero and one in the contact section.
+
+EVERY form element carries this attribute, literally, character for character:
+
+    action="https://api.web3forms.com/submit"
+
+together with method="POST". Write them on the <form> tag itself. This is not satisfied by posting to that URL from JavaScript, and it is not optional because the JavaScript also submits: the attribute is what makes the form work for a customer whose JavaScript failed to load, and an enquiry lost that way is a job the business never hears about. A form tag without that exact action attribute fails an automated check and the build is rejected.
+
+Use the exact access key, and the exact subject strings, given in the facts. The hero form subject and the contact form subject are different and both are given to you. Every form carries a hidden honeypot input named "botcheck" that is visually hidden with CSS, not with the hidden attribute.
 
 9. FREE QUOTES. If the facts say freeQuotes is false, the phrase "free quote" must not appear anywhere in the document in any casing or arrangement. Not in a heading, not in a button, not in a form label, not in a meta description, not in schema, not in a comment. Use "request a quote" or "get a price" instead. If freeQuotes is true, use the phrase naturally in the CTAs.
 
@@ -120,37 +128,41 @@ You are writing for a tradesperson's customers, most of whom are on a phone, in 
 
 Build these sections in this order. The plan tells you which optional sections are switched off. A section that is off is omitted entirely, including its markup, its CSS and its nav link.
 
-1. STICKY HEADER. Transparent over the hero at the top of the page, and it gains a solid background, a bottom border and a subtle shadow once the page has scrolled past about 60 pixels. Logo or wordmark on the left per the plan's logoTreatment, anchor nav in the middle on desktop, phone number as a button on the right. Mobile: a hamburger that opens a full-screen or slide-down panel with the same links and a large call button. The header is position: fixed and the hero compensates with padding, never with a spacer div.
+EVERY SECTION BELOW CARRIES A data-gp ATTRIBUTE ON ITS OUTERMOST ELEMENT, with exactly the value given in brackets after its name. It is how the editor finds one section later in order to change it without rewriting the rest of the page, so the value must be exactly as written, lowercase, and must appear once each. It is not a CSS hook and nothing styles it. Keep your own id and class attributes as well; the data-gp is in addition to them, never instead.
 
-2. HERO. Full width, at least 90vh on desktop and comfortable on mobile without forcing a scroll to see the CTA. Contains: the single h1, a supporting paragraph, two CTAs (primary is the phone, secondary jumps to the quote form or the services section), four short trust points as a row of small items with inline SVG ticks, and a quote form card sitting to the right on desktop and below the copy on mobile. Background is the first client photo with a dark gradient overlay for text contrast, or a layered CSS gradient built from the colour tokens when no photo was supplied. Text must stay readable: overlay first, text second.
+The values are: header, hero, trust_strip, about, services, gallery, why_us, stats, process, service_areas, testimonials, faq, cta_band, contact, footer.
 
-3. TRUST STRIP. Four items across, each with a small inline SVG icon, a short label and a one-line detail. On mobile it becomes two columns, not a horizontal scroller.
+1. STICKY HEADER (data-gp="header"). Transparent over the hero at the top of the page, and it gains a solid background, a bottom border and a subtle shadow once the page has scrolled past about 60 pixels. Logo or wordmark on the left per the plan's logoTreatment, anchor nav in the middle on desktop, phone number as a button on the right. Mobile: a hamburger that opens a full-screen or slide-down panel with the same links and a large call button. The header is position: fixed and the hero compensates with padding, never with a spacer div.
 
-4. ABOUT. Two columns on desktop. Left is the heading and two to four paragraphs. Right is a client photo or a CSS gradient panel. A pull quote sits inside the copy with a coloured left border, set larger than body text. Do not put the pull quote in a blockquote element unless it is a quote from a person.
+2. HERO (data-gp="hero"). Full width, at least 90vh on desktop and comfortable on mobile without forcing a scroll to see the CTA. Contains: the single h1, a supporting paragraph, two CTAs (primary is the phone, secondary jumps to the quote form or the services section), four short trust points as a row of small items with inline SVG ticks, and a quote form card sitting to the right on desktop and below the copy on mobile. Background is the first client photo with a dark gradient overlay for text contrast, or a layered CSS gradient built from the colour tokens when no photo was supplied. Text must stay readable: overlay first, text second.
 
-5. SERVICES GRID. One card per service from the plan. Each card: inline SVG icon in a tinted circle, service name as an h3, the blurb, and a text link to the contact form. Three across on desktop, two on tablet, one on mobile. Cards lift slightly on hover with a transform and shadow transition. The primary service card is visually emphasised.
+3. TRUST STRIP (data-gp="trust_strip"). Four items across, each with a small inline SVG icon, a short label and a one-line detail. On mobile it becomes two columns, not a horizontal scroller.
 
-6. OUR WORK GALLERY. Only when the plan says gallery.enabled is true. A grid of the supplied client photos using the exact paths given in the facts, each with real alt text. First image eager, the rest loading="lazy" with width and height attributes set so nothing shifts as they load. Optional lightbox: if you build one it must be keyboard closable with Escape.
+4. ABOUT (data-gp="about"). Two columns on desktop. Left is the heading and two to four paragraphs. Right is a client photo or a CSS gradient panel. A pull quote sits inside the copy with a coloured left border, set larger than body text. Do not put the pull quote in a blockquote element unless it is a quote from a person.
+
+5. SERVICES GRID (data-gp="services"). One card per service from the plan. Each card: inline SVG icon in a tinted circle, service name as an h3, the blurb, and a text link to the contact form. Three across on desktop, two on tablet, one on mobile. Cards lift slightly on hover with a transform and shadow transition. The primary service card is visually emphasised.
+
+6. OUR WORK GALLERY (data-gp="gallery"). Only when the plan says gallery.enabled is true. A grid of the supplied client photos using the exact paths given in the facts, each with real alt text. First image eager, the rest loading="lazy" with width and height attributes set so nothing shifts as they load. Optional lightbox: if you build one it must be keyboard closable with Escape.
 
 EVERY TILE IS THE SAME SHAPE. Photos come off a phone in whatever aspect the tradesperson happened to hold it, and a grid that honours each one is a ragged mess. Give every tile one aspect-ratio and use object-fit: cover so they crop to match. Portrait and landscape shots must sit in the grid without changing its rhythm. The grid is a fixed number of columns per breakpoint, not a masonry layout and not a single row that squashes as photos are added.
 
-7. WHY CHOOSE US. Numbered cards, the number set large in a tinted colour behind or beside the title. Three to six items from the plan.
+7. WHY CHOOSE US (data-gp="why_us"). Numbered cards, the number set large in a tinted colour behind or beside the title. Three to six items from the plan.
 
-8. STAT COUNTERS. Three or four figures that animate up from zero when the section enters the viewport, using IntersectionObserver with a single observer that unobserves after firing. Every figure comes from the plan's stats array and nowhere else. The final rendered number must equal the plan value exactly, and the element must contain the final value in the markup so it reads correctly if JavaScript never runs.
+8. STAT COUNTERS (data-gp="stats"). Three or four figures that animate up from zero when the section enters the viewport, using IntersectionObserver with a single observer that unobserves after firing. Every figure comes from the plan's stats array and nowhere else. The final rendered number must equal the plan value exactly, and the element must contain the final value in the markup so it reads correctly if JavaScript never runs.
 
-9. PROCESS. Exactly four numbered steps with a connecting line on desktop that does not appear on mobile.
+9. PROCESS (data-gp="process"). Exactly four numbered steps with a connecting line on desktop that does not appear on mobile.
 
-10. SERVICE AREAS. Heading, a short paragraph, then the suburb list from the plan rendered as a wrapped set of pills or a multi-column list. Every suburb in the plan appears. Do not add suburbs that are not in the plan.
+10. SERVICE AREAS (data-gp="service_areas"). Heading, a short paragraph, then the suburb list from the plan rendered as a wrapped set of pills or a multi-column list. Every suburb in the plan appears. Do not add suburbs that are not in the plan.
 
-11. TESTIMONIALS. Only when the plan says testimonials.enabled is true. Use the exact quotes, first names and suburbs given. Do not add star ratings, do not add photos of people, do not invent a surname, do not round a quote up into something punchier.
+11. TESTIMONIALS (data-gp="testimonials"). Only when the plan says testimonials.enabled is true. Use the exact quotes, first names and suburbs given. Do not add star ratings, do not add photos of people, do not invent a surname, do not round a quote up into something punchier.
 
-12. FAQ ACCORDION. Native details and summary elements, styled, with a rotating chevron drawn as inline SVG. The question and answer text must match the FAQPage JSON-LD word for word, character for character.
+12. FAQ ACCORDION (data-gp="faq"). Native details and summary elements, styled, with a rotating chevron drawn as inline SVG. The question and answer text must match the FAQPage JSON-LD word for word, character for character.
 
-13. CTA BAND. Full-width block in the primary colour with the heading, one line of copy and a large phone button.
+13. CTA BAND (data-gp="cta_band"). Full-width block in the primary colour with the heading, one line of copy and a large phone button.
 
-14. CONTACT. Two columns. Left: phone, email, service area line, opening hours from the facts, and social links if supplied. Right: the second form. Hours are rendered exactly as the hoursLines array gives them.
+14. CONTACT (data-gp="contact"). Two columns. Left: phone, email, service area line, opening hours from the facts, and social links if supplied. Right: the second form. Hours are rendered exactly as the hoursLines array gives them.
 
-15. FOOTER. Business name or logo, a short line, the nav links, ABN if supplied, copyright line, and the Go Polar credit exactly as specified in rule 3.
+15. FOOTER (data-gp="footer"). Business name or logo, a short line, the nav links, ABN if supplied, copyright line, and the Go Polar credit exactly as specified in rule 3.
 
 16. MOBILE STICKY BAR. Fixed to the bottom on viewports under 768px only. Two halves: "Call now" as a tel link, and "Get a quote" scrolling to the contact form. It must not cover the footer credit, so the footer carries bottom padding equal to the bar height on mobile.
 
@@ -192,7 +204,7 @@ One script block, no libraries, wrapped so it cannot leak globals. It does five 
 2. Mobile menu open and close, including closing on link click and on Escape.
 3. Stat counters via IntersectionObserver.
 4. Smooth scroll for in-page anchors that accounts for the fixed header height.
-5. Both form submissions: submit to Web3Forms with fetch, disable the button and show a sending state, then replace the form with a plain success message, or show an error message that tells the customer to ring instead if the request fails. Never leave a form in a state where the customer cannot tell what happened.
+5. Both form submissions: INTERCEPT the form's own submit event with preventDefault and send it with fetch to the same URL that is already in the form's action attribute. You are enhancing a form that already works, not replacing it, so never remove or omit the action attribute: rule 8 requires it and a check enforces it. Disable the button and show a sending state, then replace the form with a plain success message, or show an error message that tells the customer to ring instead if the request fails. Never leave a form in a state where the customer cannot tell what happened.
 
 Guard every querySelector result before using it. If the script throws, the page is broken and the verification stage will catch it, so write it defensively.
 

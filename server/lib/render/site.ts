@@ -7,6 +7,13 @@ import {
   type StyleSpec,
 } from '../../../shared/styles.js'
 
+/*
+ * data-gp ATTRIBUTES. Every landmark below carries one, matching the vocabulary in
+ * server/lib/sections.ts and the house rule the model is given. They are how an edit addresses a
+ * single section instead of rewriting the document. Nothing styles them and nothing reads them at
+ * runtime; removing one silently costs the fast edit path for that section.
+ */
+
 /**
  * The site renderer.
  *
@@ -726,7 +733,7 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
       })
     : ''
 
-  return `<section class="hero hero--${L.hero}${L.heroForm ? '' : ' hero--noform'}" id="top">
+  return `<section class="hero hero--${L.hero}${L.heroForm ? '' : ' hero--noform'}" id="top" data-gp="hero">
   <div class="hero__bg">
     ${background}
     <div class="hero__scrim"></div>
@@ -821,7 +828,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 </section>
 `,
     trust: `
-<section class="trust-bar">
+<section class="trust-bar" data-gp="trust_strip">
   <div class="wrap trust-grid">
     ${plan.trustStrip
       .map(
@@ -834,7 +841,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 
 `,
     about: `
-<section class="section" id="about">
+<section class="section" id="about" data-gp="about">
   <div class="wrap about-grid">
     <div class="about__copy">
       <span class="eyebrow">About us</span>
@@ -865,7 +872,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 
 `,
     services: `
-<section class="section section--alt" id="services">
+<section class="section section--alt" id="services" data-gp="services">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'What we do',
@@ -893,7 +900,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
     work: `
 ${
   plan.gallery.enabled
-    ? `<section class="section" id="work">
+    ? `<section class="section" id="work" data-gp="gallery">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'Our work',
@@ -924,7 +931,7 @@ ${
 
 `,
     why: `
-<section class="section section--dark" id="why">
+<section class="section section--dark" id="why" data-gp="why_us">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'Why choose us',
@@ -949,7 +956,7 @@ ${
 
 `,
     stats: `
-<section class="stats-band" id="stats">
+<section class="stats-band" id="stats" data-gp="stats">
   <div class="wrap stats-grid">
     ${plan.stats
       .map(
@@ -962,7 +969,7 @@ ${
 
 `,
     process: `
-<section class="section" id="process">
+<section class="section" id="process" data-gp="process">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'How it works',
@@ -986,7 +993,7 @@ ${
 
 `,
     areas: `
-<section class="section section--alt" id="areas">
+<section class="section section--alt" id="areas" data-gp="service_areas">
   <div class="wrap areas-grid">
     <div>
       <span class="eyebrow">Service areas</span>
@@ -1003,7 +1010,7 @@ ${
     reviews: `
 ${
   plan.testimonials.enabled && plan.testimonials.items.length > 0
-    ? `<section class="section" id="reviews">
+    ? `<section class="section" id="reviews" data-gp="testimonials">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'What clients say',
@@ -1029,7 +1036,7 @@ ${
 
 `,
     faq: `
-<section class="section section--alt" id="faq">
+<section class="section section--alt" id="faq" data-gp="faq">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'Common questions',
@@ -1050,7 +1057,7 @@ ${
   </div>
 </section>
 
-<section class="section cta-band">
+<section class="section cta-band" data-gp="cta_band">
   <div class="wrap">
     <span class="eyebrow">Get started</span>
     <h2>${twoTone(plan.ctaBand.heading, spec.twoTone)}</h2>
@@ -1064,7 +1071,7 @@ ${
 
 `,
     contact: `
-<section class="section" id="contact">
+<section class="section" id="contact" data-gp="contact">
   <div class="wrap contact-grid">
     <div>
       <span class="eyebrow">Get in touch</span>
@@ -1151,7 +1158,7 @@ ${stylesheet(plan, spec, surfaces)}
 ${assumptionComments}
 ${supplyComments}
 ${styleComments}
-<header class="site-header" id="siteHeader">
+<header class="site-header" id="siteHeader" data-gp="header">
   <div class="wrap site-header__inner">
     ${brandMarkup(plan, facts)}
     <nav class="nav" aria-label="Main">
@@ -1169,7 +1176,7 @@ ${styleComments}
 ${heroMarkup(plan, facts, spec)}
 ${orderedBody}
 
-<footer class="site-footer">
+<footer class="site-footer" data-gp="footer">
   <div class="wrap">
     <div class="footer-grid">
       <div>

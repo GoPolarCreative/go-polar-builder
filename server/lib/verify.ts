@@ -4,7 +4,7 @@ import { measurePageWeight, runStaticChecks } from './checks/static.js'
 import { renderChecksSkipped, runRenderChecks } from './checks/render.js'
 import { inlineAssets } from './inline.js'
 import { callMessage, isTruncated, stripCodeFence, MAX_TOKENS_BUILD } from './anthropic.js'
-import { REPAIR_SYSTEM } from '../prompts/houseRules.js'
+import { HOUSE_RULES, REPAIR_SYSTEM } from '../prompts/houseRules.js'
 import { config } from '../config.js'
 
 /** Brief s6: maximum 2 repair attempts, then hold the job and notify Chris. */
@@ -99,7 +99,20 @@ export async function verifyAndRepair(args: {
     let repaired: string
     try {
       const result = await callMessage({
-        system: [{ type: 'text', text: REPAIR_SYSTEM }],
+        /*
+         * THE HOUSE RULES GO FIRST, CACHED, AND THAT IS THE POINT OF THIS BLOCK.
+         *
+         * This call used to carry REPAIR_SYSTEM alone and cache nothing, so it re-read every
+         * token it was given at full price, on the one call in a build that was already handed an
+         * entire 63KB document. Leading with the same cached prefix every other call uses means
+         * it reads the house rules rather than paying for them, and it also means the repair is
+         * working from the same rules that produced the document instead of a short instruction
+         * that never mentions them.
+         */
+        system: [
+          { type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral', ttl: '1h' } },
+          { type: 'text', text: REPAIR_SYSTEM },
+        ],
         messages: [
           {
             role: 'user',

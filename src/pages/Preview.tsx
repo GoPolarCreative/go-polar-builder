@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate, useOutlet, useOutletContext, useParams } fro
 import type { GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamEdit } from '../lib/api'
 import { Banner, Spinner } from '../components/ui'
+import { StreamingPreview } from '../components/StreamingPreview'
 import { BuildProgress } from '../components/BuildProgress'
 import { JobNav } from '../components/JobNav'
 import { InboxTask } from '../components/InboxSetup'
@@ -60,7 +61,6 @@ export default function Preview() {
   // null on /preview/:jobId, non-null once /changes is open. Drives the go-live bar below.
   const outlet = useOutlet()
 
-  const streamRef = useRef<HTMLPreElement>(null)
 
   const loadVersions = useCallback(async () => {
     const v = await api.versions(jobId)
@@ -102,10 +102,6 @@ export default function Preview() {
       cancelled = true
     }
   }, [jobId, loadPreview, loadVersions, navigate])
-
-  useEffect(() => {
-    if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight
-  }, [liveHtml])
 
   // Runs after the chip's text has been committed to the box, so the caret can be put after it.
   useLayoutEffect(() => {
@@ -282,7 +278,6 @@ export default function Preview() {
     editStartedAt,
     stage,
     liveHtml,
-    streamRef,
     report,
     request,
     setRequest,
@@ -335,7 +330,22 @@ export default function Preview() {
             </div>
           </div>
 
-          <DevicePreview srcDoc={srcDoc} device={device} />
+          {/*
+            WHILE A REBUILD STREAMS, THE MAIN STAGE SHOWS IT HAPPENING.
+
+            Only when there are bytes to show. A patched edit does not stream, because it changes
+            one section through a single small call rather than re-emitting the document, so
+            liveHtml stays empty and the customer keeps looking at their real site while the
+            change lands. That is the right behaviour for both: a rebuild is long enough to be
+            worth watching, and a patch is short enough not to need to be.
+          */}
+          {running && liveHtml ? (
+            <div className="p-4">
+              <StreamingPreview html={liveHtml} state="streaming" label="Applying your changes" />
+            </div>
+          ) : (
+            <DevicePreview srcDoc={srcDoc} device={device} />
+          )}
         </main>
 
         {/* Chat and history */}
@@ -724,7 +734,6 @@ export interface ChangesContext {
   editStartedAt: number | null
   stage: GenerationStage | null
   liveHtml: string
-  streamRef: React.RefObject<HTMLPreElement>
   report: VerificationReport | null
   request: string
   setRequest: React.Dispatch<React.SetStateAction<string>>
@@ -757,7 +766,6 @@ export function ChangesPanel() {
     editStartedAt,
     stage,
     liveHtml,
-    streamRef,
     report,
     request,
     setRequest,
@@ -809,13 +817,13 @@ export function ChangesPanel() {
         {running ? (
           <div className="space-y-2">
             {editStartedAt ? <BuildProgress stage={stage} done={false} startedAt={editStartedAt} /> : null}
+            {/*
+              The raw markup panel that used to sit here is gone. It showed a tradesperson the
+              document scrolling past as text, which told them nothing and looked like an error
+              log. The same bytes now render as their actual page on the main stage.
+            */}
             {liveHtml ? (
-              <pre
-                ref={streamRef}
-                className="max-h-40 overflow-auto rounded-lg bg-ice-900 p-3 text-[10px] leading-relaxed text-ice-100"
-              >
-                <code>{liveHtml.slice(-6000)}</code>
-              </pre>
+              <p className="field-hint">Your website is being redrawn on the left as it is written.</p>
             ) : null}
           </div>
         ) : null}

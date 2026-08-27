@@ -35,7 +35,7 @@ export interface SystemBlock {
   text: string
   /** Marks the end of a cacheable prefix. The house rules block is large and identical every
    *  build, which is exactly what prompt caching is for. */
-  cache_control?: { type: 'ephemeral' }
+  cache_control?: { type: 'ephemeral'; ttl?: '5m' | '1h' }
 }
 
 export interface Msg {
@@ -127,6 +127,20 @@ async function post(opts: CallOptions, stream: boolean): Promise<Response> {
           'content-type': 'application/json',
           'x-api-key': key,
           'anthropic-version': API_VERSION,
+          /*
+           * ONE HOUR CACHE LIFETIME, AND THE MEASUREMENT THAT FORCED IT.
+           *
+           * The default ephemeral cache lives five minutes. The build call streams for around
+           * 470 seconds, which is longer than that, so the house rules written into the cache at
+           * the START of a build had already expired by the time the repair pass ran at the end
+           * of it. Two real production builds and two local ones all reported
+           * cache_read_input_tokens: 0 while dutifully paying the 25% cache WRITE surcharge every
+           * single time. The cache was pure cost.
+           *
+           * Verified against the API on 2026-08-27 before being relied on: a write reports
+           * ephemeral_1h_input_tokens and the next call reports cache_read_input_tokens.
+           */
+          'anthropic-beta': 'extended-cache-ttl-2025-04-11',
         },
         body: body(cfg, opts, stream),
       })

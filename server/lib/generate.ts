@@ -102,7 +102,7 @@ export async function generatePlan(args: {
     const result = await callMessage({
       system: [
         // Cached: identical on every build, and it is the expensive half of this call.
-        { type: 'text', text: PLAN_SYSTEM, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: PLAN_SYSTEM, cache_control: { type: 'ephemeral', ttl: '1h' } },
       ],
       messages: [
         {
@@ -383,11 +383,24 @@ export async function generateHtml(args: { plan: ContentPlan; facts: BuildFacts;
   for await (const chunk of streamMessage({
     system: [
       // The cached prefix. Large, identical every build. Do not interpolate into HOUSE_RULES.
-      { type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral', ttl: '1h' } },
     ],
     messages: [{ role: 'user', content: buildUserMessage(plan, facts) }],
     maxTokens: MAX_TOKENS_BUILD,
-    effort: 'high',
+    /*
+     * THE SINGLE BIGGEST NUMBER IN THE WHOLE PIPELINE, and it is configurable so it can be judged
+     * on output rather than argued about.
+     *
+     * At 'high' the model thinks for 231 seconds before emitting the first byte of the document.
+     * That is the four minutes of blank screen that makes this feel broken next to tools that
+     * start drawing immediately, and no amount of progressive rendering fixes it, because for
+     * those 231 seconds there is genuinely nothing to draw.
+     *
+     * Quality is the constraint, not speed: Chris has chosen bespoke sites written for each
+     * business, so this only moves if the output holds up. BUILD_EFFORT exists so the comparison
+     * is made on real generated sites side by side.
+     */
+    effort: (process.env.BUILD_EFFORT as 'low' | 'medium' | 'high' | undefined) ?? 'high',
   })) {
     if (chunk.type === 'text') {
       html += chunk.text
@@ -440,7 +453,7 @@ export async function generateSectioned(args: { plan: ContentPlan; facts: BuildF
 
     let text = ''
     for await (const chunk of streamMessage({
-      system: [{ type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral', ttl: '1h' } }],
       messages: [
         {
           role: 'user',

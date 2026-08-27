@@ -169,6 +169,35 @@ export async function persistPageSet(args: {
       checks: report,
       passed: report.passed,
     })
+      /*
+       * A RETRY MUST NOT DIE ON THE LEFTOVERS OF AN ABORTED ATTEMPT.
+       *
+       * nextVersion counts rows in the builds table, and a run that wrote its pages and then
+       * failed before writing the build row leaves those pages behind at that version. The next
+       * attempt asks for the same version, hits build_pages_version_path_idx, and dies. Every
+       * retry then dies the same way, so the job is stuck permanently on the wreckage of the
+       * first failure.
+       *
+       * Seen for real on 2026-08-27: three interrupted builds on one job, and the fourth reached
+       * "All 18 checks passed" and then threw a unique violation inserting index.html.
+       *
+       * The plans table already handles this exact case in the same way and for the same reason.
+       * A page sitting at this version belongs to an attempt that never finished, so replacing it
+       * is right.
+       */
+      .onConflictDoUpdate({
+        target: [schema.buildPages.jobId, schema.buildPages.version, schema.buildPages.path],
+        set: {
+          url: page.url,
+          serviceSlug: page.slug,
+          title: page.title,
+          blobKey,
+          bytes: html.length,
+          pageWeightBytes: report.pageWeightBytes,
+          checks: report,
+          passed: report.passed,
+        },
+      })
 
     for (const check of [...report.static, ...report.render]) {
       if (check.status === 'fail') {

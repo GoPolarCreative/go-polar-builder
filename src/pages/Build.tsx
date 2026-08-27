@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { InboxBeforeBuild } from '../components/InboxSetup'
+import { StreamingPreview } from '../components/StreamingPreview'
 import { Link, useParams } from 'react-router-dom'
 import type { CheckResult, GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamGeneration } from '../lib/api'
@@ -24,6 +25,18 @@ export default function Build() {
   const [sections, setSections] = useState<string[]>([])
   const [health, setHealth] = useState<Awaited<ReturnType<typeof api.health>> | null>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
+  /*
+   * The streamed document, accumulated so it can be WRITTEN INTO THE PREVIEW as it arrives.
+   *
+   * This state was removed a day earlier along with the raw markup panel it used to feed, which
+   * was correct: no tradesperson wants to watch HTML scroll past for ten minutes. It comes back
+   * for the opposite reason. The same bytes now render as the actual page in StreamingPreview,
+   * which is what the brief meant by watching the site build itself.
+   */
+  const [streamed, setStreamed] = useState('')
+  // The content plan arrives around 40 seconds in, long before any HTML. It is the only real
+  // thing there is to show during the minutes the model spends writing the document.
+  const [plan, setPlan] = useState<unknown>(null)
 
 
   useEffect(() => {
@@ -37,6 +50,8 @@ export default function Build() {
     setRunning(true)
     setStartedAt(Date.now())
     setError(null)
+    setStreamed('')
+    setPlan(null)
     setReport(null)
     setSections([])
     setVersion(null)
@@ -49,6 +64,7 @@ export default function Build() {
             setMessage(event.message)
             break
           case 'html_chunk':
+            setStreamed((h) => h + event.text)
             /*
              * Swallowed on purpose. The document still streams from the server, because the
              * server streams it to prove liveness and other consumers read it, but this screen no
@@ -74,6 +90,7 @@ export default function Build() {
             setError({ message: event.message, detail: event.detail })
             break
           case 'plan':
+            setPlan(event.plan)
             break
         }
       })
@@ -151,6 +168,23 @@ export default function Build() {
       </div>
 
       {running && startedAt ? <BuildProgress stage={stage} done={false} startedAt={startedAt} /> : null}
+
+      {/*
+        THE SITE, APPEARING. Shown from the moment the first bytes arrive until the build finishes
+        and the checked version takes over below. It carries its own "not finished yet" banner, so
+        a page that is still half written can never be mistaken for the delivered one.
+      */}
+      {running || (streamed && !version) ? (
+        <div className="mb-6">
+          <StreamingPreview
+            html={streamed}
+            state={error ? 'failed' : running ? 'streaming' : 'done'}
+            label="Writing your website"
+            plan={plan}
+            startedAt={startedAt}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mb-6">
