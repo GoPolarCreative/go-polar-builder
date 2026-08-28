@@ -302,17 +302,18 @@ describe('checks that must not produce false positives', () => {
   })
 })
 
-describe('render checks 13 to 16, and 22', () => {
+describe('render checks 13 to 16, and 22 and 23', () => {
   it('report skipped, never pass, when no browser driver is available', async () => {
     testConfig({ renderDriver: 'none' })
     const report = await verify(fixture.html, fixture.facts)
-    expect(report.render).toHaveLength(5)
+    expect(report.render).toHaveLength(6)
     expect(report.render.map((r) => r.id)).toEqual([
       'renders_clean',
       'no_horizontal_overflow',
       'images_load',
       'interactions_work',
       'text_not_squeezed',
+      'header_closed_at_rest',
     ])
     for (const check of report.render) {
       expect(check.status).toBe('skipped')
@@ -531,5 +532,61 @@ describe('reviews are attributed to Google when there is a profile', () => {
     const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
     const failed = (await runStaticChecks(f.html, f.facts)).filter((r) => r.status === 'fail')
     expect(failed.map((x) => `${x.id}: ${x.detail}`)).toEqual([])
+  })
+})
+
+/**
+ * Check 23, a closed menu is closed.
+ *
+ * A fencing site shipped with the Services dropdown hanging open from page load: a white panel
+ * under the nav covering the FAQ link beside it and sitting on the hero headline. The model wrote
+ * the panel and the hover rule and left out the resting state.
+ *
+ * Nothing else in the suite saw it. The page is not too wide, no text is squeezed, the markup is
+ * valid. It is simply open when it should be shut, which only geometry can see.
+ */
+describe('nothing in the header hangs open at rest', () => {
+  const withDropdown = (extraCss: string) =>
+    fixture.html
+      .replace('</head>', `<style>.nav-item{position:relative;}${extraCss}</style></head>`)
+      .replace(
+        /<nav([^>]*)>/i,
+        '<nav$1><span class="nav-item"><a href="#services">Services</a>' +
+          '<div class="gp-dropdown"><a href="services/fencing/index.html">Fencing</a></div></span>',
+      )
+
+  const OPEN = '.gp-dropdown{position:absolute;top:100%;left:0;background:#fff;padding:16px;z-index:60;}'
+  const CLOSED = OPEN + '.gp-dropdown{display:none;}.nav-item:hover .gp-dropdown,.nav-item:focus-within .gp-dropdown{display:block;}'
+
+  it('fails the exact fault that shipped', async () => {
+    const r = byId(await runRenderChecks(withDropdown(OPEN)), 'header_closed_at_rest')
+    expect(r.status).toBe('fail')
+    expect(r.evidence?.join(' ')).toMatch(/hangs \d+px below the header at rest/)
+  })
+
+  it('tells the repair what to write, not just that it is wrong', async () => {
+    const r = byId(await runRenderChecks(withDropdown(OPEN)), 'header_closed_at_rest')
+    expect(r.detail).toMatch(/display:none/)
+    expect(r.detail).toMatch(/focus-within/)
+  })
+
+  it('passes once the dropdown has a resting state', async () => {
+    const r = byId(await runRenderChecks(withDropdown(CLOSED)), 'header_closed_at_rest')
+    expect(r.status).toBe('pass')
+  })
+
+  it('passes the known good document, which has no dropdown at all', async () => {
+    const r = byId(await runRenderChecks(fixture.html), 'header_closed_at_rest')
+    expect(r.status).toBe('pass')
+  })
+
+  /*
+   * The overlap with check 14 is the point. A dropdown hanging open is not horizontal overflow,
+   * so check 14 passed on the shipped site and would again.
+   */
+  it('is not something check 14 can see', async () => {
+    const rs = await runRenderChecks(withDropdown(OPEN))
+    expect(byId(rs, 'no_horizontal_overflow').status).toBe('pass')
+    expect(byId(rs, 'header_closed_at_rest').status).toBe('fail')
   })
 })

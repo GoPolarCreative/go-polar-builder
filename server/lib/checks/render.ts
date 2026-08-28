@@ -46,6 +46,13 @@ export interface PageFindings {
     thin: string[]
     wrappedHeadings: string[]
   }
+  /**
+   * Anything inside the header painting below it while nothing is hovered, measured at 1440px.
+   *
+   * A nav dropdown left without a resting state hangs open from page load, covering the link
+   * beside it and sitting on the hero. See check 23.
+   */
+  headerOverhang: string[]
 }
 
 export interface RenderDriver {
@@ -70,6 +77,7 @@ export function renderChecksSkipped(reason: string): CheckResult[] {
     skipped('images_load', 'Every image loads after scrolling to the bottom', reason),
     skipped('interactions_work', 'Accordions open and counters run', reason),
     skipped('text_not_squeezed', 'No text squeezed into a column too narrow to read at 390px', reason),
+    skipped('header_closed_at_rest', 'Nothing in the header hangs open before it is asked for', reason),
   ]
 }
 
@@ -216,10 +224,46 @@ export const PROBE_SCRIPT = `async () => {
     }
   }
 
+  /*
+   * A CLOSED MENU IS CLOSED. Nothing has been hovered or focused at this point, so anything inside
+   * the header that paints below the header's own bottom edge is showing when it should not be.
+   *
+   * Measured as geometry rather than by looking for a class named "dropdown", because the markup is
+   * the model's to choose and the invariant is not: at rest the header occupies the header.
+   *
+   * The mobile panel is excluded by the viewport, being hidden above the breakpoint, and a fixed
+   * sticky bar is excluded because it is not a descendant of the header. The tolerance absorbs a
+   * shadow or a border sitting a pixel or two proud.
+   */
+  const headerOverhang = []
+  const headerEl = document.querySelector('header, .site-header, [class*="site-header"]')
+  if (headerEl) {
+    const hb = headerEl.getBoundingClientRect()
+    for (const el of Array.from(headerEl.querySelectorAll('*'))) {
+      const cs = getComputedStyle(el)
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue
+      if (cs.position === 'fixed') continue
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) continue
+      if (r.bottom > hb.bottom + 4) {
+        const cls = typeof el.className === 'string' && el.className.trim()
+          ? '.' + el.className.trim().split(/\\s+/)[0]
+          : ''
+        const name = el.tagName.toLowerCase() + cls
+        const text = (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40)
+        headerOverhang.push(
+          name + ' hangs ' + Math.round(r.bottom - hb.bottom) + 'px below the header at rest: "' + text + '"',
+        )
+      }
+      if (headerOverhang.length >= 6) break
+    }
+  }
+
   return {
     overflow: { overflows: scrollWidth > innerWidth + 1, scrollWidth, innerWidth, offenders },
     images: { total: imgs.length, broken },
     squeeze: { thin, wrappedHeadings },
+    headerOverhang,
     interactions: {
       accordions: details.length,
       accordionOpened,
@@ -515,6 +559,42 @@ export async function runRenderChecks(html: string, driver = createRenderDriver(
               `while being unreadable. Usually a grid that is still two columns on a phone, or a label that ` +
               `needs white-space:nowrap.`,
             evidence: squeezeEvidence.slice(0, 8),
+          },
+    )
+
+    /*
+     * CHECK 23. A closed menu is closed.
+     *
+     * A fencing site shipped with the Services dropdown hanging open from page load: a white panel
+     * under the nav covering the FAQ link beside it and sitting on top of the hero headline. The
+     * model had written the panel and the hover rule and left out the resting state, which is the
+     * one line that makes a dropdown a dropdown rather than a permanent box.
+     *
+     * Nothing else saw it. It is not overflow, the page is not too wide, no text is squeezed and
+     * the markup is perfectly valid. It is simply open when it should be shut, which is only
+     * visible to something that looks at where things are drawn.
+     *
+     * Measured as geometry at 1440px with nothing hovered: no descendant of the header may paint
+     * below the header. That holds whatever the model called its classes, and it is exactly the
+     * property a visitor experiences.
+     */
+    results.push(
+      desktop.headerOverhang.length === 0
+        ? {
+            id: 'header_closed_at_rest',
+            label: 'Nothing in the header hangs open before it is asked for',
+            status: 'pass',
+          }
+        : {
+            id: 'header_closed_at_rest',
+            label: 'Nothing in the header hangs open before it is asked for',
+            status: 'fail',
+            detail:
+              `${desktop.headerOverhang.length} element(s) inside the header are drawn below it before anything has been ` +
+              `hovered or focused. A dropdown needs a resting state that genuinely hides it: display:none, or opacity:0 ` +
+              `with visibility:hidden and pointer-events:none, shown on :hover and :focus-within of the nav item that ` +
+              `owns it. As it stands the menu covers the link beside it and sits on the hero.`,
+            evidence: desktop.headerOverhang.slice(0, 6),
           },
     )
 

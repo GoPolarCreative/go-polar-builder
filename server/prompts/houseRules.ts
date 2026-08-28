@@ -188,7 +188,16 @@ When servicePages is not empty, the customer has paid for a dedicated page per e
 
 1. THE SERVICE CARD FOR A SERVICE THAT HAS ITS OWN PAGE LINKS TO THAT PAGE. Its text link becomes the page link, written as the service name, not "read more". Every other service card keeps its link to the contact form.
 
-2. THE HEADER NAV CARRIES THE SERVICE PAGES. On desktop, "Services" in the nav becomes a link to the services section with a dropdown listing each service page. If a dropdown is more machinery than the design wants, put the page links in the nav directly, in order, after Services. On mobile they appear as their own indented group inside the panel. The mobile panel must not need a scroll to reach the call button.
+2. THE HEADER NAV CARRIES THE SERVICE PAGES. On desktop, "Services" in the nav becomes a link to the services section with a dropdown listing each service page. If a dropdown is more machinery than the design wants, put the page links in the nav directly, in order, after Services. That plain version is always a safe choice and is preferred over a dropdown you are not going to style completely. On mobile the page links appear as their own indented group inside the panel. The mobile panel must not need a scroll to reach the call button.
+
+  A DROPDOWN IS CLOSED UNTIL IT IS ASKED FOR, AND THAT IS NOT OPTIONAL. A shipped site had the panel hanging open under the nav from the moment the page loaded, covering the FAQ link beside it and sitting on top of the hero headline. It is the single most visible way this rule goes wrong, because it is wrong before the visitor does anything at all. If you write a dropdown, write all four of these:
+
+    - a resting state that genuinely hides it: display:none, or opacity:0 with visibility:hidden and pointer-events:none. Not opacity alone, which leaves an invisible panel swallowing clicks.
+    - position:absolute on the panel with position:relative on the nav item that owns it, so opening it never changes the height of the header or pushes the nav around.
+    - a z-index above the hero, so it draws over the page rather than behind it.
+    - shown on BOTH :hover and :focus-within of that nav item. Hover alone is unreachable by keyboard, and focus-within costs one selector.
+
+  The resting state is the one that gets forgotten, and a check now fails the build when anything inside the header paints below the header at rest.
 
 3. THE FOOTER LISTS EVERY PAGE IN THE SET. A plain column headed with the word Services, one link per page. This is how a search engine finds the set and how a visitor who has scrolled to the bottom gets back out.
 

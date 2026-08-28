@@ -158,6 +158,7 @@ export type CheckId =
   | 'images_load'
   | 'interactions_work'
   | 'text_not_squeezed'
+  | 'header_closed_at_rest'
   | 'page_weight'
   | 'pages_delivered'
 
