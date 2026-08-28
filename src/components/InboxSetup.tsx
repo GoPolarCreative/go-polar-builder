@@ -62,30 +62,41 @@ export function InboxSetup(props: {
     setProblem(null)
     setDone(null)
     try {
-      // The test submission goes from the browser, not the server: Web3Forms blocks server-side
-      // calls at the TLS layer. It is also the same call the finished website's forms will make,
-      // so if this reaches their inbox the forms do too. Null means we could not reach Web3Forms
-      // at all, and the server turns that into "our end, not yours" rather than a rejected key.
-      const proof = await testWeb3FormsKey(key.trim())
+      /*
+       * The test goes from the browser, not the server: Web3Forms blocks server-side calls at the
+       * TLS layer. It is the same call the finished website's forms will make, so if it reaches
+       * their inbox the forms do too.
+       *
+       * IT IS ALSO ALLOWED TO FAIL WITHOUT FAILING THE STEP. A blocked request, an offline moment
+       * or an ad blocker is not the customer doing anything wrong, and it used to surface as "That
+       * key was not accepted" on a key nobody had found fault with. Whatever comes back is passed
+       * to the server as evidence; the server saves the key either way and only marks it verified
+       * when the test genuinely succeeded.
+       */
+      const proof = await testWeb3FormsKey(key.trim()).catch(() => null)
       const res = await api.goLiveFormsKey(props.jobId, key, proof)
       setDone(res.detail)
       setTimeout(
         () =>
           props.onVerified({
             ...props.formsKey,
-            verified: true,
+            saved: true,
+            verified: res.tested === true,
             keyMasked: res.keyMasked,
-            blocksGoLive: false,
+            blocksGoLive: res.tested !== true,
           }),
         2500,
       )
     } catch (err) {
-      // Every rejection has a reason worth reading: the shape was wrong, or Web3Forms tested the
-      // key and refused it. Both come back as plain sentences from the server.
+      /*
+       * Only the shape can be rejected now, and that is genuinely the customer's to fix: they
+       * pasted an email address, a phone number or a URL, and the message names which. Anything
+       * else is ours and says so.
+       */
       setProblem(
         err instanceof ApiCallError
           ? (err.detail ?? err.message)
-          : 'Something went wrong checking that key. Nothing has been saved.',
+          : 'Something went wrong saving that key. Nothing has been saved, so please try again.',
       )
     } finally {
       setBusy(false)
@@ -146,7 +157,7 @@ export function InboxSetup(props: {
               ))}
             </ol>
             <a
-              className="btn-ghost mt-3 inline-flex"
+              className="btn-accent mt-3 inline-flex"
               href={props.formsKey.signUpUrl}
               target="_blank"
               rel="noreferrer noopener"
@@ -172,8 +183,9 @@ export function InboxSetup(props: {
             />
           </Field>
 
+          {/* Titled for what actually went wrong. The only rejection left is the shape. */}
           {problem ? (
-            <Banner tone="error" title="That key was not accepted">
+            <Banner tone="error" title="That does not look like an access key">
               {problem}
             </Banner>
           ) : null}

@@ -747,6 +747,47 @@ function StepStory({ data, patch, errors }: StepProps) {
         />
       </Field>
 
+      {/*
+       * Only asked once there is a profile to check them against, because a rating with nothing
+       * behind it is the sort of unverifiable number the whole build refuses to write. Two numbers
+       * read straight off their own listing, which is about ten seconds of work for the strongest
+       * trust signal on the finished page.
+       */}
+      {(data.googleReviewLink ?? '').trim() !== '' ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Your Google rating"
+            error={errors.googleRating}
+            hint="Optional. The number at the top of your Google listing, like 4.9."
+          >
+            <TextInput
+              value={data.googleRating === undefined ? '' : String(data.googleRating)}
+              onChange={(v) => {
+                const t = v.trim()
+                patch({ googleRating: t === '' ? undefined : Number(t) })
+              }}
+              placeholder="4.9"
+              inputMode="decimal"
+            />
+          </Field>
+          <Field
+            label="How many reviews"
+            error={errors.googleReviewCount}
+            hint="Optional. The total count shown next to your rating."
+          >
+            <TextInput
+              value={data.googleReviewCount === undefined ? '' : String(data.googleReviewCount)}
+              onChange={(v) => {
+                const t = v.trim()
+                patch({ googleReviewCount: t === '' ? undefined : Number(t) })
+              }}
+              placeholder="87"
+              inputMode="numeric"
+            />
+          </Field>
+        </div>
+      ) : null}
+
       <fieldset className="rounded-lg border border-ice-200 p-4">
         <legend className="px-1 text-sm font-semibold">Social links (optional)</legend>
         <div className="grid gap-3 sm:grid-cols-2">

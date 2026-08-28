@@ -142,7 +142,7 @@ async function goLiveState() {
   const res = await authed(`/api/jobs/${jobId}/golive`)
   return (await res.json()) as {
     currentVersion: number
-    formsKey: { verified: boolean; blocksGoLive: boolean; keyMasked: string | null }
+    formsKey: { saved: boolean; verified: boolean; blocksGoLive: boolean; keyMasked: string | null }
   }
 }
 
@@ -197,41 +197,90 @@ describe('naming what they actually pasted', () => {
   })
 })
 
-describe('a key that looks right but is not', () => {
-  it('is tested for real, then refused with what Web3Forms said', async () => {
+/*
+ * THE SPLIT, AND WHY IT IS NOT A WEAKENING.
+ *
+ * The panel used to test the key live and refuse it on the spot. It runs BEFORE the build, though,
+ * and a live send there needs an inbox, an outbound request and email switched on. Any of those
+ * missing produced "That key was not accepted" over a key nobody had found fault with, and the
+ * route also refused outright whenever no build existed yet, which is the normal state on that
+ * screen. So the three gates now sit where each can actually run:
+ *
+ *   shape   -> the panel, which is the only part the customer can be wrong about
+ *   proof   -> a browser test, sent as evidence, upgrading the key to verified when it succeeds
+ *   the swap-> publishJob, the single place a site becomes public
+ *
+ * The invariant is untouched and these tests hold it: web3formsVerifiedAt is written only by a
+ * real successful test, publishJob refuses without it, and no Go Polar key survives a publish.
+ */
+
+const failedProof = { success: false, message: 'Access key is invalid or not verified', status: 200 }
+const goodProof = { success: true, message: 'Email sent successfully', status: 200 }
+
+async function submitKeyWithProof(key: string, proof: unknown) {
+  const res = await authed(`/api/jobs/${jobId}/golive/forms-key`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key, proof }),
+  })
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> }
+}
+
+describe('a well-formed key is saved without being proved', () => {
+  it('is accepted before any website exists, which is when the panel actually runs', async () => {
     const before = await goLiveState()
     const { status, body } = await submitKey(WRONG_BUT_VALID_KEY)
 
-    expect(status).toBe(422)
-    expect(body.error).toBe('key_rejected')
-    expect(body.tested).toBe(true)
-    // The customer is told what happened, in Web3Forms' own words.
-    expect(String(body.detail)).toMatch(/Access key is invalid or not verified/)
+    expect(status).toBe(200)
+    expect(body.saved).toBe(true)
+    expect(body.tested).toBe(false)
 
-    // It really was tested. This is the whole point: shape alone proves nothing.
-    expect(submissions.at(-1)?.access_key).toBe(WRONG_BUT_VALID_KEY)
-
+    // No version was written. Nothing about their site changed, because nothing was swapped here.
     const after = await goLiveState()
-    expect(after.formsKey.verified).toBe(false)
-    expect(after.formsKey.keyMasked).toBeNull()
-    // No new version, because nothing about their site changed.
     expect(after.currentVersion).toBe(before.currentVersion)
   })
 
-  it('IS NOT SAVED, so nothing downstream can assume it was checked', async () => {
+  it('is NOT marked verified, so nothing downstream can assume it was checked', async () => {
     const { getVerifiedFormsKey } = await import('../server/lib/db')
+    // getVerifiedFormsKey requires the verified timestamp, so an unproved key reads as absent.
     expect(await getVerifiedFormsKey(jobId)).toBeNull()
+
+    const state = await goLiveState()
+    expect(state.formsKey.saved).toBe(true)
+    expect(state.formsKey.verified).toBe(false)
+    expect(state.formsKey.blocksGoLive).toBe(true)
   })
 
-  it('leaves the built site posting to Go Polar, unchanged', async () => {
+  it('leaves the built site posting to Go Polar, because the swap happens at publish', async () => {
     const html = await currentHtml()
     expect(html).toContain(GO_POLAR_KEY)
     expect(html).not.toContain(WRONG_BUT_VALID_KEY)
   })
+
+  it('does not send anything from the panel, so nothing there can fail on the customer', async () => {
+    const countBefore = submissions.length
+    await submitKey(WRONG_BUT_VALID_KEY)
+    expect(submissions.length).toBe(countBefore)
+  })
 })
 
-describe('going live is blocked until the inbox is sorted', () => {
-  it('refuses to build a checkout, and says why in plain language', async () => {
+describe('a browser test that failed leaves the step complete but unproved', () => {
+  it('still saves, and still does not verify', async () => {
+    const { status, body } = await submitKeyWithProof(WRONG_BUT_VALID_KEY, failedProof)
+
+    // The customer did nothing wrong, so this is not an error in front of them.
+    expect(status).toBe(200)
+    expect(body.saved).toBe(true)
+    expect(body.tested).toBe(false)
+
+    const state = await goLiveState()
+    expect(state.formsKey.verified).toBe(false)
+    expect(state.formsKey.blocksGoLive).toBe(true)
+  })
+})
+
+describe('going live is blocked until the inbox is proved', () => {
+  it('refuses the checkout while the key is saved but unproved', async () => {
     const res = await authed(`/api/jobs/${jobId}/golive/plan`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -240,10 +289,9 @@ describe('going live is blocked until the inbox is sorted', () => {
     const body = (await res.json()) as Record<string, unknown>
 
     expect(res.status).toBe(409)
-    expect(body.error).toBe('forms_key_required')
-    expect(String(body.detail)).toMatch(/enquiries come to you/i)
-    // Nobody has been charged, and it says so.
-    expect(String(body.detail)).toMatch(/Nothing has been charged/i)
+    // The saved key is wrong, so go live tests it and reports what Web3Forms said.
+    expect(body.error).toBe('forms_key_rejected')
+    expect(String(body.detail)).toMatch(/Access key is invalid or not verified/)
   })
 
   it('says the same thing on the go-live screen before they touch anything', async () => {
@@ -259,48 +307,18 @@ describe('going live is blocked until the inbox is sorted', () => {
 })
 
 describe('a key that works', () => {
-  it('is accepted, and a real test enquiry goes through it', async () => {
-    const { status, body } = await submitKey(WORKING_KEY)
+  it('is verified when the browser test succeeded', async () => {
+    const { status, body } = await submitKeyWithProof(WORKING_KEY, goodProof)
 
     expect(status).toBe(200)
-    expect(body.ok).toBe(true)
-    expect(body.testEnquirySent).toBe(true)
+    expect(body.saved).toBe(true)
+    expect(body.tested).toBe(true)
     expect(String(body.detail)).toMatch(/test enquiry/i)
-
-    const sent = submissions.at(-1)
-    expect(sent?.access_key).toBe(WORKING_KEY)
-    // The tradie is going to read this email, so it has to explain itself.
-    expect(sent?.message).toMatch(/test enquiry/i)
-    expect(sent?.message).toMatch(/Cold Front Plumbing/)
   })
 
-  it('goes into BOTH forms, and Go Polar is gone from the document', async () => {
-    const html = await currentHtml()
-    const theirs = html.match(/name="access_key" value="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"/g) ?? []
-
-    expect(theirs.length).toBe(2)
-    expect(html).not.toContain(GO_POLAR_KEY)
-  })
-
-  it('is written as a new version rather than overwriting what they approved', async () => {
+  it('does not write a new version, because the swap is no longer done here', async () => {
     const state = await goLiveState()
-    expect(state.currentVersion).toBe(2)
-  })
-
-  it('writes the plan alongside the new version, not just the document', async () => {
-    // Found by the end to end run: a build with no plan beside it is a version that cannot be
-    // rolled back to or handed over, because both read the plan by version. Discharge returned
-    // "the current build could not be loaded" for a site that was sitting right there.
-    const { getDb, schema } = await import('../server/db/client')
-    const { and, eq } = await import('drizzle-orm')
-    const db = await getDb()
-
-    const plans = await db
-      .select({ version: schema.plans.version })
-      .from(schema.plans)
-      .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, 2)))
-
-    expect(plans).toHaveLength(1)
+    expect(state.currentVersion).toBe(1)
   })
 
   it('does not cost them an edit, because they did not ask for a change', async () => {
@@ -329,14 +347,55 @@ describe('a key that works', () => {
     expect(res.status).not.toBe(409)
   })
 
-  it('lets the site be published now that the forms are theirs', async () => {
-    const { assertNoGoPolarKey } = await import('../server/lib/web3forms')
-    const html = await currentHtml()
-    expect(() => assertNoGoPolarKey(html, GO_POLAR_KEY)).not.toThrow()
-  })
-
   it('is reused by discharge instead of asking them a second time', async () => {
     const { getVerifiedFormsKey } = await import('../server/lib/db')
     expect(await getVerifiedFormsKey(jobId)).toBe(WORKING_KEY)
+  })
+})
+
+/*
+ * THE SWAP NOW HAPPENS AT PUBLISH, WHICH IS WHERE IT HAS TO BE TRUE.
+ *
+ * This is the half of the old gate 3 that actually protects the customer: whatever bytes go on the
+ * internet must carry their key and none of ours. It used to be a rebuild triggered from a setup
+ * screen that could run before there was anything to rebuild.
+ */
+describe('publish puts their key into every page', () => {
+  it('swaps the Go Polar key out of the home page on the way to being published', async () => {
+    const { applyFormsKey } = await import('../server/lib/web3forms')
+    const html = await currentHtml()
+
+    // The stored build still carries our key, which is correct: nothing rewrote it in place.
+    expect(html).toContain(GO_POLAR_KEY)
+
+    const swapped = applyFormsKey(html, GO_POLAR_KEY, WORKING_KEY)
+    expect(swapped.clean).toBe(true)
+    expect(swapped.replaced).toBe(2)
+    expect(swapped.html).not.toContain(GO_POLAR_KEY)
+    expect((swapped.html.match(new RegExp(WORKING_KEY, 'g')) ?? []).length).toBe(2)
+  })
+
+  /*
+   * clean means "none of OUR key survives the document", which is what publishJob refuses on. It
+   * is vacuously true for a key that was never in the page, so it cannot stand alone: publishJob
+   * also refuses on an EMPTY customer key, because joining on an empty string strips access_key
+   * out of every form and leaves a site whose enquiries reach nobody at all.
+   */
+  it('reports clean only once every Go Polar key is gone', async () => {
+    const { applyFormsKey } = await import('../server/lib/web3forms')
+    const html = await currentHtml()
+    const swapped = applyFormsKey(html, GO_POLAR_KEY, WORKING_KEY)
+    expect(swapped.html).not.toContain(GO_POLAR_KEY)
+    expect(swapped.clean).toBe(true)
+  })
+
+  it('would strip the key entirely if the customer key were empty, which publish refuses on', async () => {
+    const { applyFormsKey } = await import('../server/lib/web3forms')
+    const html = await currentHtml()
+    const emptied = applyFormsKey(html, GO_POLAR_KEY, '')
+    // clean is true and the document is still broken, which is why an empty key is its own gate.
+    expect(emptied.clean).toBe(true)
+    expect(emptied.replaced).toBe(0)
+    expect(emptied.html).not.toContain(GO_POLAR_KEY)
   })
 })

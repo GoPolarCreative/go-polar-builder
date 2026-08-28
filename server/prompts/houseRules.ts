@@ -77,6 +77,20 @@ Use the exact access key, and the exact subject strings, given in the facts. The
 
 12. LANGUAGE. <html lang="en-AU">. Australian spelling throughout: colour, metre, licence as a noun, organisation, specialise, neighbourhood. Suburb, not neighborhood.
 
+13. THE PHONE IS THE REAL SCREEN, AND 390 PIXELS IS THE WIDTH THAT MATTERS. Most people who look at a tradie's website are holding a phone. A layout that merely fits a phone without scrolling sideways is not the same as one that reads on a phone, and the failures below all fit while being unusable. A check measures this: any block of text averaging under two words a line fails the build, as does any heading of three words or fewer that wraps.
+
+  a. ONE COLUMN UNDER 560 PIXELS. The trust strip, the stat counters and the hero trust points are all short labels, and two columns at 390px leaves each about seventy pixels of text. That turns "Same-day service" into two words over three lines. Write these single column first and add the second and fourth columns at breakpoints, never the other way round.
+
+  b. A PHONE NUMBER NEVER WRAPS. Any element whose href starts with tel: gets white-space: nowrap. "0424 111 201" broken over three lines grew a header button to 80 pixels tall and pushed the header itself to 104. Worded labels like "Request a free quote" still wrap normally, because forcing those to one line overflows the screen instead.
+
+  c. EVERY GRID AND FLEX CHILD CARRYING TEXT GETS min-width: 0. The default is min-width: auto, which is the content's own width, and that is what turns one long word, a phone number or an email address into a sideways scroll rather than a wrap.
+
+  d. NO FIXED PIXEL WIDTH ANYWHERE ON A LAYOUT BOX. Use percentages, fr units, minmax() or max-width. A width of 420px on a card is a horizontal scrollbar on most phones sold.
+
+  e. TAP TARGETS ARE AT LEAST 44 PIXELS TALL. Footer navigation and the contact block are the two places this is always missed; links there rendered 20 to 23 pixels tall. Give them padding on mobile rather than shrinking the type.
+
+  f. LONG EMAIL ADDRESSES GET overflow-wrap: anywhere. An address like info@pestasidesydney.com.au is one unbreakable token and will push the page sideways otherwise.
+
 # CONTRAST. EVERY PIECE OF TEXT MUST BE READABLE ON WHAT IS BEHIND IT.
 
 This is not a polish item and it is not a matter of taste. A customer cannot read their own website
@@ -164,7 +178,7 @@ EVERY TILE IS THE SAME SHAPE. Photos come off a phone in whatever aspect the tra
 
 15. FOOTER (data-gp="footer"). Business name or logo, a short line, the nav links, ABN if supplied, copyright line, and the Go Polar credit exactly as specified in rule 3.
 
-16. MOBILE STICKY BAR. Fixed to the bottom on viewports under 768px only. Two halves: "Call now" as a tel link, and "Get a quote" scrolling to the contact form. It must not cover the footer credit, so the footer carries bottom padding equal to the bar height on mobile.
+16. MOBILE STICKY BAR. Fixed to the bottom on viewports under 768px only. Two halves: "Call now" as a tel link, and "Get a quote" scrolling to the contact form. It must not cover the footer credit, so the footer carries bottom padding equal to the bar height on mobile. THE ELEMENT ALONE IS NOT THE BAR: it needs position: fixed, bottom: 0, a background, a z-index above the page content, and a display: none above 768px. A div carrying the class and no styles is two links at the bottom of the document where nobody will ever see them, which is what shipped before this sentence existed.
 
 # THE PAGE SET
 
@@ -178,7 +192,7 @@ When servicePages is not empty, the customer has paid for a dedicated page per e
 
 3. THE FOOTER LISTS EVERY PAGE IN THE SET. A plain column headed with the word Services, one link per page. This is how a search engine finds the set and how a visitor who has scrolled to the bottom gets back out.
 
-4. LINKS ARE WRITTEN EXACTLY AS "services/<slug>/", relative, no leading slash. That path works when the site is served and when the files are opened from a folder on disk, which is what a customer who has taken their files elsewhere is doing. A leading slash breaks the second case and is a verification failure.
+4. LINKS ARE WRITTEN EXACTLY AS "services/<slug>/index.html", relative, no leading slash. Both halves matter. A leading slash breaks the site the moment the files are opened from a folder on disk, which is what a customer who has taken their files elsewhere is doing. So does stopping at the directory, "services/<slug>/", because a directory only resolves to its index page when a SERVER does it; opened from disk that link goes nowhere. Writing the file name works in both places, and it is what the service pages themselves already link to each other with.
 
 5. NOTHING IS DUPLICATED. The home page still describes every service in its services grid, in the same one-paragraph depth it always does. The service page goes deeper; the home page does not get shorter, and it does not repeat the service page's copy back to it. Two pages carrying the same paragraphs is the one thing that makes a set worse than a single page.
 

@@ -450,6 +450,123 @@ function checkFreeQuote(html: string, facts: BuildFacts): CheckResult {
       )
 }
 
+/**
+ * No tag is showing itself to the reader.
+ *
+ * "&lt;em&gt;" in a document is a tag that was escaped rather than rendered, and the reader sees
+ * the angle brackets. On these sites that is never deliberate: nothing here quotes HTML, so the
+ * only way it appears is that model output containing markup reached a field the renderer escapes.
+ *
+ * Four pages shipped this way, on Driftwood Building Co and LSV Services, with a heading reading
+ * "Timber decks built for <em>Bass Coast living</em>". Twenty checks passed on each, because the
+ * document was perfectly valid HTML that happened to say something ridiculous. Validity was never
+ * the question a reader asks.
+ *
+ * The plan schema now strips markup on the way in, which is the actual fix. This is the check
+ * behind it, because a constraint enforced only where the data is written is one refactor away
+ * from being enforced nowhere.
+ */
+function checkNoEscapedMarkup(html: string): CheckResult {
+  const id = 'no_escaped_markup' as const
+  const label = 'No escaped HTML tags visible in the copy'
+
+  const evidence: string[] = []
+  // A tag name, escaped. Deliberately narrow: "&lt;" on its own is fine, "a &lt; b" is prose.
+  const re = /&lt;\/?[a-zA-Z][a-zA-Z0-9]*(?:\s[^&]*?)?\s*\/?&gt;/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
+    evidence.push(`line ${lineOf(html, m.index)}: ${context(html, m.index)}`)
+    if (evidence.length >= 8) break
+  }
+
+  return evidence.length === 0
+    ? pass(id, label)
+    : fail(
+        id,
+        label,
+        `${evidence.length} escaped HTML tag(s) are being shown to the reader as text. The copy that produced this contained markup in a field that is plain text.`,
+        evidence,
+      )
+}
+
+/**
+ * The logo is drawn in the ratio it actually is.
+ *
+ * THIS EXISTS BECAUSE THE PROMPT ONCE COULD NOT BE OBEYED. The model is told to write width and
+ * height on the logo, and for a long time it was handed the logo's PATH and nothing else, so it
+ * guessed the shape. Driftwood Building Co's mark is 565 by 600, very nearly square; the model
+ * wrote 150 by 40, the proportions of a typical wide wordmark, and the customer's own branding
+ * rendered squashed to a quarter of its proper width in the header of the first page they open.
+ *
+ * Every other check passed on that page. Nothing in the set compared what the file IS against what
+ * the document CLAIMS it is, so the one visibly broken thing on the site was the one thing not
+ * being looked at. The dimensions are now in the prompt, but a prompt is a request and this is the
+ * verification: the real size is known here, the declared size is readable here, and they have to
+ * agree.
+ *
+ * Skipped when no logo was supplied, because there is then nothing to compare. A CSS wordmark has
+ * no img and no intrinsic ratio to get wrong.
+ */
+function checkLogoAspect(html: string, facts: BuildFacts): CheckResult {
+  const id = 'logo_aspect' as const
+  const label = 'Logo drawn in its real aspect ratio'
+
+  const logo = facts.logo
+  if (!logo || !logo.width || !logo.height) {
+    return { id, label, status: 'skipped', detail: 'No logo image supplied, so there is no ratio to honour.' }
+  }
+
+  const real = logo.width / logo.height
+  const paths = [logo.path, logo.fallback].filter(Boolean) as string[]
+  const names = paths.map((p) => p.split('/').pop()!)
+
+  const evidence: string[] = []
+  let found = 0
+
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0]
+    const src = /\bsrc\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1] ?? ''
+    if (!names.some((n) => src.endsWith(n))) continue
+    found++
+
+    const w = Number(/\bwidth\s*=\s*["']?(\d+)/i.exec(tag)?.[1] ?? '')
+    const h = Number(/\bheight\s*=\s*["']?(\d+)/i.exec(tag)?.[1] ?? '')
+    if (!w || !h) {
+      evidence.push(`line ${lineOf(html, m.index)}: logo <img> is missing width or height.`)
+      continue
+    }
+
+    const drawn = w / h
+    // Ten percent. Rounding to whole pixels on a small logo moves the ratio a little, and that is
+    // not what this is looking for; it is looking for a square drawn as a letterbox.
+    if (Math.abs(drawn - real) / real > 0.1) {
+      evidence.push(
+        `line ${lineOf(html, m.index)}: drawn ${w}x${h} (ratio ${drawn.toFixed(2)}) but the file is ` +
+          `${logo.width}x${logo.height} (ratio ${real.toFixed(2)}). ` +
+          `At height ${h} the width must be about ${Math.round(h * real)}.`,
+      )
+    }
+  }
+
+  if (found === 0) {
+    return {
+      id,
+      label,
+      status: 'skipped',
+      detail: `A logo was supplied at ${logo.path} but the page does not reference it, so the build is using a text or CSS treatment.`,
+    }
+  }
+
+  return evidence.length === 0
+    ? pass(id, label)
+    : fail(
+        id,
+        label,
+        `The logo is drawn in the wrong proportions, which stretches or squashes the customer's branding.`,
+        evidence,
+      )
+}
+
 /** Every relative path the document references. Shared by checks 12 and 17. */
 export function referencedPaths(html: string, s: Structure): string[] {
   const referenced = new Set<string>()
@@ -625,6 +742,8 @@ export async function runStaticChecks(html: string, facts: BuildFacts): Promise<
     checkImgAlt(s),
     checkLang(s),
     checkFreeQuote(html, facts),
+    checkLogoAspect(html, facts),
+    checkNoEscapedMarkup(html),
     checkAssets(html, s, facts),
     checkPageWeight(html, s, facts),
   ]

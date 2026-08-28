@@ -135,6 +135,14 @@ export function buildFacts(
     assetManifest: manifest,
     canonicalUrl: opts.canonicalUrl ?? `https://www.${slugDomain(business)}.com.au/`,
     googleReviewLink: intake.googleReviewLink || null,
+    /*
+     * The rating only counts as a Google rating when there is a profile to check it against, so
+     * both travel together or neither does. A number on a page that links nowhere is exactly the
+     * unverifiable claim the house rules exist to prevent.
+     */
+    googleRating: intake.googleReviewLink && intake.googleRating ? intake.googleRating : null,
+    googleReviewCount:
+      intake.googleReviewLink && intake.googleReviewCount ? intake.googleReviewCount : null,
   }
 }
 

@@ -63,6 +63,8 @@ const STEP_FIELDS: FieldSpec[][] = [
     },
     { key: 'different', label: 'What makes you different', kind: 'textarea', rebuilds: true },
     { key: 'googleReviewLink', label: 'Google review link', kind: 'url', rebuilds: true },
+    { key: 'googleRating', label: 'Your Google rating', kind: 'number', rebuilds: true },
+    { key: 'googleReviewCount', label: 'How many Google reviews', kind: 'number', rebuilds: true },
   ],
   [
     {

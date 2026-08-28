@@ -64,6 +64,20 @@ export const ICON_CHEVRON = '<polyline points="6 9 12 15 18 9"></polyline>'
 export const ICON_ARROW = '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>'
 export const ICON_STAR =
   '<polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2" fill="currentColor" stroke="none"></polygon>'
+/*
+ * The Google G, drawn rather than fetched.
+ *
+ * No generated site makes an external image request, so the mark is inline. The four paths carry
+ * classes instead of fill attributes because check 1 rejects a literal colour in an SVG attribute
+ * and a presentation attribute cannot take a var() anyway. Used only to attribute reviews to the
+ * profile they actually came from, beside a link to that profile.
+ */
+export const ICON_GOOGLE_G =
+  '<path class="g-b" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.44a5.5 5.5 0 0 1-2.39 3.62v3h3.86c2.26-2.09 3.58-5.17 3.58-8.86z"></path>' +
+  '<path class="g-g" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z"></path>' +
+  '<path class="g-y" d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58V6.62H1.29a12 12 0 0 0 0 10.76l3.98-3.09z"></path>' +
+  '<path class="g-r" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.7 0 3.99 2.47 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"></path>'
+
 export const ICON_MENU =
   '<line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line>'
 
@@ -268,6 +282,24 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--border-strong:' + spec.border.strong + ';',
     '--header-h:76px;',
     '--wrap:1200px;',
+    /*
+     * GOOGLE'S OWN FOUR COLOURS, AND THE STAR GOLD.
+     *
+     * These are the only colours on a generated site that are not derived from the customer's
+     * palette, because they are not ours to restyle: a G in the brand's blue is what makes a
+     * reader believe the reviews came from Google rather than from us. They live in :root like
+     * every other colour so check 1 stays satisfied, and the paths reference them through classes,
+     * because a presentation attribute cannot take a var().
+     *
+     * The star gold is separate from --accent deliberately. A rating rendered in the customer's
+     * accent reads as decoration; rendered in the gold everybody already associates with a star
+     * rating, it reads as a rating.
+     */
+    '--google-blue:#4285f4;',
+    '--google-green:#34a853;',
+    '--google-yellow:#fbbc05;',
+    '--google-red:#ea4335;',
+    '--star:#fbbc05;',
     '}',
   ].join('\n')
 
@@ -544,8 +576,35 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
   const quotes = [
     '.quote{display:flex;flex-direction:column;padding:1.75rem;border-radius:var(--radius);' + cardSkin + '}',
-    '.stars{display:flex;gap:3px;color:var(--accent);margin-bottom:0.9rem;}',
+    // Star gold, not the customer's accent. A rating in the brand colour reads as decoration.
+    '.stars{display:flex;gap:3px;color:var(--star);margin-bottom:0.9rem;}',
     '.stars .icon{width:16px;height:16px;}',
+
+    /*
+     * THE GOOGLE ATTRIBUTION.
+     *
+     * We were already collecting the review link and the reviewer names and rendering them as
+     * anonymous pull quotes, which is the weakest form the same information can take. A reader
+     * cannot tell whether we wrote them. The mark, the rating and a link to the profile turn the
+     * identical words into something checkable in one tap.
+     */
+    '.g-b{fill:var(--google-blue);}.g-g{fill:var(--google-green);}',
+    '.g-y{fill:var(--google-yellow);}.g-r{fill:var(--google-red);}',
+    '.g-mark{width:20px;height:20px;flex-shrink:0;}',
+
+    '.rating-badge{display:inline-flex;align-items:center;gap:12px;padding:12px 18px;' +
+      'border:1px solid var(--hairline);border-radius:var(--radius);background:var(--surface);' +
+      'margin-bottom:1.75rem;}',
+    '.rating-badge__score{font-family:var(--font-head);font-size:1.6rem;font-weight:800;line-height:1;}',
+    '.rating-badge__meta{display:flex;flex-direction:column;gap:3px;}',
+    '.rating-badge .stars{margin:0;}',
+    '.rating-badge small{color:var(--page-muted);font-size:0.8rem;}',
+
+    '.quote__source{display:flex;align-items:center;gap:7px;margin-top:0.9rem;' +
+      'color:var(--page-muted);font-size:0.76rem;}',
+    '.reviews-cta{margin-top:2rem;display:flex;flex-wrap:wrap;gap:12px;align-items:center;}',
+    // The mark sits on a button that may be dark, so it must not inherit a fill from the label.
+    '.btn .g-mark{width:18px;height:18px;}',
     '.quote p{font-size:0.94rem;line-height:1.7;color:' + mutedOnCard + ';}',
     '.quote__who{margin-top:auto;padding-top:1rem;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--card-fg);}',
     '.quote__who span{display:block;font-weight:500;text-transform:none;letter-spacing:0;color:var(--page-muted);margin-top:3px;}',
@@ -593,6 +652,105 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '@media (min-width:900px){.footer-grid{grid-template-columns:1.6fr 1fr 1fr 1fr;gap:3rem;}}',
   ].join('\n')
 
+  /*
+   * THE PHONE. Everything above is written desktop-out; this block is what a tradie actually
+   * holds, and it is last so it wins on equal specificity.
+   *
+   * Every rule here is a defect found by measuring a real Chrome at 320, 360, 390 and 414 across
+   * all sixteen exported pages, not by reading the CSS. The audit is scripts/mobile-audit.mjs.
+   */
+  const mobile = [
+    /*
+     * THE STICKY CALL BAR HAD NO STYLES AT ALL.
+     *
+     * Both renderers emit <div class="mobile-bar"> and nothing anywhere styled it, so on every
+     * service page of every site it was two unstyled links sitting in the normal flow nine
+     * thousand pixels down the document, under the footer. Measured on Pest-Aside: position
+     * static, transparent background, never visible as a bar.
+     *
+     * Check 5 passed throughout, because it asks whether exactly one element carries the class,
+     * which was true. Nothing asked whether it was a bar.
+     */
+    '.mobile-bar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:grid;' +
+      'grid-template-columns:1fr 1fr;gap:1px;background:var(--hairline);' +
+      'border-top:1px solid var(--hairline);box-shadow:0 -6px 24px var(--shadow-medium);' +
+      'padding-bottom:env(safe-area-inset-bottom,0px);}',
+    '.mobile-bar a{display:flex;align-items:center;justify-content:center;gap:8px;' +
+      'min-height:56px;padding:14px 12px;font-family:var(--font-body);font-weight:700;' +
+      'font-size:0.95rem;text-decoration:none;white-space:nowrap;background:var(--surface);' +
+      'color:var(--ink);}',
+    '.mobile-bar a:first-child{background:var(--accent);color:var(--on-primary);}',
+    // Above the breakpoint there is a header CTA doing this job, so the bar is not just hidden,
+    // it is removed from the layout entirely.
+    '@media (min-width:768px){.mobile-bar{display:none;}}',
+    /*
+     * ROOM FOR IT. Rule 16 says the bar must not cover the footer credit. The footer carried
+     * padding-bottom:0, so the credit sat underneath the bar on every page that had one.
+     */
+    '@media (max-width:767px){.site-footer{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px));}}',
+
+    /*
+     * A PHONE NUMBER NEVER WRAPS.
+     *
+     * "0424 111 201" broke across three lines inside the header button, which grew the button to
+     * 80px and the header to 104px. Only tel: links get nowrap: a worded label like "Request a
+     * free quote" still needs to wrap or it would overflow a narrow screen instead.
+     */
+    '[href^="tel:"]{white-space:nowrap;}',
+    /*
+     * THE HEADER PHONE BUTTON IS NOT SHOWN ON A PHONE.
+     *
+     * .header__cta is a direct child of .site-header__inner, not a child of .header__actions, so
+     * the display:none that hides the desktop actions below 980px never applied to it. On a phone
+     * the header therefore carried brand + full phone button + hamburger, which does not fit 390
+     * pixels: measured, the button reached x=436 and the hamburger x=486, both clipped. A
+     * hamburger a thumb cannot reach is the whole navigation gone.
+     *
+     * Hiding it loses nothing. The sticky bar at the bottom is a call button, and the mobile panel
+     * carries another. Making it nowrap without hiding it, which is what this rule did first, only
+     * converted a wrap into an overflow.
+     */
+    '@media (max-width:979px){.header__cta{display:none;}}',
+    '.header__cta{white-space:nowrap;}',
+    '.menu-toggle{flex-shrink:0;}',
+
+    /*
+     * THE TRUST STRIP WAS TWO COLUMNS ON A PHONE.
+     *
+     * Two columns at 390px leaves each label about 73px of text width, so "Same-day service"
+     * came out as two words over three lines and "No obligation pricing before any work starts"
+     * as seven words over six. A strip meant to be scanned in a second became most of a screen.
+     * One column until there is room for two.
+     */
+    '@media (max-width:559px){.trust-grid{grid-template-columns:minmax(0,1fr);}}',
+    '@media (min-width:560px) and (max-width:899px){.trust-grid{grid-template-columns:repeat(2,1fr);}}',
+    // Same reasoning for the stat counters and the hero trust points.
+    '@media (max-width:559px){.stats-grid{grid-template-columns:minmax(0,1fr);}' +
+      '.hero__points{grid-template-columns:minmax(0,1fr);}}',
+
+    /*
+     * NOTHING IN A GRID MAY REFUSE TO SHRINK. A grid or flex child defaults to min-width:auto,
+     * which is its content width, and that is what turns one long word or a phone number into
+     * horizontal overflow rather than a wrap.
+     */
+    '.trust-item,.stat,.card,.step,.faq-item,.contact-list li,.contact-list div{min-width:0;}',
+    '.trust-item>div,.stat>div{min-width:0;}',
+
+    /*
+     * THUMBS. The contact block and the footer nav rendered links 20 to 23 pixels tall, which is
+     * half what a thumb needs. Only on touch layouts, so the desktop rhythm is untouched.
+     */
+    '@media (max-width:767px){.site-footer ul a,.contact-list a,.footer-bottom a{display:inline-block;' +
+      'padding:11px 0;min-height:44px;}',
+    '.site-footer ul{gap:2px;}}',
+
+    // The wordmark is a name, not a sentence, and it broke over two lines beside the logo.
+    '.brand__name{white-space:nowrap;}',
+
+    // Long email addresses are the other reliable source of a sideways scroll.
+    '.contact-list a[href^="mailto:"]{word-break:break-word;overflow-wrap:anywhere;}',
+  ]
+
   return [
     root,
     base,
@@ -612,7 +770,10 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     cta,
     contact,
     footer,
-  ].join('\n')
+    mobile,
+  ]
+    .flat()
+    .join('\n')
 }
 
 /**
@@ -1015,9 +1176,26 @@ ${
     ${sectionHead({
       eyebrow: 'What clients say',
       heading: plan.testimonials.heading,
-      blurb: null,
+      blurb: facts.googleReviewLink ? 'Straight from our Google business profile.' : null,
       spec,
     })}
+    ${
+      /*
+       * The aggregate, when we have it. Rating and count only ever arrive together with a profile
+       * link, so this block is either fully checkable or absent. There is deliberately no partial
+       * version showing a score with nothing to verify it against.
+       */
+      facts.googleRating && facts.googleReviewCount
+        ? `<div class="rating-badge">
+      <svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg>
+      <span class="rating-badge__score">${facts.googleRating.toFixed(1)}</span>
+      <span class="rating-badge__meta">
+        <span class="stars" aria-hidden="true">${icon(ICON_STAR).repeat(Math.round(facts.googleRating))}</span>
+        <small>from ${facts.googleReviewCount} review${facts.googleReviewCount === 1 ? '' : 's'} on Google</small>
+      </span>
+    </div>`
+        : ''
+    }
     <div class="grid grid--3">
       ${plan.testimonials.items
         .map(
@@ -1025,10 +1203,26 @@ ${
         <div class="stars" aria-label="5 out of 5">${icon(ICON_STAR).repeat(5)}</div>
         <p>${esc(clean(q.quote))}</p>
         <footer class="quote__who">${esc(clean(q.name))}<span>${esc(clean(q.suburb))}</span></footer>
+        ${
+          facts.googleReviewLink
+            ? `<div class="quote__source"><svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg><span>Posted on Google</span></div>`
+            : ''
+        }
       </blockquote>`,
         )
         .join('\n      ')}
     </div>
+    ${
+      // Somewhere to go and check, and somewhere to add one. Both point at the same profile.
+      facts.googleReviewLink
+        ? `<div class="reviews-cta">
+      <a class="btn btn--outline" href="${esc(facts.googleReviewLink)}" target="_blank" rel="noopener">
+        <svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg>Read our reviews on Google
+      </a>
+      <a class="btn btn--ghost" href="${esc(facts.googleReviewLink)}" target="_blank" rel="noopener">Leave a Google review</a>
+    </div>`
+        : ''
+    }
   </div>
 </section>`
     : `<!-- No testimonials section: the client supplied no reviews. Nothing has been invented. -->`

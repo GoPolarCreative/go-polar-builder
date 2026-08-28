@@ -141,16 +141,36 @@ export type Step1 = z.infer<typeof step1Schema>
 
 export const step2Schema = z
   .object({
+    /*
+     * TEN, NOT EIGHT.
+     *
+     * Eight was an arbitrary number carrying no comment explaining it, and a real customer broke
+     * it immediately: Pest-Aside Sydney's approved copy lists ten pest types, which for that trade
+     * is an ordinary service list rather than an overreach. Cockroaches, rodents, spiders, ants,
+     * wasps, bees, fleas, silverfish, mosquitoes and bed bugs are ten distinct jobs a customer
+     * searches for by name.
+     *
+     * Ten cards still lay out cleanly: the services grid is three across on desktop, so ten is
+     * four rows rather than three. The cap exists to stop a keyword dump becoming the page, which
+     * is a real risk, and the same customer's ORIGINAL spreadsheet answer listed eighty-eight.
+     * Ten holds that line while fitting a genuine list.
+     */
     services: z
       .array(z.string().trim().min(2).max(60))
       .min(3, 'Pick at least 3')
-      .max(8, 'Pick no more than 8'),
+      .max(10, 'Pick no more than 10'),
     primaryService: z.string().trim().min(2, 'Required'),
     /**
    * Services the customer has chosen to give a dedicated page. Each one costs an additional page
    * from their allowance. Empty is the normal case: the build token buys one page.
    */
-  ownPageServices: z.array(z.string()).max(8).default([]),
+  /*
+   * TEN, matching the services cap. A customer who buys a page for every service they offer must
+   * be able to allocate every one of them: Pest-Aside Sydney bought eleven pages, home plus ten
+   * pest types, and an eight cap here would have silently stranded two paid-for pages with no
+   * service to put on them.
+   */
+  ownPageServices: z.array(z.string()).max(10).default([]),
   freeQuotes: z.boolean(),
     emergency: z.boolean(),
   })
@@ -211,12 +231,49 @@ export const step4Schema = z.object({
     .trim()
     .min(40, 'A bit more detail, at least 40 characters')
     .max(600, 'Keep it under 600 characters'),
-  different: z.string().trim().max(600).optional().or(z.literal('')),
+  /*
+   * ROOMIER THAN about, BECAUSE THIS IS WHERE APPROVED COPY LANDS.
+   *
+   * 600 was fine while this field held a sentence or two a customer typed. It is too small the
+   * moment somebody supplies copy they have already signed off: Pest-Aside Sydney's approved
+   * "why choose us" is a paragraph plus seven bullet points, about 700 characters, and truncating
+   * a customer's own approved words to fit a limit nobody chose deliberately is the wrong trade.
+   *
+   * It is still bounded. This is a section of a page, not a document, and the plan step is told
+   * to use it rather than reproduce it wholesale.
+   */
+  different: z.string().trim().max(1200).optional().or(z.literal('')),
   hours: hoursSchema,
   // If empty, no testimonial section is built. Never fabricate. Enforced again in the
   // house rules and in the content-plan validation.
   reviews: z.array(reviewSchema).max(6, 'Up to 6 reviews'),
   googleReviewLink: z.string().trim().url('Enter a full URL').optional().or(z.literal('')),
+  /*
+   * THE RATING AND THE COUNT, WHICH TURN QUOTES INTO EVIDENCE.
+   *
+   * We were already collecting the review link and doing nothing with it but passing it to the
+   * prompt as a line of text, and the quotes rendered as anonymous pull quotes. "4.9 from 87
+   * reviews on Google", with the mark and the stars beside it, is a different thing entirely: a
+   * claim anybody can go and check in one tap rather than words we typed.
+   *
+   * Both optional, because plenty of tradies have no profile yet and the section has to degrade to
+   * quotes-without-a-rating rather than refuse to build. Both are numbers a tradie reads straight
+   * off their own Google listing, which is why these two were worth adding and a "what makes you
+   * different" essay box was not.
+   */
+  googleRating: z
+    .number()
+    .min(1)
+    .max(5)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  googleReviewCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(100000)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   socials: z.object({
     facebook: z.string().trim().url().optional().or(z.literal('')),
     instagram: z.string().trim().url().optional().or(z.literal('')),

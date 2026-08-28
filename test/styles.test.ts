@@ -75,12 +75,12 @@ function differences(a: ReturnType<typeof signals>, b: ReturnType<typeof signals
 
 describe('every style still produces a valid site', () => {
   for (const style of NAMED_STYLES) {
-    it(`${style}: passes all fourteen static checks`, async () => {
+    it(`${style}: passes all sixteen static checks`, async () => {
       const { html, facts } = built[style]
       const results = await runStaticChecks(html, facts)
       const failed = results.filter((r) => r.status === 'fail')
       expect(failed.map((f) => `${f.id}: ${f.detail}`)).toEqual([])
-      expect(results).toHaveLength(14)
+      expect(results).toHaveLength(16)
     })
 
     it(`${style}: passes verification overall`, async () => {

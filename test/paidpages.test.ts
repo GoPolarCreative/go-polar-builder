@@ -227,3 +227,200 @@ describe('unallocatedPages, the rule the browser and the server share', () => {
     expect(unallocatedPages(2, ['A', 'B', 'C'], ['A', 'B', 'C'])).toBe(0)
   })
 })
+
+/**
+ * The four caps that have to agree, or a customer is sold something the system cannot deliver.
+ *
+ * A page per service is a product Chris sells, so the ceilings on services, on the allocation, on
+ * the plan and on the grant have to describe the same maximum job. They did not: services and
+ * ownPageServices allowed ten, the plan allowed eight, and the grant route allowed a TOTAL of ten
+ * pages, which is nine service pages because the home page takes one. So the largest job the
+ * picker would offer was two pages larger than the largest plan the schema would accept and one
+ * larger than the biggest grant that could fund it.
+ *
+ * Pest-Aside Sydney is the job that found it: ten pest types, a page for each, eleven pages.
+ */
+describe('the page caps describe one coherent maximum job', () => {
+  const TEN = [
+    'Cockroach Control',
+    'Rodent Control',
+    'Spider Control',
+    'Ant Control',
+    'Wasp Control',
+    'Bee Control',
+    'Flea Control',
+    'Silverfish Control',
+    'Mosquito Control',
+    'Bed Bug Control',
+  ]
+
+  it('a page for every service leaves nothing unallocated', () => {
+    // Eleven pages: the home page plus one per service. Nothing left over, nothing short.
+    expect(unallocatedPages(11, TEN, TEN)).toBe(0)
+  })
+
+  it('ten service pages satisfy the plan schema', () => {
+    const plan = basePlan(intakeWithPages(TEN, TEN))
+    const withPages: ContentPlan = {
+      ...plan,
+      services: TEN.map((name) => ({
+        name,
+        blurb: `${name} across Sydney and the surrounding suburbs.`,
+        iconHint: 'shield',
+      })),
+      servicePages: TEN.map((service) => ({
+        slug: service.toLowerCase().replace(/\s+/g, '-'),
+        service,
+        title: `${service} | Pest-Aside Sydney`,
+        metaDescription: `${service} across Sydney and NSW. Safe, effective treatments with long lasting results, and same day service when it is urgent.`,
+        h1: `${service} across Sydney`,
+        intro: [`We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`],
+        included: ['Inspection first.', 'Treatment tailored to the property.', 'Advice on prevention.'],
+      })),
+    }
+    const parsed = planSchema.safeParse(withPages)
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 3))).toBe(true)
+  })
+
+  it('the delivered set matches the entitlement at the maximum', () => {
+    const delivered = ['index.html', ...TEN.map((s) => `services/${s.toLowerCase().replace(/\s+/g, '-')}/index.html`)]
+    const check = pagesDeliveredCheck(TEN, delivered, 11)
+    expect(check.status, check.detail).toBe('pass')
+  })
+})
+
+/**
+ * Markup never survives into a plan.
+ *
+ * The model wrote "<em>" inside h1, which is a plain text field. The renderer escaped it, exactly
+ * as it must, and four service pages across Driftwood Building Co and LSV Services shipped showing
+ * a reader the angle brackets. Every check passed: the HTML was valid, it just said something
+ * silly. The fix is at the schema boundary so it covers every field rather than that one.
+ */
+describe('plan text is stripped of markup on the way in', () => {
+  const withH1 = (h1: string) => {
+    const plan = basePlan(intakeWithPages(['A one', 'B two', 'C three'], ['A one']))
+    return {
+      ...plan,
+      servicePages: [
+        {
+          slug: 'a-one',
+          service: 'A one',
+          title: 'A one service page for the tests',
+          metaDescription:
+            'A meta description that comfortably clears the seventy character minimum this schema asks for.',
+          h1,
+          intro: ['An introduction paragraph that is comfortably past the forty character minimum.'],
+          included: ['Inspection first.', 'Treatment tailored to it.', 'Advice on prevention.'],
+        },
+      ],
+    }
+  }
+
+  it('strips the exact heading that shipped on Driftwood', () => {
+    const r = planSchema.safeParse(withH1('Timber decks built for <em>Bass Coast living</em>'))
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.servicePages[0]!.h1).toBe('Timber decks built for Bass Coast living')
+  })
+
+  it('strips markup that has already been escaped into text', () => {
+    const r = planSchema.safeParse(withH1('Timber decks built for &lt;em&gt;Bass Coast living&lt;/em&gt;'))
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.servicePages[0]!.h1).toBe('Timber decks built for Bass Coast living')
+  })
+
+  it('strips markup everywhere, not just in servicePages', () => {
+    const plan = basePlan(intakeWithPages(['A one', 'B two', 'C three'], []))
+    const r = planSchema.safeParse({
+      ...plan,
+      hero: { ...plan.hero, h1: 'Decking done <strong>properly</strong> in Wonthaggi' },
+      faq: [{ q: 'Do you do <b>decks</b>?', a: plan.faq[0]!.a }, ...plan.faq.slice(1)],
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.hero.h1).toBe('Decking done properly in Wonthaggi')
+      expect(r.data.faq[0]!.q).toBe('Do you do decks?')
+    }
+  })
+
+  it('leaves a bare less-than alone, because that is prose not markup', () => {
+    const plan = basePlan(intakeWithPages(['A one', 'B two', 'C three'], []))
+    const r = planSchema.safeParse({
+      ...plan,
+      trustStrip: [
+        { label: 'Callbacks < 2 hours', detail: plan.trustStrip[0]!.detail },
+        ...plan.trustStrip.slice(1),
+      ],
+    })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.trustStrip[0]!.label).toBe('Callbacks < 2 hours')
+  })
+
+  it('rejects rather than ships when stripping takes a field under its minimum', () => {
+    // A heading only long enough because of its tags is not long enough.
+    expect(planSchema.safeParse(withH1('<em>Decks</em>')).success).toBe(false)
+  })
+
+  it('does not damage a hex colour, a slug or a url', () => {
+    const plan = basePlan(intakeWithPages(['A one', 'B two', 'C three'], ['A one']))
+    const r = planSchema.safeParse(withH1('A heading with no markup in it at all'))
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.tokens.primary).toBe(plan.tokens.primary)
+      expect(r.data.servicePages[0]!.slug).toBe('a-one')
+    }
+  })
+})
+
+/**
+ * A section that is switched off does not need a heading.
+ *
+ * gallery.heading and testimonials.heading were both min(3) unconditionally. A business with no
+ * photos and no reviews has both sections off, the model returns empty headings for sections that
+ * will never render, and the plan failed validation three times in a row. LSV Services died that
+ * way: "Content plan did not validate after 3 attempts. gallery.heading: String must contain at
+ * least 3 character(s)".
+ *
+ * No photos and no reviews is not an edge case. It is the ordinary state of a tradie who has not
+ * sent us anything, which is most of them.
+ */
+describe('headings are only required for sections that render', () => {
+  const base = () => basePlan(intakeWithPages(['A one', 'B two', 'C three'], []))
+
+  it('accepts an empty gallery heading when the gallery is off', () => {
+    const plan = base()
+    const r = planSchema.safeParse({ ...plan, gallery: { enabled: false, heading: '', items: [] } })
+    expect(r.success, r.success ? '' : JSON.stringify(r.error.issues.slice(0, 3))).toBe(true)
+  })
+
+  it('accepts an empty testimonials heading when testimonials are off', () => {
+    const plan = base()
+    const r = planSchema.safeParse({ ...plan, testimonials: { enabled: false, heading: '', items: [] } })
+    expect(r.success, r.success ? '' : JSON.stringify(r.error.issues.slice(0, 3))).toBe(true)
+  })
+
+  it('accepts the exact combination that killed the LSV build', () => {
+    const plan = base()
+    const r = planSchema.safeParse({
+      ...plan,
+      gallery: { enabled: false, heading: '', items: [] },
+      testimonials: { enabled: false, heading: '', items: [] },
+    })
+    expect(r.success, r.success ? '' : JSON.stringify(r.error.issues.slice(0, 3))).toBe(true)
+  })
+
+  it('still demands a heading when the gallery is switched ON', () => {
+    const plan = base()
+    const r = planSchema.safeParse({ ...plan, gallery: { enabled: true, heading: '', items: [] } })
+    expect(r.success).toBe(false)
+  })
+
+  it('still demands a heading when testimonials are switched ON', () => {
+    const plan = base()
+    const r = planSchema.safeParse({
+      ...plan,
+      testimonials: { enabled: true, heading: '', items: [] },
+    })
+    expect(r.success).toBe(false)
+  })
+})

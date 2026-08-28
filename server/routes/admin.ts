@@ -1045,8 +1045,25 @@ app.post('/admin/grant-pages', async (c) => {
     .catch(() => ({}) as { jobId?: string; pagesAllowed?: number })
   const jobId = body.jobId ?? ''
   const pagesAllowed = Number(body.pagesAllowed)
-  if (!jobId || !Number.isInteger(pagesAllowed) || pagesAllowed < 1 || pagesAllowed > 10) {
-    return c.json({ error: 'bad_request', detail: 'jobId and pagesAllowed (1 to 10) are required.' }, 400)
+  /*
+   * ELEVEN, NOT TEN, AND THE ARITHMETIC MATTERS.
+   *
+   * pagesAllowed counts the TOTAL pages including the home page, so the extras a customer gets
+   * are pagesAllowed - 1. A ceiling of ten therefore allowed nine service pages while the intake
+   * happily accepts ten services and ten ownPageServices, so the most a customer could ever be
+   * granted was one page short of a page per service.
+   *
+   * Pest-Aside Sydney hit exactly that: ten pest types, a page for each, eleven pages in total.
+   * Eleven is the coherent ceiling because it is the services cap plus the home page, so the
+   * entitlement, the picker and the delivered-pages check now agree on the same maximum instead
+   * of the picker offering an allocation the grant could not fund.
+   */
+  const MAX_PAGES = 11
+  if (!jobId || !Number.isInteger(pagesAllowed) || pagesAllowed < 1 || pagesAllowed > MAX_PAGES) {
+    return c.json(
+      { error: 'bad_request', detail: `jobId and pagesAllowed (1 to ${MAX_PAGES}) are required.` },
+      400,
+    )
   }
   const db = await getDb()
   const job = await getJob(jobId)

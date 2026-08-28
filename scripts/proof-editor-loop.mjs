@@ -55,6 +55,10 @@ const check = (name, ok, note = '') => {
 const JOB = 'job_proof_' + Math.abs(Number(process.env.PROOF_SEED ?? 7))
 const HOST = 'proof-loop.example.com.au'
 const fixture = makeFixture()
+// Deliberately not the dev WEB3FORMS_KEY in .env.local. The first attempt at this used the same
+// value, so the swap was a no-op and assertNoGoPolarKey refused, correctly.
+const CUSTOMER_KEY = 'c0f0c0f0-dead-4bee-9999-abcdefabcdef'
+
 const intake = makeIntake()
 
 await db.insert(schema.users).values({ id: 'usr_proof', email: 'proof@example.com' }).onConflictDoNothing()
@@ -66,9 +70,20 @@ await db
     status: 'live',
     businessName: intake.businessName,
     currentVersion: 1,
+    /*
+     * BOTH, ALWAYS. A verified timestamp with no key beside it is a state the product cannot
+     * reach: the setup route writes the key, and only a successful test adds the timestamp.
+     * This fixture used to set the timestamp alone and got away with it while the key swap
+     * happened on the setup screen. Publishing does the swap now, so it needs the key, and
+     * publishJob refuses without one rather than blanking every form on the page.
+     */
+    customerWeb3formsKey: CUSTOMER_KEY,
     web3formsVerifiedAt: new Date(),
   })
-  .onConflictDoUpdate({ target: schema.jobs.id, set: { currentVersion: 1, web3formsVerifiedAt: new Date() } })
+  .onConflictDoUpdate({
+    target: schema.jobs.id,
+    set: { currentVersion: 1, customerWeb3formsKey: CUSTOMER_KEY, web3formsVerifiedAt: new Date() },
+  })
 
 await db
   .insert(schema.golive)
@@ -125,9 +140,6 @@ async function writeVersion(version, html) {
     .onConflictDoNothing()
 }
 
-// Deliberately not the dev WEB3FORMS_KEY in .env.local. The first attempt at this used the same
-// value, so the swap was a no-op and assertNoGoPolarKey refused, correctly.
-const CUSTOMER_KEY = 'c0f0c0f0-dead-4bee-9999-abcdefabcdef'
 /*
  * The fixture ships with Go Polar's placeholder key, and assertNoGoPolarKey refuses to put such a
  * document on the internet. That guard is the single most important one in the product (D29), so

@@ -5,13 +5,14 @@ import type { ContentPlan } from '../../shared/plan.js'
 import type { CheckResult } from '../../shared/types.js'
 import { buildFacts } from './facts.js'
 import { getIntake, getUserForJob, listAssets, recordEvent } from './db.js'
-import { config } from '../config.js'
+import { config, web3formsKey } from '../config.js'
 import { trackKlaviyoSafely } from './klaviyo.js'
 import { loadPageSet, pagesDeliveredCheck } from './buildSet.js'
 import { generateFavicon } from './discharge.js'
 import { publishSite, type PublishResult } from './publish.js'
 import { storage } from './storage.js'
 import { verify } from './verify.js'
+import { applyFormsKey } from './web3forms.js'
 
 /**
  * The one place a website becomes public.
@@ -199,6 +200,57 @@ export async function publishJob(args: {
       )
     }
     pages.push({ path: page.path, html })
+  }
+
+  /*
+   * THE CUSTOMER'S KEY GOES IN HERE, ON EVERY PAGE, AND THIS IS THE ONLY PLACE IT HAPPENS.
+   *
+   * It used to be done by the forms-key route, which rebuilt the whole page set into a new version
+   * with the key swapped. That route now saves on shape alone and never rebuilds, because it runs
+   * before a build exists, so without this the published bytes would still carry Go Polar's key and
+   * every enquiry the customer's website earned would arrive in our inbox. That is the exact
+   * failure the verified gate above exists to prevent, so the swap belongs on the path that
+   * publishes rather than on a setup screen that may run before there is anything to swap.
+   *
+   * Publishing is already the single place a site becomes public, which makes it the right home:
+   * one swap, applied to what actually ships, verified immediately afterwards.
+   */
+  const goPolarKey = web3formsKey()
+  const [keyRow] = await db
+    .select({ key: schema.jobs.customerWeb3formsKey })
+    .from(schema.jobs)
+    .where(eq(schema.jobs.id, jobId))
+    .limit(1)
+  const customerKey = keyRow?.key ?? ''
+
+  /*
+   * An empty key here would not fail loudly, it would DELETE ours: applyFormsKey splits on the old
+   * value and joins with the new, so joining with '' strips the access_key out of every form and
+   * leaves a site whose enquiries go nowhere at all. The verified gate above should make this
+   * impossible, which is exactly why it is worth refusing on rather than trusting.
+   */
+  if (!customerKey) {
+    return refuse(
+      409,
+      'forms_key_missing',
+      'This job is marked as having a verified enquiry inbox but no key is stored against it, so nothing has been published. That is a data problem on our side, not the customer doing anything wrong.',
+    )
+  }
+
+  for (const page of pages) {
+    const swapped = applyFormsKey(page.html, goPolarKey, customerKey)
+    /*
+     * Refuse rather than half-swap. A site published with one form pointing at us is worse than a
+     * site that did not change, because it looks finished and quietly keeps some of their leads.
+     */
+    if (!swapped.clean) {
+      return refuse(
+        409,
+        'forms_key_swap_failed',
+        `${page.path} still references the Go Polar enquiry account after the swap, so nothing has been published. This is our problem to fix, not the customer's.`,
+      )
+    }
+    page.html = swapped.html
   }
 
   // ---------------------------------------------------------------------------------------

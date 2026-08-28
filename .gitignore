@@ -42,3 +42,6 @@ vercel-env.txt
 
 # Model comparison output. Generated sites, not source.
 compare/
+
+# Customer photos pulled from the old Google Form intake. Large, private, and not source.
+intake-assets/

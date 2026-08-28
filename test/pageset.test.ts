@@ -80,7 +80,7 @@ describe('links work served AND opened from disk', () => {
 })
 
 describe('every check runs on every page', () => {
-  it('all 18 pass on all three pages of a two-page-extra build', async () => {
+  it('all 20 pass on all three pages of a two-page-extra build', async () => {
     const set = renderSiteSet(twoExtra.plan, twoExtra.facts)
     const report = await verifySet(
       set.pages.map((p) => ({ path: p.path, url: p.url, title: p.title, html: p.html })),
@@ -92,7 +92,7 @@ describe('every check runs on every page', () => {
     expect(report.failures).toEqual([])
     expect(report.passed).toBe(true)
     for (const page of report.pages) {
-      expect(page.report.static, page.path).toHaveLength(14)
+      expect(page.report.static, page.path).toHaveLength(16)
     }
   })
 

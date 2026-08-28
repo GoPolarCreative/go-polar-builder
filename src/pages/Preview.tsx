@@ -420,6 +420,26 @@ export default function Preview() {
  * fit inside, so width sets the scale and the card takes the resulting height. That is what
  * closes the empty white: the card is exactly as tall as the thing inside it.
  */
+/**
+ * Can this browser re-render at a scale rather than stretching a picture of the page?
+ *
+ * THE BUG THIS FIXES. The preview laid the site out at 1280px and then applied
+ * transform: scale(0.89) to fit the pane. A transform does not re-run layout: the browser
+ * rasterises the frame at 1280 and then resamples that bitmap, so every letterform is resampled
+ * at a fractional ratio and the whole preview looks soft. A customer looking at it reasonably
+ * concluded their website was pixellated. It was not; the picture of it was.
+ *
+ * zoom re-runs layout and rasterises at the final size, so text is drawn crisply at whatever
+ * scale it ends up. The iframe still gets a 1280px viewport, so the site inside still lays out
+ * as a desktop page and its media queries are unaffected: only the drawing changes.
+ *
+ * Detected rather than assumed, with the transform kept as the fallback. zoom is very widely
+ * supported now but it was non-standard for years, and a browser without it should get the
+ * slightly soft preview rather than an unscaled 1280px page overflowing its card.
+ */
+const CAN_ZOOM =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('zoom', '0.5')
+
 const VIEWPORTS: Record<Device, { w: number; h: number }> = {
   desktop: { w: 1280, h: 800 },
   mobile: { w: 390, h: 844 },
@@ -487,24 +507,39 @@ function DevicePreview({ srcDoc, device }: { srcDoc: string; device: Device }) {
       style={sideBySide ? undefined : { height: shownH > 0 ? Math.round(shownH) : undefined }}
     >
       {scale > 0 ? (
-        <iframe
-          title="Your website"
-          srcDoc={srcDoc}
-          // Scripts run so the accordion and counters work. No same-origin, so the preview
-          // cannot reach back into the builder.
-          sandbox="allow-scripts"
+        /*
+         * The positioned box is the SCALED size and is not itself zoomed, so its offsets stay in
+         * ordinary pixels. The iframe inside it is zoomed and fills it exactly. Putting the
+         * position on the zoomed element instead would scale its own top and left along with it,
+         * which is the kind of arithmetic that works until somebody resizes the window.
+         */
+        <div
           style={{
-            width: view.w,
-            height: view.h,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
             position: 'absolute',
             top: sideBySide ? Math.max(0, (height - shownH) / 2) : 0,
             left: Math.max(0, (width - shownW) / 2),
-            border: 0,
-            display: 'block',
+            width: Math.round(shownW),
+            height: Math.round(shownH),
+            overflow: 'hidden',
           }}
-        />
+        >
+          <iframe
+            title="Your website"
+            srcDoc={srcDoc}
+            // Scripts run so the accordion and counters work. No same-origin, so the preview
+            // cannot reach back into the builder.
+            sandbox="allow-scripts"
+            style={{
+              width: view.w,
+              height: view.h,
+              border: 0,
+              display: 'block',
+              ...(CAN_ZOOM
+                ? { zoom: scale }
+                : { transform: `scale(${scale})`, transformOrigin: 'top left' }),
+            }}
+          />
+        </div>
       ) : null}
     </div>
   )

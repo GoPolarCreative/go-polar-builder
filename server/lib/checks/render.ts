@@ -36,6 +36,16 @@ export interface PageFindings {
     countersRan: boolean
     detail: string
   }
+  /**
+   * Text squeezed into a column too narrow to read, measured at 390px.
+   *
+   * `thin` is anything averaging under two words a line. `wrappedHeadings` is a heading of three
+   * words or fewer that wraps at all. See check 22 for why these two numbers and not others.
+   */
+  squeeze: {
+    thin: string[]
+    wrappedHeadings: string[]
+  }
 }
 
 export interface RenderDriver {
@@ -59,6 +69,7 @@ export function renderChecksSkipped(reason: string): CheckResult[] {
     skipped('no_horizontal_overflow', 'No horizontal overflow at 390px', reason),
     skipped('images_load', 'Every image loads after scrolling to the bottom', reason),
     skipped('interactions_work', 'Accordions open and counters run', reason),
+    skipped('text_not_squeezed', 'No text squeezed into a column too narrow to read at 390px', reason),
   ]
 }
 
@@ -132,9 +143,83 @@ export const PROBE_SCRIPT = `async () => {
     .filter((n) => Number.isFinite(n))
   const countersRan = parsed.length > 0 && parsed.some((n) => n > 0)
 
+  /*
+   * How many words the reader gets per line.
+   *
+   * Line count comes from Range.getClientRects, which returns one rect per line box, so this is
+   * the layout the browser actually produced rather than an estimate from character counts.
+   *
+   * ONLY NON-INLINE ELEMENTS ARE MEASURED. An <em> inside a heading is two words on its own and
+   * routinely falls onto a second line as part of a longer sentence; that is normal typesetting,
+   * not a squeeze. A <strong> that the CSS has made display:block IS the whole label, and when
+   * that averages under two words a line the column is too narrow. Measuring only block-level
+   * boxes is what separates the two without a list of exceptions.
+   */
+  /*
+   * Lines are counted over the element's TEXT NODES only, never the element box.
+   *
+   * A button that is an inline SVG icon beside a phone number returns two rectangles at different
+   * tops, one for the icon and one for the words, and counting those as two lines reported
+   * "0424 111 201" as wrapped when white-space:nowrap was holding it on one line perfectly well.
+   * Ranging over the text nodes measures what the reader reads.
+   */
+  const lineTops = (el) => {
+    const tops = new Set()
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let node
+    while ((node = walker.nextNode())) {
+      if (!node.textContent || !node.textContent.trim()) continue
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      for (const r of Array.from(range.getClientRects())) {
+        if (r.width > 0 && r.height > 0) tops.add(Math.round(r.top))
+      }
+    }
+    return tops.size
+  }
+
+  /*
+   * A styled fragment inside a sentence is not a squeezed label.
+   *
+   * The two-tone headings wrap their tail in <em>: "Cockroach Control, <em>done properly</em>".
+   * That <em> is two words and routinely lands on a second line as the heading wraps, which is
+   * ordinary typesetting. A <strong> that IS the whole label in a trust strip has no text beside
+   * it. The difference is whether a text node sits next to the element, so that is the test,
+   * rather than a list of tag names to ignore.
+   */
+  const isSentenceFragment = (el) => {
+    const hasTextSibling = (n) => n && n.nodeType === 3 && !!(n.textContent || '').trim()
+    return hasTextSibling(el.previousSibling) || hasTextSibling(el.nextSibling)
+  }
+
+  const thin = []
+  const wrappedHeadings = []
+  for (const el of Array.from(document.querySelectorAll('p,h1,h2,h3,h4,li,span,a,button,strong,em,small,b,div,label'))) {
+    if (el.children.length > 0) continue
+    const text = (el.textContent || '').trim()
+    if (text.length < 3) continue
+    if (getComputedStyle(el).display === 'inline') continue
+    if (isSentenceFragment(el)) continue
+    const lines = lineTops(el)
+    const words = text.split(/\\s+/).filter(Boolean).length
+    if (lines < 2 || words < 2) continue
+    const perLine = words / lines
+    if (perLine < 2) {
+      thin.push(perLine.toFixed(2) + ' words per line over ' + lines + ' lines: "' + text.slice(0, 60) + '"')
+    }
+  }
+  for (const h of Array.from(document.querySelectorAll('h1,h2,h3,h4'))) {
+    const text = (h.textContent || '').trim()
+    const words = text.split(/\\s+/).filter(Boolean).length
+    if (words > 0 && words <= 3 && lineTops(h) > 1) {
+      wrappedHeadings.push(h.tagName.toLowerCase() + ' of ' + words + ' word(s) wraps: "' + text.slice(0, 60) + '"')
+    }
+  }
+
   return {
     overflow: { overflows: scrollWidth > innerWidth + 1, scrollWidth, innerWidth, offenders },
     images: { total: imgs.length, broken },
+    squeeze: { thin, wrappedHeadings },
     interactions: {
       accordions: details.length,
       accordionOpened,
@@ -383,6 +468,53 @@ export async function runRenderChecks(html: string, driver = createRenderDriver(
             status: 'fail',
             detail: i.detail,
             evidence: [i.detail],
+          },
+    )
+
+    /*
+     * CHECK 22. Text squeezed into a column too narrow to read.
+     *
+     * WHY THIS IS SEPARATE FROM CHECK 14. Overflow asks whether the page is wider than the phone.
+     * A two column grid at 390px is not wider than the phone; it just leaves each column about
+     * seventy pixels of text, so the words wrap instead of overflowing and check 14 passes. On
+     * Pest-Aside that produced "Same-day service" as two words over three lines and "No obligation
+     * pricing before any work starts" as seven words over six. Every check passed. Chris opened it
+     * on a phone and saw a trust strip taking most of a screen.
+     *
+     * THE TWO NUMBERS.
+     *
+     * Under two words a line, averaged over the element. One word per line is the failure everyone
+     * recognises, and two is far enough above it to leave normal typesetting alone: ordinary body
+     * copy on a phone runs six to nine words a line, and even a tight button label manages three.
+     * Nothing legitimate on these sites sits between one and two.
+     *
+     * A heading of three words or fewer that wraps at all. Averages hide short headings, because
+     * three words over two lines is 1.5 and only just trips, while two words over two lines is
+     * exactly 1.0 and would be caught anyway. Stating it directly makes the intent readable: a
+     * three word heading has no business breaking on a phone.
+     *
+     * Both are measured from Range.getClientRects, which returns one rectangle per line box, so
+     * this is the layout the browser produced rather than a guess from character counts.
+     */
+    const squeeze = mobile.squeeze
+    const squeezeEvidence = [...squeeze.wrappedHeadings, ...squeeze.thin]
+    results.push(
+      squeezeEvidence.length === 0
+        ? {
+            id: 'text_not_squeezed',
+            label: 'No text squeezed into a column too narrow to read at 390px',
+            status: 'pass',
+          }
+        : {
+            id: 'text_not_squeezed',
+            label: 'No text squeezed into a column too narrow to read at 390px',
+            status: 'fail',
+            detail:
+              `${squeezeEvidence.length} block(s) of text are in a column too narrow for them at 390px. ` +
+              `This is not horizontal overflow, the words wrap instead, so the page still fits the screen ` +
+              `while being unreadable. Usually a grid that is still two columns on a phone, or a label that ` +
+              `needs white-space:nowrap.`,
+            evidence: squeezeEvidence.slice(0, 8),
           },
     )
 

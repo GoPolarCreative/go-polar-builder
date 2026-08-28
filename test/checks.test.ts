@@ -37,10 +37,10 @@ describe('a known good document', () => {
     expect(failed.map((f) => `${f.id}: ${f.detail} ${JSON.stringify(f.evidence ?? [])}`)).toEqual([])
   })
 
-  it('returns all fourteen static checks, with no duplicates', async () => {
+  it('returns all sixteen static checks, with no duplicates', async () => {
     const results = await runStaticChecks(fixture.html, fixture.facts)
-    expect(results).toHaveLength(14)
-    expect(new Set(results.map((r) => r.id)).size).toBe(14)
+    expect(results).toHaveLength(16)
+    expect(new Set(results.map((r) => r.id)).size).toBe(16)
   })
 
   it('uses picture elements with a webp source and a jpeg fallback', () => {
@@ -302,16 +302,17 @@ describe('checks that must not produce false positives', () => {
   })
 })
 
-describe('render checks 13 to 16', () => {
+describe('render checks 13 to 16, and 22', () => {
   it('report skipped, never pass, when no browser driver is available', async () => {
     testConfig({ renderDriver: 'none' })
     const report = await verify(fixture.html, fixture.facts)
-    expect(report.render).toHaveLength(4)
+    expect(report.render).toHaveLength(5)
     expect(report.render.map((r) => r.id)).toEqual([
       'renders_clean',
       'no_horizontal_overflow',
       'images_load',
       'interactions_work',
+      'text_not_squeezed',
     ])
     for (const check of report.render) {
       expect(check.status).toBe('skipped')
@@ -363,5 +364,172 @@ describe('the report as a whole', () => {
 
   it('treats a warning as not a failure', () => {
     expect(reportPassed([{ id: 'page_weight', label: 'weight', status: 'warn' }], [])).toBe(true)
+  })
+})
+
+/**
+ * Check 20, the logo's aspect ratio.
+ *
+ * The case is Driftwood Building Co: a 565 by 600 mark, very nearly square, declared in the header
+ * as 150 by 40. Every other check passed on that page and the customer's branding still rendered
+ * squashed, because nothing compared the file against what the document said about it.
+ */
+describe('the logo is drawn in the shape it actually is', () => {
+  const SQUARE = { path: 'assets/logo.webp', fallback: 'assets/logo.png', width: 565, height: 600 }
+
+  const withLogo = (logo: typeof SQUARE | null) => ({ ...fixture.facts, logo })
+  const page = (tag: string) => `<!DOCTYPE html><html lang="en-AU"><body>${tag}</body></html>`
+
+  it('fails a near-square logo drawn as a wide wordmark', async () => {
+    const html = page('<img src="assets/logo.png" alt="Driftwood logo" width="150" height="40">')
+    const r = byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect')
+    expect(r.status).toBe('fail')
+    // The detail has to say what to write instead, or it is a complaint rather than a fix.
+    expect(r.evidence?.join(' ')).toContain('width must be about 38')
+  })
+
+  it('passes when the drawn ratio matches the file', async () => {
+    const html = page('<img src="assets/logo.png" alt="Driftwood logo" width="57" height="60">')
+    expect(byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect').status).toBe('pass')
+  })
+
+  it('tolerates whole-pixel rounding rather than demanding an exact ratio', async () => {
+    // 56/60 is 0.933 against a real 0.942. Rounding, not a squashed logo.
+    const html = page('<img src="assets/logo.png" alt="Driftwood logo" width="56" height="60">')
+    expect(byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect').status).toBe('pass')
+  })
+
+  it('fails a logo with no dimensions at all', async () => {
+    const html = page('<img src="assets/logo.png" alt="Driftwood logo">')
+    expect(byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect').status).toBe('fail')
+  })
+
+  it('matches the webp the page actually references, not just the png fallback', async () => {
+    const html = page('<img src="assets/logo.webp" alt="Driftwood logo" width="150" height="40">')
+    expect(byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect').status).toBe('fail')
+  })
+
+  /*
+   * The two skips. Both are "there is nothing to compare", never "we did not look": a business with
+   * no artwork gets a CSS wordmark, which has no intrinsic ratio to violate.
+   */
+  it('skips when no logo was supplied', async () => {
+    const html = page('<span class="logotype">LSV Services</span>')
+    expect(byId(await runStaticChecks(html, withLogo(null)), 'logo_aspect').status).toBe('skipped')
+  })
+
+  it('skips when a logo exists but the build chose a text treatment', async () => {
+    const html = page('<span class="logotype">Driftwood</span>')
+    expect(byId(await runStaticChecks(html, withLogo(SQUARE)), 'logo_aspect').status).toBe('skipped')
+  })
+})
+
+/**
+ * Check 21, escaped markup showing itself to the reader.
+ *
+ * Verified against the four pages that actually shipped with it, on Driftwood Building Co and LSV
+ * Services, before they were rebuilt. Twenty checks passed on each of those pages.
+ */
+describe('no tag is shown to the reader as text', () => {
+  const page = (body: string) => `<!DOCTYPE html><html lang="en-AU"><body>${body}</body></html>`
+  const status = async (body: string) =>
+    byId(await runStaticChecks(page(body), fixture.facts), 'no_escaped_markup').status
+
+  it('fails the exact heading that shipped on Driftwood', async () => {
+    expect(await status('<h1>Timber decks built for &lt;em&gt;Bass Coast living&lt;/em&gt;</h1>')).toBe('fail')
+  })
+
+  it('fails any escaped tag, not just em', async () => {
+    expect(await status('<p>Call us &lt;strong&gt;today&lt;/strong&gt;</p>')).toBe('fail')
+    expect(await status('<p>A line&lt;br /&gt;and another</p>')).toBe('fail')
+    expect(await status('<p>&lt;a href="/x"&gt;here&lt;/a&gt;</p>')).toBe('fail')
+  })
+
+  it('names the line so it can be found', async () => {
+    const r = byId(
+      await runStaticChecks(page('<h1>Decks for &lt;em&gt;the Bass Coast&lt;/em&gt;</h1>'), fixture.facts),
+      'no_escaped_markup',
+    )
+    expect(r.evidence?.[0]).toMatch(/^line \d+:/)
+  })
+
+  /*
+   * The false positives that would make this check unusable. An escaped ampersand or a bare
+   * less-than is ordinary Australian trade copy, not markup.
+   */
+  it('passes a bare less-than, which is prose', async () => {
+    expect(await status('<p>Callbacks in &lt; 2 hours, every time we can manage it.</p>')).toBe('pass')
+  })
+
+  it('passes an escaped ampersand', async () => {
+    expect(await status('<p>Decks &amp; pergolas built across the Bass Coast.</p>')).toBe('pass')
+  })
+
+  it('passes real markup, which is the normal case', async () => {
+    expect(await status('<h1>Timber decks built for <em>Bass Coast living</em></h1>')).toBe('pass')
+  })
+
+  it('passes the known good document', async () => {
+    expect(byId(await runStaticChecks(fixture.html, fixture.facts), 'no_escaped_markup').status).toBe('pass')
+  })
+})
+
+/**
+ * The Google reviews block.
+ *
+ * We were collecting the review link and the reviewer names and rendering them as anonymous pull
+ * quotes, which is the weakest form the same information can take: a reader cannot tell whether we
+ * wrote them. The mark, the rating and a link to the profile make the identical words checkable in
+ * one tap. See the reference sites Chris supplied, all three of which lead with this.
+ */
+describe('reviews are attributed to Google when there is a profile', () => {
+  const withGoogle = (extra: Record<string, unknown>) =>
+    makeFixture({ googleReviewLink: 'https://g.page/r/CdTest/review', ...extra })
+
+  it('renders the rating, the count and the mark when all three are supplied', () => {
+    const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
+    expect(f.html).toContain('<div class="rating-badge">')
+    expect(f.html).toContain('>4.9<')
+    expect(f.html).toMatch(/from 87 reviews on Google/)
+    expect(f.html).toContain('g-mark')
+  })
+
+  it('links to the profile to read and to leave a review', () => {
+    const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
+    expect(f.html).toContain('Read our reviews on Google')
+    expect(f.html).toContain('Leave a Google review')
+    expect((f.html.match(/g\.page\/r\/CdTest/g) ?? []).length).toBe(2)
+  })
+
+  /*
+   * THE CASE THAT MUST NEVER RENDER. A score with no profile behind it is exactly the
+   * unverifiable claim rule 1 exists to stop, so facts drops the rating unless a link came with
+   * it. Tested here rather than trusted, because the failure is silent and looks fine.
+   */
+  it('refuses to show a rating with no profile to check it against', () => {
+    const f = makeFixture({ googleReviewLink: '', googleRating: 4.9, googleReviewCount: 87 })
+    expect(f.facts.googleRating).toBeNull()
+    expect(f.facts.googleReviewCount).toBeNull()
+    expect(f.html).not.toContain('<div class="rating-badge">')
+    expect(f.html).not.toContain('Posted on Google')
+    expect(f.html).not.toContain('Leave a Google review')
+  })
+
+  it('still shows the quotes when there is a link but no rating', () => {
+    const f = withGoogle({})
+    expect(f.html).not.toContain('<div class="rating-badge">')
+    expect(f.html).toContain('Posted on Google')
+    expect(f.html).toContain('Leave a Google review')
+  })
+
+  it('keeps every Google colour in :root, so check 1 still passes', async () => {
+    const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
+    expect(byId(await runStaticChecks(f.html, f.facts), 'hex_outside_root').status).toBe('pass')
+  })
+
+  it('passes every static check with the block present', async () => {
+    const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
+    const failed = (await runStaticChecks(f.html, f.facts)).filter((r) => r.status === 'fail')
+    expect(failed.map((x) => `${x.id}: ${x.detail}`)).toEqual([])
   })
 })

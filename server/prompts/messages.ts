@@ -53,6 +53,9 @@ const PLAN_SHAPE = `{
   "trustStrip": [ { "label": "string", "detail": "string" } ],   // EXACTLY 4, no more, no fewer
   "about": { "heading": "string", "body": ["2 to 4 paragraphs"], "pullQuote": "string" },
   "services": [ { "name": "string", "blurb": "30 to 300 chars", "iconHint": "what to draw, e.g. water drop" } ],
+  // One entry per service named under PAGES THEY HAVE PAID FOR, and none otherwise. Empty array
+  // on a one page build. slug is kebab-case of the service name. intro and included are ARRAYS.
+  "servicePages": [ { "slug": "kebab-case-of-the-service-name", "service": "exact service name", "title": "10 to 70 chars", "metaDescription": "70 to 165 chars", "h1": "10 to 90 chars", "intro": ["array of 1 to 3 paragraphs, each 40+ chars"], "included": ["array of 3 to 6 lines, each 10 to 160 chars"] } ],
   "gallery": { "enabled": boolean, "heading": "string", "items": [ { "assetId": "id from the photo list", "alt": "5 to 125 chars" } ] },
   "whyUs": [ { "title": "string", "body": "string" } ],
   "stats": [ { "value": number, "suffix": "+ or none", "label": "string", "source": "which intake field this came from" } ],
@@ -164,7 +167,13 @@ ${intake.googleReviewLink ? `Google review link: ${intake.googleReviewLink}` : '
 
 # IMAGES
 
-Logo: ${facts.logo ? `supplied at ${facts.logo.path}` : 'none usable'}
+Logo: ${
+    facts.logo
+      ? `supplied at ${facts.logo.path}, ${facts.logo.width} by ${facts.logo.height} pixels, aspect ratio ${(facts.logo.width / facts.logo.height).toFixed(2)}. ` +
+        `The width and height attributes you write MUST be in this ratio. Pick a height that suits the header and multiply, do not assume a wide wordmark. ` +
+        `Getting this wrong stretches or squashes the customer's own branding, which is the first thing they look at.`
+      : 'none usable'
+  }
 Logo treatment you must use: ${logoTreatmentFor(auditFlags, Boolean(facts.logo))}
 Usable photos: ${usablePhotoCount}
 ${
@@ -281,7 +290,18 @@ ${
         )
         .join('\n')
 }
-${facts.googleReviewLink ? `Google review link: ${facts.googleReviewLink}` : ''}
+${
+    facts.googleReviewLink
+      ? `Google profile: ${facts.googleReviewLink}
+${
+  facts.googleRating && facts.googleReviewCount
+    ? `Google rating: ${facts.googleRating.toFixed(1)} from ${facts.googleReviewCount} reviews. Show this as a rating, not as a sentence: the score set large, five stars beside it, and "from ${facts.googleReviewCount} reviews on Google" underneath. Put the four colour Google G next to it.
+`
+    : ''
+}The reviews section must say the reviews came from Google and link to that profile twice: once as "Read our reviews on Google" and once as "Leave a Google review". Both open in a new tab with rel="noopener". A wall of quotes with no source is the weakest form of the same words, because a reader cannot tell whether we wrote them.
+DRAW THE GOOGLE G, do not link to an image of it. Four paths, each carrying a class, coloured through :root tokens named --google-blue #4285f4, --google-green #34a853, --google-yellow #fbbc05 and --google-red #ea4335. A colour on an SVG attribute is a verification failure and a presentation attribute cannot take a var(), so the classes are not optional. Stars use a --star token of #fbbc05 rather than the customer's accent, because a rating in the brand colour reads as decoration.`
+      : 'No Google profile supplied, so the reviews section carries no Google branding, no star rating and no review count. Do not imply the quotes came from anywhere.'
+  }
 
 Logo treatment: ${plan.brand.logoTreatment}${
     plan.brand.logoTreatment === 'cropped-mark'

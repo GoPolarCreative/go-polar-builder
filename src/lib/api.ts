@@ -75,6 +75,8 @@ export interface JobResponse {
  */
 export interface FormsKeyState {
   required: boolean
+  /** A well-formed key is on the job. Not the same as proved: see the route for the split. */
+  saved: boolean
   verified: boolean
   keyMasked: string | null
   verifiedAt: string | null
@@ -367,10 +369,10 @@ export const api = {
   goLiveFormsKey: (jobId: string, key: string, proof?: Web3FormsProof | null) =>
     request<{
       ok: boolean
-      version: number
-      formsUpdated: number
+      saved: boolean
+      /** True only when a real test enquiry went through. The key is saved either way. */
+      tested: boolean
       keyMasked: string
-      testEnquirySent: boolean
       detail: string
     }>(`/api/jobs/${jobId}/golive/forms-key`, {
       method: 'POST',

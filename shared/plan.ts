@@ -34,7 +34,68 @@ export type SectionId = (typeof SECTION_IDS)[number]
 /** Sections the model may switch off, and only for the reason given in the brief. */
 export const OPTIONAL_SECTIONS: SectionId[] = ['gallery', 'testimonials']
 
-export const planSchema = z.object({
+/*
+ * MARKUP IS STRIPPED FROM EVERY STRING BEFORE THE PLAN IS VALIDATED.
+ *
+ * Every text field in this schema is plain text. The renderers escape all of it, which is correct
+ * and is not negotiable: plan content is model output, and model output must never be able to
+ * inject HTML into a customer's page.
+ *
+ * The consequence, before this existed, was that markup the model wrote did not disappear, it
+ * became VISIBLE. Driftwood Building Co's service page heading was written by the model as
+ * "Timber decks built for <em>Bass Coast living</em>", the renderer escaped it exactly as designed,
+ * and the page showed a reader the angle brackets. Four pages across two customers shipped that
+ * way, and every one of the checks passed, because the document was valid HTML that said something
+ * silly rather than invalid HTML.
+ *
+ * Escaping at the point of render was never the wrong call. The gap was that nothing removed the
+ * markup on the way IN, so a field declared plain text could still be handed something that was
+ * not. Stripping here closes it for every field at once, including fields added later, which is
+ * why this is a preprocess over the whole object rather than a wrapper repeated on fifty fields
+ * that someone will forget to apply to the fifty-first.
+ *
+ * Stripping happens BEFORE the length constraints, so a heading is measured as the reader will see
+ * it. If removing the markup takes a field under its minimum the plan is rejected and regenerated,
+ * which is the right outcome: a heading that is only long enough because of tags is not long
+ * enough.
+ */
+
+/** A tag, or a tag that has already been escaped into text. Both are markup the model invented. */
+const TAG = /<\/?[a-zA-Z][^>]*>/g
+const ESCAPED_TAG = /&lt;\/?[a-zA-Z][^&]*?&gt;/g
+
+/*
+ * Only tag-SHAPED sequences go. A bare "<" is left alone, because "jobs < 2 hours" is prose a
+ * tradie might legitimately write and is not markup.
+ */
+export function stripMarkup(value: string): string {
+  const out = value
+    .replace(ESCAPED_TAG, '')
+    .replace(TAG, '')
+    // Entities the model reaches for when it is thinking in HTML. Decoding is safe because every
+    // renderer escapes on the way out, so "&" here becomes "&amp;" there exactly once.
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+  return out
+}
+
+/** Depth-first over whatever the model returned, leaving non-strings untouched. */
+function stripDeep(value: unknown): unknown {
+  if (typeof value === 'string') return stripMarkup(value)
+  if (Array.isArray(value)) return value.map(stripDeep)
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = stripDeep(v)
+    return out
+  }
+  return value
+}
+
+export const planSchema = z.preprocess(stripDeep, z.object({
   meta: z.object({
     title: z.string().min(10).max(70),
     metaDescription: z.string().min(70).max(165),
@@ -121,7 +182,9 @@ export const planSchema = z.object({
       }),
     )
     .min(3)
-    .max(8),
+    // Matches the intake cap. Raising one without the other means a customer can submit ten
+    // services and then have the plan rejected for containing them.
+    .max(10),
 
   /**
    * One extra page per additional page the customer bought, each about a single service.
@@ -146,17 +209,42 @@ export const planSchema = z.object({
         included: z.array(z.string().min(10).max(160)).min(3).max(6),
       }),
     )
-    .max(8)
+    // Matches the intake's ownPageServices cap. A customer can buy a page per service, and with
+    // the services cap at ten this has to reach ten as well or the plan is rejected for containing
+    // exactly the pages the customer paid for.
+    .max(10)
     .default([]),
 
-  gallery: z.object({
-    // Off when fewer than 3 usable photos were supplied. The brief is explicit: no stock photos.
-    enabled: z.boolean(),
-    heading: z.string().min(3).max(60),
-    items: z
-      .array(z.object({ assetId: z.string(), alt: z.string().min(5).max(125) }))
-      .max(20),
-  }),
+  /*
+   * A HEADING IS ONLY REQUIRED WHEN THE SECTION IS ON.
+   *
+   * heading was min(3) unconditionally, including for a gallery that is switched off. A business
+   * with no photos gets gallery.enabled false, and the model then quite reasonably returns an
+   * empty heading for a section that will never render. That failed validation three times and
+   * the whole build died with "Content plan did not validate after 3 attempts".
+   *
+   * It bit LSV Services, which supplied neither photos nor reviews, so gallery and testimonials
+   * were both off and both headings empty. That combination is not an edge case: it is the
+   * ordinary state of a tradie who has not sent us anything yet, which is most of them.
+   */
+  gallery: z
+    .object({
+      // Off when fewer than 3 usable photos were supplied. The brief is explicit: no stock photos.
+      enabled: z.boolean(),
+      heading: z.string().max(60).default(''),
+      items: z
+        .array(z.object({ assetId: z.string(), alt: z.string().min(5).max(125) }))
+        .max(20),
+    })
+    .superRefine((value, ctx) => {
+      if (value.enabled && value.heading.trim().length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['heading'],
+          message: 'A gallery that is switched on needs a heading of at least 3 characters.',
+        })
+      }
+    }),
 
   whyUs: z
     .array(z.object({ title: z.string().min(3).max(60), body: z.string().min(30).max(260) }))
@@ -187,21 +275,33 @@ export const planSchema = z.object({
     suburbs: z.array(z.string().min(2)).min(3),
   }),
 
-  testimonials: z.object({
-    // Off unless real reviews were supplied. Never fabricate. This is checked again server side
-    // against the intake before the build call runs.
-    enabled: z.boolean(),
-    heading: z.string().min(3).max(60),
-    items: z
-      .array(
-        z.object({
-          quote: z.string().min(15),
-          name: z.string().min(2),
-          suburb: z.string().min(2),
-        }),
-      )
-      .max(6),
-  }),
+  // Same reasoning as gallery above: a heading for a section that is switched off is not a thing
+  // the model can sensibly be required to invent, and demanding one killed whole builds.
+  testimonials: z
+    .object({
+      // Off unless real reviews were supplied. Never fabricate. This is checked again server side
+      // against the intake before the build call runs.
+      enabled: z.boolean(),
+      heading: z.string().max(60).default(''),
+      items: z
+        .array(
+          z.object({
+            quote: z.string().min(15),
+            name: z.string().min(2),
+            suburb: z.string().min(2),
+          }),
+        )
+        .max(6),
+    })
+    .superRefine((value, ctx) => {
+      if (value.enabled && value.heading.trim().length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['heading'],
+          message: 'A testimonials section that is switched on needs a heading of at least 3 characters.',
+        })
+      }
+    }),
 
   // FAQ copy must match the FAQPage JSON-LD word for word. The build call is told to emit the
   // same strings in both places, and verification compares them.
@@ -253,7 +353,7 @@ export const planSchema = z.object({
    * Each becomes a <!-- CLIENT TO SUPPLY: ... --> comment.
    */
   clientToSupply: z.array(z.string().min(5)).default([]),
-})
+}))
 
 export type ContentPlan = z.infer<typeof planSchema>
 
@@ -311,4 +411,7 @@ export interface BuildFacts {
   assetManifest: Record<string, { key: string; bytes: number; contentType: string }>
   canonicalUrl: string
   googleReviewLink: string | null
+  /** Null unless a review link was also supplied. See buildFacts for why they travel together. */
+  googleRating: number | null
+  googleReviewCount: number | null
 }

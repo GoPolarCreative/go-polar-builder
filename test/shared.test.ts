@@ -339,16 +339,41 @@ describe('intake validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects fewer than three services and more than eight', () => {
+  it('rejects fewer than three services and more than ten', () => {
     expect(intakeSchema.safeParse(makeIntake({ services: ['One', 'Two'], primaryService: 'One' })).success).toBe(false)
     expect(
       intakeSchema.safeParse(
         makeIntake({
-          services: ['a1', 'b2', 'c3', 'd4', 'e5', 'f6', 'g7', 'h8', 'i9'],
+          services: ['a1', 'b2', 'c3', 'd4', 'e5', 'f6', 'g7', 'h8', 'i9', 'j10', 'k11'],
           primaryService: 'a1',
         }),
       ).success,
     ).toBe(false)
+  })
+
+  /*
+   * TEN IS ALLOWED, and this is the case that moved the cap.
+   *
+   * Pest-Aside Sydney's approved copy lists exactly ten pest types. For a pest controller that is
+   * an ordinary service list, not a keyword dump, and the previous limit of eight would have
+   * forced two of a customer's own signed-off services off their website. The same customer's
+   * raw spreadsheet answer listed eighty-eight, which is what the cap is actually there to stop.
+   */
+  it('accepts a real ten-service list', () => {
+    const ten = [
+      'Cockroach Control',
+      'Rodent Control',
+      'Spider Control',
+      'Ant Control',
+      'Wasp Control',
+      'Bee Control',
+      'Flea Control',
+      'Silverfish Control',
+      'Mosquito Control',
+      'Bed Bug Control',
+    ]
+    const r = intakeSchema.safeParse(makeIntake({ services: ten, primaryService: 'Cockroach Control' }))
+    expect(r.success, r.success ? '' : JSON.stringify(r.error.issues.slice(0, 3))).toBe(true)
   })
 
   it('rejects a primary service that is not one of the selected services', () => {

@@ -1,26 +1,18 @@
 import { Hono } from 'hono'
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { PRICING, ProductNotOnStoreError, formatPrice } from '../../shared/pricing.js'
-import { intakeSchema, type IntakePayload } from '../../shared/intake.js'
 import { LIVE_EDITS_PER_MONTH } from '../../shared/allowance.js'
 import { isValidAbn } from '../../shared/abn.js'
 import type { Job } from '../../shared/types.js'
-import { config, web3formsKey } from '../config.js'
-import { getIntake, getJob, getUserForJob, listAssets, recordEvent, setJobStatus } from '../lib/db.js'
+import { config } from '../config.js'
+import { getIntake, getJob, getUserForJob, recordEvent, setJobStatus } from '../lib/db.js'
 import { id } from '../lib/ids.js'
 import { ShopifyConfigError, createCheckout, type CheckoutLine } from '../lib/shopify.js'
 import { previewLink, trackKlaviyoSafely } from '../lib/klaviyo.js'
 import { goLiveCartLines } from '../lib/products.js'
 import { checkAvailability, inspectDomain, normaliseDomain, requiresAuEligibility } from '../lib/domains.js'
-import { buildFacts } from '../lib/facts.js'
-import { copyPageSet } from '../lib/buildSet.js'
-import {
-  applyFormsKey,
-  classifyWeb3FormsKey,
-  maskKey,
-  verifyWeb3FormsKey,
-} from '../lib/web3forms.js'
+import { classifyWeb3FormsKey, maskKey, verifyWeb3FormsKey } from '../lib/web3forms.js'
 
 const app = new Hono()
 
@@ -46,14 +38,21 @@ async function getGoLive(jobId: string) {
 /**
  * Where this job stands on the enquiry inbox.
  *
- * A key here means a real test submission through Web3Forms came back successful, because that is
- * the only way one gets written. Until then the site cannot go live: it would carry Go Polar's
- * key, and the tradie would never see a single enquiry from the website they just paid for.
+ * TWO STATES, NOT ONE. `saved` means a well-formed key is on the job. `verified` means a real test
+ * enquiry went through it and arrived. They are separated because the setup panel runs before the
+ * build, where sending a test needs an inbox and an outbound email path that may not be switched
+ * on, and failing there in front of a customer who has done nothing wrong is what this split fixes.
+ *
+ * Only `verified` unblocks go live, and publishJob refuses on the same column. A saved key is a
+ * step completed, not a guarantee: an access key is a UUID, so a single typo still parses and the
+ * forms would silently go nowhere.
  */
 function formsKeyState(job: Job) {
+  const saved = Boolean(job.web3formsKeyMasked)
   const verified = Boolean(job.web3formsKeyMasked && job.web3formsVerifiedAt)
   return {
     required: true,
+    saved,
     verified,
     keyMasked: job.web3formsKeyMasked,
     verifiedAt: job.web3formsVerifiedAt,
@@ -73,9 +72,11 @@ function formsKeyState(job: Job) {
     signUpUrl: 'https://web3forms.com/',
     whatToExpect: [
       'Open web3forms.com and put in the email address you want your enquiries to go to.',
-      'They email you an access key straight away. It is free, and there is nothing to install.',
+      // The actual path through their site, because "they email you a key" was not what happens.
+      'Click sign up, then free account, then form setup, then form access key.',
       'Copy that key back into the box below.',
-      'We send one test enquiry through it, so you can see for yourself that it reaches you.',
+      // True about when it happens. The test runs at go live, not on this screen.
+      'When you go live we send one test enquiry through it, so you can see it reach you.',
     ],
   }
 }
@@ -128,155 +129,99 @@ app.get('/jobs/:jobId/golive', async (c) => {
 })
 
 /**
- * The enquiry inbox step. Required before anything else in this flow.
+ * The enquiry inbox step. Saves the key; does not prove it.
  *
- * Three gates, in order, and none of them is skippable:
- *   1. the shape, with the mistake named rather than a generic rejection
- *   2. a real test submission through Web3Forms, because a valid-looking wrong key produces a
- *      site whose forms silently go nowhere, which is the worst outcome for someone paying for
- *      lead generation
- *   3. the rebuild, which must actually put their key in both forms and leave none of ours
+ * The three gates that used to live here have been split across the two places they can each
+ * actually run:
+ *   1. the shape, with the mistake named rather than a generic rejection - still here
+ *   2. a real test submission through Web3Forms - moved to go live, where there is a built site,
+ *      an engaged customer and a failure they can act on, and where nothing is charged until it
+ *      passes
+ *   3. putting their key in every form and leaving none of ours - moved to publishJob, which is
+ *      the single place a site becomes public and therefore the only place the swap has to be true
  *
- * Nothing is written to the job until all three pass.
+ * The guarantee is unchanged. publishJob still refuses on web3formsVerifiedAt, which only gate 2
+ * ever sets, so nothing reaches the internet on a key nobody has proved.
  */
 app.post('/jobs/:jobId/golive/forms-key', async (c) => {
   const jobId = c.req.param('jobId')
   const job = await getJob(jobId)
   if (!job) return c.json({ error: 'not_found' }, 404)
-  if (job.currentVersion < 1) {
-    return c.json({ error: 'not_ready', detail: 'There is no website built yet.' }, 409)
-  }
 
+  /*
+   * NO BUILD IS REQUIRED HERE, AND THAT IS THE WHOLE POINT.
+   *
+   * This route used to refuse unless job.currentVersion >= 1. InboxSetup, meanwhile, is
+   * deliberately placed BEFORE the build: read its header comment, which records three previous
+   * homes for this task and a real tester who stalled when it arrived after the build. So the
+   * normal state when a customer uses the panel as designed is currentVersion 0, and the route
+   * answered that with a 409 rendered under a banner reading "That key was not accepted".
+   *
+   * Their key was never looked at. Two halves of one path disagreeing, and the customer told
+   * their perfectly good key was rejected.
+   */
   type KeyBody = { key?: string; proof?: { success?: boolean; message?: string; status?: number } }
   const body = await c.req.json<KeyBody>().catch(() => ({}) as KeyBody)
   const raw = body.key ?? ''
 
+  /*
+   * SHAPE ONLY, ON PURPOSE, AND THE TEST HAS MOVED RATHER THAN GONE.
+   *
+   * A live test submission here needed an inbox, an outbound request and assertLiveEnabled('email'),
+   * which throws wherever email is not switched on. That is three ways for a setup step to fail in
+   * front of a customer who has done nothing wrong.
+   *
+   * What a shape check cannot do is tell a right key from a well-formed wrong one: an access key is
+   * a UUID, so a single typo still parses, and the site would look perfect while every enquiry went
+   * nowhere. So the key is SAVED here but NOT marked verified. web3formsVerifiedAt stays null until
+   * a real test enquiry succeeds at go live, and publishJob still refuses on that column, so the
+   * guarantee is unchanged: nothing reaches the internet on a key nobody has proved.
+   */
   const shape = classifyWeb3FormsKey(raw)
   if (!shape.ok || !shape.key) {
     return c.json({ error: 'invalid_key', reason: shape.reason, detail: shape.message, saved: false }, 422)
   }
 
-  // Gate 2. Nothing is stored yet, deliberately: an unverified key in the database is a key
-  // somebody will later assume was checked.
-  const verification = await verifyWeb3FormsKey(
-    shape.key,
-    { businessName: job.businessName ?? 'your business', jobId, proof: body.proof ?? null },
-    config(),
-  )
+  /*
+   * THE BROWSER TEST IS AN UPGRADE, NEVER A GATE.
+   *
+   * Web3Forms blocks server-side submissions at the TLS layer, so the only place a real test can
+   * run is the customer's own browser, and the client sends the outcome here as `proof`. When it
+   * succeeded we mark the key verified on the spot, which is the good path and the common one.
+   *
+   * When it did not, for any reason, the key is still saved and the customer is still told they
+   * are done. A blocked request, an offline moment or an install with email switched off is our
+   * problem, not theirs, and it must not produce a red banner on a step they completed correctly.
+   * Go live picks up the proof later, and publishJob refuses until it exists, so nothing ships on
+   * an unproven key either way.
+   */
+  const proved = body.proof?.success === true
 
-  if (!verification.ok) {
-    await recordEvent(jobId, 'golive.forms_key_rejected', {
-      key: maskKey(shape.key),
-      detail: verification.detail,
-    })
-    return c.json(
-      { error: 'key_rejected', detail: verification.message, saved: false, tested: true },
-      422,
-    )
-  }
-
-  // Gate 3. Rebuild the current version with their key in place of ours. This is a deterministic
-  // swap of the access_key values and nothing else, so not a word of their copy can move.
-  const goPolar = web3formsKey()
   const db = await getDb()
-  const current = await db
-    .select()
-    .from(schema.builds)
-    .where(and(eq(schema.builds.jobId, jobId), eq(schema.builds.version, job.currentVersion)))
-    .limit(1)
-
-  const build = current[0]
-  if (!build) return c.json({ error: 'not_found', detail: 'The current build is missing.' }, 404)
-
-  const [stored, assets] = await Promise.all([getIntake(jobId), listAssets(jobId)])
-  const parsedIntake = intakeSchema.safeParse(stored?.payload)
-  if (!parsedIntake.success) {
-    return c.json({ error: 'invalid_intake', detail: 'Your answers could not be read.' }, 422)
-  }
-  const facts = buildFacts(parsedIntake.data as IntakePayload, assets)
-
-  const version = job.currentVersion + 1
-  const customerKey = shape.key
-  let formsUpdated = 0
-
-  // EVERY PAGE, not just the home page. A service page left pointing at the Go Polar account
-  // would quietly send that page's enquiries to us after the customer has gone live.
-  const copied = await copyPageSet({
-    jobId,
-    fromVersion: job.currentVersion,
-    toVersion: version,
-    facts,
-    transform: (pageHtml) => {
-      const swapped = applyFormsKey(pageHtml, goPolar, customerKey)
-      // Better to refuse than to hand back a site that says its forms were switched over when
-      // one of them still is not. Returning null aborts before anything is written.
-      if (swapped.replaced < 1 || !swapped.clean) return null
-      formsUpdated += swapped.replaced
-      return { html: swapped.html }
-    },
-  })
-
-  if ('error' in copied) {
-    return c.json(
-      {
-        error: 'rebuild_failed',
-        detail: `Your key tested fine, but we could not switch it into the website cleanly, so nothing has been changed. This is our problem to fix, not yours. (${copied.error})`,
-        saved: false,
-      },
-      500,
-    )
-  }
-
-  const swap = { replaced: formsUpdated }
-
-  // Every version needs its plan alongside it. The plan is the source of truth that rollback and
-  // the discharge package both read by version, and a build with no plan beside it is a version
-  // that cannot be handed over. Nothing in the plan changes here: only where the forms post.
-  const currentPlan = await db
-    .select({ plan: schema.plans.plan })
-    .from(schema.plans)
-    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, job.currentVersion)))
-    .limit(1)
-
-  if (currentPlan[0]) {
-    await db
-      .insert(schema.plans)
-      .values({ id: id('pln'), jobId, version, plan: currentPlan[0].plan })
-      .onConflictDoUpdate({
-        target: [schema.plans.jobId, schema.plans.version],
-        set: { plan: currentPlan[0].plan },
-      })
-  }
-
   await db
     .update(schema.jobs)
-    // Not an edit. The customer did not ask for a change to their website, they completed a step
-    // we require, so `edits_used` is untouched.
+    // Not an edit. The customer completed a step we require rather than asking for a change, so
+    // edits_used is untouched.
     .set({
       customerWeb3formsKey: shape.key,
-      web3formsVerifiedAt: new Date(),
-      currentVersion: version,
+      ...(proved ? { web3formsVerifiedAt: new Date() } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.jobs.id, jobId))
 
-  await recordEvent(jobId, 'golive.forms_key_verified', {
+  await recordEvent(jobId, proved ? 'golive.forms_key_verified' : 'golive.forms_key_saved', {
     key: maskKey(shape.key),
-    version,
-    formsUpdated: swap.replaced,
-    testEnquirySent: verification.live,
-    notify: 'chris',
+    tested: proved,
   })
 
   return c.json({
     ok: true,
-    version,
-    formsUpdated: swap.replaced,
+    saved: true,
+    tested: proved,
     keyMasked: maskKey(shape.key),
-    testEnquirySent: verification.live,
-    detail: verification.live
-      ? `Done. We sent a test enquiry through your Web3Forms account, and it went through. Both forms on your website now come to your inbox. Check your email and you should see it there.`
-      : `Done. Your key is saved and both forms on your website now point at your Web3Forms account. No test enquiry was actually sent, because this install is in demo mode.`,
+    detail: proved
+      ? 'Done. We sent a test enquiry through your Web3Forms account and it went through. Check your email and you should see it there.'
+      : 'Saved. Your enquiries will go to this Web3Forms account. We send a test enquiry through it when you go live, so you can see it arrive.',
   })
 })
 
@@ -297,7 +242,7 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
   // Go-live is blocked until the enquiry inbox is sorted. Checked here as well as on the screen,
   // because the screen is a courtesy and this is the rule. Taking payment for a live site whose
   // enquiry forms deliver to us would be the worst possible order to do this in.
-  if (!job.web3formsKeyMasked || !job.web3formsVerifiedAt) {
+  if (!job.web3formsKeyMasked) {
     return c.json(
       {
         error: 'forms_key_required',
@@ -307,6 +252,68 @@ app.post('/jobs/:jobId/golive/plan', async (c) => {
       },
       409,
     )
+  }
+
+  /*
+   * THE REAL TEST, AT THE MOMENT IT IS BOTH POSSIBLE AND WORTH DOING.
+   *
+   * The setup panel saves the key on shape alone, because it runs before the build and a live send
+   * there has three ways to fail in front of somebody who has done nothing wrong. The proof has to
+   * happen somewhere, though: an access key is a UUID, so a typo parses, and a site whose forms
+   * silently go nowhere is the worst thing this product can hand a tradie paying for leads.
+   *
+   * Here is that somewhere. The customer is at the checkout, engaged, and a failure is actionable
+   * on the spot rather than a fortnight later when no enquiries have arrived. Nothing is charged
+   * until it passes, and publishJob still refuses on web3formsVerifiedAt, so the guarantee that
+   * reaches the internet is exactly the one it always was.
+   */
+  if (!job.web3formsVerifiedAt) {
+    const db = await getDb()
+    const [row] = await db
+      .select({ key: schema.jobs.customerWeb3formsKey })
+      .from(schema.jobs)
+      .where(eq(schema.jobs.id, jobId))
+      .limit(1)
+
+    const storedKey = row?.key ?? ''
+    const verification = await verifyWeb3FormsKey(
+      storedKey,
+      { businessName: job.businessName ?? 'your business', jobId },
+      config(),
+    ).catch((err: unknown) => ({
+      ok: false as const,
+      // A missing email path is our configuration problem, and the message says so rather than
+      // implying the customer's key is at fault.
+      message:
+        'We could not send the test enquiry just now, so nothing has been charged. This is on our end. Try again in a few minutes and if it keeps happening, get in touch.',
+      detail: `throw:${err instanceof Error ? err.message : String(err)}`,
+      live: false,
+    }))
+
+    if (!verification.ok) {
+      await recordEvent(jobId, 'golive.forms_key_rejected', {
+        key: job.web3formsKeyMasked,
+        detail: verification.detail,
+      })
+      return c.json(
+        {
+          error: 'forms_key_rejected',
+          detail: verification.message,
+          formsKey: formsKeyState(job),
+        },
+        409,
+      )
+    }
+
+    await db
+      .update(schema.jobs)
+      .set({ web3formsVerifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.jobs.id, jobId))
+
+    await recordEvent(jobId, 'golive.forms_key_verified', {
+      key: job.web3formsKeyMasked,
+      testEnquirySent: verification.live,
+    })
   }
 
   const body = await c.req
