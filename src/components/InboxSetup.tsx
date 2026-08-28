@@ -344,5 +344,23 @@ export function InboxTask({ jobId }: { jobId: string }) {
   }, [jobId])
 
   if (!formsKey) return null
+
+  /*
+   * ONCE IT IS DONE IT DISAPPEARS FROM HERE.
+   *
+   * This used to collapse to a green "your enquiries come to you" card and sit at the top of the
+   * changes panel for the rest of the build. A finished task reporting that it is finished, above
+   * the things the customer actually came to use. It is a setup step, not a status readout, so
+   * when there is nothing left to do there is nothing to show.
+   *
+   * Keyed off `saved` rather than `verified` deliberately. The customer's part is pasting a
+   * well-formed key; proving it with a live test happens at go live and is our job, so nagging
+   * somebody who has already done what was asked would be the same mistake in reverse.
+   *
+   * Go live still refuses without a verified key, and says so there, which is where a person can
+   * do something about it.
+   */
+  if (formsKey.saved) return null
+
   return <InboxSetup jobId={jobId} formsKey={formsKey} onVerified={setFormsKey} />
 }

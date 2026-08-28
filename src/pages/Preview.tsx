@@ -109,6 +109,9 @@ export default function Preview() {
     setCaretToEnd.current = false
     const el = requestRef.current
     if (!el) return
+    // The chips are at the top of the column and the box is in the footer, so bring it into view
+    // before focusing. Without this a tap adds text somewhere the customer cannot see.
+    el.scrollIntoView({ block: 'nearest' })
     el.focus()
     el.setSelectionRange(el.value.length, el.value.length)
     el.scrollTop = el.scrollHeight
@@ -811,6 +814,35 @@ export function ChangesPanel() {
     setDevice,
   } = useOutletContext<ChangesContext>()
 
+  // Closed by default. It is the tallest thing in the column and the rarest thing wanted.
+  const [historyOpen, setHistoryOpen] = useState(false)
+
+  /*
+   * The chips now sit at the top of the column and the box they fill is in the footer, so this is
+   * shared rather than defined inline where the chips are rendered.
+   */
+  const appendToRequest = (line: string) => {
+    setRequest((r) => {
+      // Was /s+$/, which matches a trailing letter "s", not trailing whitespace: it quietly ate
+      // the last character of anything ending in one ("change the colours" became "change the
+      // colour"). [\s,]+ is what was meant, and it also swallows a comma the customer typed
+      // themselves so we never produce ", ,".
+      const base = r.replace(/[\s,]+$/, '')
+      // line keeps its own trailing space where it has one, so "...it should be " puts the cursor
+      // exactly where the number goes.
+      return base ? `${base}, ${line}` : line
+    })
+    /*
+     * Straight into the box with the cursor at the end. A flag rather than requestAnimationFrame:
+     * rAF is tied to frame production, so it never runs in a tab that is not compositing and the
+     * caret silently stays put. The layout effect runs on commit, which is when the text exists.
+     *
+     * It also scrolls the box into view now that it is a column away rather than directly below
+     * the chips, so tapping a chip still shows you where the words went.
+     */
+    setCaretToEnd.current = true
+  }
+
   // absolute inset-0 against the row, not fixed with a top offset. A magic number for the nav
   // height was wrong the moment a nav label wrapped to two lines, and it covered the very tabs it
   // was measured from. The row already starts below the nav, so filling it needs no number.
@@ -907,28 +939,47 @@ export function ChangesPanel() {
         */}
         <LivePanel jobId={jobId} rollback={rollback} />
 
-        <InboxTask jobId={jobId} />
+        {/*
+          THE TWO THINGS THEY CAME HERE TO USE, AT THE TOP.
 
+          This column had grown into a stack of five cards, and the two at the top were both status
+          rather than action: a green tick saying the enquiry inbox was sorted, and a second go-live
+          button duplicating the one in the footer six inches below. A customer opening the changes
+          panel is there to change something or to check what is left before going live, so those
+          are what the top of the column is now for.
+
+          The go-live card is gone rather than moved. There were two buttons to the same screen on
+          one panel; the footer keeps its one, beside the change button, where the two decisions
+          sit together.
+        */}
         <ReadyChecklist jobId={jobId} onWantMobile={() => setDevice('mobile')} />
 
-        {/*
-          The same destination as the button in the changes panel footer, and deliberately not
-          conditional on the checklist being ticked. The checklist is advice; nothing in it is
-          allowed to gate going live, and a customer who is happy after two minutes should not
-          have to tick eight boxes to find the door.
-        */}
-        <section className="rounded-lg border border-ice-200 bg-ice-50 p-4 text-center">
-          <p className="text-sm font-semibold">Happy with it?</p>
-          <p className="field-hint mb-3">
-            Nothing goes live until you have paid for hosting and we have connected your address.
-          </p>
-          <Link className="btn-accent w-full justify-center" to={`/golive/${jobId}`}>
-            I'm ready to go live →
-          </Link>
-        </section>
+        <CommonEdits onPick={appendToRequest} />
 
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">History</h2>
+        <InboxTask jobId={jobId} />
+
+        {/*
+          BEHIND A DISCLOSURE, AND LAST. Version history is for the rare moment somebody wants a
+          previous version back. Open, it was the tallest thing in the column and pushed everything
+          else off the screen. The count stays on the closed header so it is still findable.
+        */}
+        <section className="rounded-lg border border-ice-200">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+            aria-expanded={historyOpen}
+            aria-controls="version-history"
+            onClick={() => setHistoryOpen((v) => !v)}
+          >
+            <span className="text-sm font-medium text-ice-700">
+              Earlier versions{versions?.builds.length ? ` (${versions.builds.length})` : ''}
+            </span>
+            <span aria-hidden="true" className="shrink-0 text-base leading-none text-ice-500">
+              {historyOpen ? '−' : '+'}
+            </span>
+          </button>
+          {historyOpen ? (
+          <div id="version-history" className="border-t border-ice-100 p-3">
           <ul className="space-y-2">
             {versions?.builds.map((b) => {
               const edit = versions.edits.find((e) => e.versionTo === b.version)
@@ -964,35 +1015,15 @@ export function ChangesPanel() {
             })}
           </ul>
           <p className="field-hint mt-2">Going back to an earlier version does not use up a change.</p>
+          </div>
+          ) : null}
         </section>
       </div>
 
       <footer className="border-t border-ice-100 px-5 py-4">
-        <label className="field-label" htmlFor="editRequest">
+        <label className="mb-1.5 block text-base font-semibold" htmlFor="editRequest">
           What needs changing?
         </label>
-        {canEdit ? (
-          <CommonEdits
-            onPick={(line) => {
-              setRequest((r) => {
-                // Was /s+$/, which matches a trailing letter "s", not trailing whitespace: it
-                // quietly ate the last character of anything ending in one ("change the colours"
-                // became "change the colour"). [\s,]+ is what was meant, and it also swallows a
-                // comma the customer typed themselves so we never produce ", ,".
-                const base = r.replace(/[\s,]+$/, '')
-                // line keeps its own trailing space where it has one, so "...it should be " puts
-                // the cursor exactly where the number goes.
-                return base ? `${base}, ${line}` : line
-              })
-              // Straight into the box with the cursor at the end. These are a starting point to
-              // edit, not a finished sentence, so leaving focus on the chip would be a dead end.
-              // A flag rather than requestAnimationFrame: rAF is tied to frame production, so it
-              // never runs in a tab that is not compositing and the caret silently stays put.
-              // The layout effect below runs on commit, which is when the new text exists.
-              setCaretToEnd.current = true
-            }}
-          />
-        ) : null}
         {/*
           MADE TO LOOK LIKE SOMETHING YOU TYPE IN.
 
@@ -1007,7 +1038,13 @@ export function ChangesPanel() {
         <textarea
           id="editRequest"
           ref={requestRef}
-          className="input min-h-32 focus:ring-2 disabled:cursor-not-allowed disabled:bg-ice-50"
+          /*
+           * BIGGER, AND OBVIOUSLY A FIELD. A tester did not recognise this as somewhere to type,
+           * and it is the one control the whole panel exists for. Taller again, a heavier border
+           * so it reads as a box rather than a panel, and a white ground against the tinted footer
+           * so the writing surface is the lightest thing in the column.
+           */
+          className="input min-h-44 border-2 border-ice-300 bg-white text-base focus:border-polar-accent focus:ring-2 disabled:cursor-not-allowed disabled:bg-ice-50"
           value={request}
           disabled={running || !canEdit}
           onChange={(e) => setRequest(e.target.value)}
