@@ -9,6 +9,7 @@ import {
   slugify,
 } from '../server/lib/pages'
 import { renderSiteSet } from '../server/lib/render/set'
+import { renderServicePage } from '../server/lib/render/servicePage'
 import { verifySet } from '../server/lib/verify'
 import { makeFixture } from './fixtures/site'
 
@@ -237,5 +238,69 @@ describe('the allowance is enforced on the plan, server side', () => {
   it('a generous allowance does not invent pages', () => {
     const { plan } = enforcePagesAllowed(oneExtra.plan, 8)
     expect(plan.servicePages).toHaveLength(1)
+  })
+})
+
+/**
+ * Scroll motion, and the one way it must never fail.
+ *
+ * Sections rise in as they arrive, and the hero photo drifts on styles that use parallax. Both are
+ * worth having and neither is worth a blank website, so the hidden state is set by the SCRIPT and
+ * every rule that hides anything sits behind an attribute only the script writes.
+ *
+ * The test that matters is the last one: with the markup alone, nothing is hidden. If someone
+ * later moves the hiding into the stylesheet "to avoid a flash", that test fails, and it should.
+ */
+describe('sections rise in as they arrive', () => {
+  const render = (style: 'industrial' | 'established') => {
+    const f = makeFixture({ ownPageServices: ['Blocked drains'] })
+    const plan = { ...f.plan, style: { chosen: style, resolved: style, reason: 't', constraints: [] } }
+    const pages = pagesFor(plan)
+    const page = pages.find((p) => p.depth > 0)!
+    return renderServicePage({ plan, facts: f.facts, page, pages, baseUrl: 'https://x.com.au' })
+  }
+
+  it('NOTHING IS HIDDEN BY THE MARKUP ALONE, so a page whose script never ran still reads', () => {
+    const html = render('industrial')
+    // The attribute the hiding hangs off must not be in the document as written.
+    expect(html).not.toMatch(/<html[^>]*data-reveal/)
+    expect(html).not.toMatch(/<html[^>]*data-parallax/)
+    // And no section may carry the reveal class until the script adds it.
+    expect(html).not.toMatch(/class="[^"]*\breveal\b[^"]*"/)
+  })
+
+  it('hides only under the attribute the script sets', () => {
+    const html = render('industrial')
+    expect(html).toContain('[data-reveal] .reveal{opacity:0')
+    expect(html).toContain('[data-reveal] .reveal.is-in{opacity:1')
+  })
+
+  it('gives somebody who asked for less movement the finished state outright', () => {
+    const html = render('industrial')
+    expect(html).toMatch(/@media \(prefers-reduced-motion:reduce\)\{\n\[data-reveal\] \.reveal\{opacity:1/)
+  })
+
+  it('does not run the observer at all under reduced motion', () => {
+    expect(render('industrial')).toContain("matchMedia('(prefers-reduced-motion: reduce)')")
+  })
+
+  /*
+   * Parallax stays a property of the style rather than something every site gets, because it is
+   * one of the things that makes the four look different. Making it universal dropped established
+   * and modern to 7.9% apart against an 8% floor, and test/styles.test.ts caught it.
+   */
+  it('carries parallax on a style that uses it', () => {
+    const html = render('industrial')
+    expect(html).toContain('parallax-layer')
+    expect(html).toContain('[data-parallax] .hero__bg img')
+  })
+
+  it('leaves it out entirely on a style that does not', () => {
+    const html = render('established')
+    expect(html).not.toContain('[data-parallax] .hero__bg img')
+  })
+
+  it('never uses background-attachment, which iOS Safari has never supported', () => {
+    expect(render('industrial')).not.toContain('background-attachment:fixed')
   })
 })

@@ -678,30 +678,75 @@ function ReadyChecklist({ jobId, onWantMobile }: { jobId: string; onWantMobile: 
  * contains, so stacking four of these into one box is the cheapest way to use the allowance, and
  * the placeholder already tells them to batch.
  */
+/*
+ * WHAT PEOPLE ACTUALLY WANT TO ASK FOR.
+ *
+ * The first version of this list was timid: correct a phone number, make the text bigger, take a
+ * service off. All real, all things a customer can already see are wrong, and none of them the
+ * reason somebody opens the changes panel on a website they have just been handed. The reaction to
+ * a new site is rarely "the email address is wrong", it is "can it look better than this".
+ *
+ * So the list now leads with the look, and says out loud that restyling the whole thing costs one
+ * change like anything else, because nobody guesses that the entire design is on the table.
+ *
+ * EVERY LINE HERE HAS TO BE A REQUEST THE BUILDER CAN ACTUALLY CARRY OUT. A chip is a promise, and
+ * a promise the edit cannot keep is worse than an empty list: the customer spends an attempt, gets
+ * a shrug, and stops trusting the box. That rules out scroll animations and a before-and-after
+ * slider until the JAVASCRIPT house rule allows more than its current five things, and it rules
+ * out parallax until it works on more than two of the four styles and on a phone.
+ */
 const COMMON_EDITS: Array<{ group: string; items: string[] }> = [
+  {
+    // First, because it is the reason most people open this panel.
+    group: 'The overall look',
+    items: [
+      'make the whole thing feel more premium',
+      'make it look more modern',
+      'make it feel tougher and more industrial',
+      'it feels cramped, give it more room to breathe',
+      'make the sections fade in as I scroll down',
+      'add a parallax effect to the main photo',
+      'change the colours',
+      'change the fonts',
+    ],
+  },
+  {
+    group: 'The top of the page',
+    items: [
+      'make the hero image bigger and bolder',
+      'reword the headline at the top',
+      'the headline is too long, cut it down',
+      'use a different photo as the main background image',
+    ],
+  },
+  {
+    group: 'Moving things around',
+    items: [
+      'move the gallery further up the page',
+      'move the reviews higher up',
+      'move the about section further down',
+      'put the services above the about section',
+    ],
+  },
+  {
+    group: 'Photos',
+    items: [
+      'put my best photo first',
+      'swap the order of the photos',
+      'make the photos bigger',
+      'show the photos in a bigger grid',
+    ],
+  },
   {
     group: 'Words',
     items: [
-      'reword the headline at the top',
+      'make the writing sound less salesy',
+      'this reads too corporate, make it sound like a person',
       'add a service we do',
       'take a service off',
       'add a suburb we cover',
       'my phone number is wrong, it should be ',
       'my email address is wrong, it should be ',
-    ],
-  },
-  {
-    group: 'Photos',
-    items: ['put my best photo first', 'swap the order of the photos', 'make the photos bigger'],
-  },
-  {
-    group: 'Look',
-    items: [
-      'change the colours',
-      'change the fonts',
-      'make the text bigger',
-      'make the text smaller',
-      'move the gallery further up the page',
     ],
   },
 ]

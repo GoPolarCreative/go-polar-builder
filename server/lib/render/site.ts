@@ -324,20 +324,38 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '@media (min-width:900px){.section{padding:var(--section-pad-lg) 0;}}',
     '.section--alt{background:var(--alt-bg);}',
     '.section--dark{background:var(--dark-block);color:var(--on-dark);}',
+    /*
+     * PARALLAX, REBUILT, AND NOW ON EVERY STYLE INCLUDING ON A PHONE.
+     *
+     * WHAT WAS HERE BEFORE BARELY EXISTED. It was background-attachment:fixed, which has never
+     * worked on iOS Safari: it rescales and crops the image instead of scrolling it, so it was
+     * fenced behind a pointer:fine query that excludes every touch device. It was also only
+     * switched on for two of the four styles. The net effect was an effect almost nobody saw, on
+     * the device almost everybody uses.
+     *
+     * This version translates the image instead, driven by the section's own position through the
+     * viewport, which is what the reference sites Chris pointed at actually do. Transform is
+     * composited, so it moves on a phone without repainting, and it needs no fixed attachment.
+     *
+     * The movement is deliberately small. A hero photo that slides further than its own overscan
+     * shows the edge of the image, and 12% of extra height is what buys the travel below.
+     */
+    '.hero__bg,.section--dark,.stats-band{overflow:hidden;}',
     ...(spec.layout.parallax
       ? [
-          // PARALLAX, WITH THE TWO CONDITIONS THAT MAKE IT SAFE.
-          //
-          // background-attachment:fixed has never worked on iOS Safari: it does not scroll the
-          // image, it rescales and crops it, and the result is a jumping, badly framed photo on
-          // exactly the device most of these customers are seen on. So it is behind a
-          // pointer:fine query, which excludes touch, and behind prefers-reduced-motion, which
-          // excludes anybody who has asked the OS for less movement. Everywhere else the band
-          // just holds still while the page moves over it.
-          '@media (pointer:fine) and (prefers-reduced-motion:no-preference){',
-          '.hero__bg img{background-attachment:fixed;}',
-          '.section--dark{background-attachment:fixed;background-size:cover;background-position:center;}',
-          '.stats-band{background-attachment:fixed;background-size:cover;background-position:center;}',
+          '@media (prefers-reduced-motion:no-preference){',
+          '[data-parallax] .parallax-layer{will-change:transform;}',
+          '}',
+        ]
+      : []),
+    // Extra height is what there is to travel through. Without it the image would pull away from
+    // its own edge and show the section behind.
+    ...(spec.layout.parallax
+      ? [
+          // Extra height is the travel. Without it the image pulls away from its own edge.
+          '[data-parallax] .hero__bg img,[data-parallax] .hero__bg picture{height:112%;object-fit:cover;}',
+          '@media (prefers-reduced-motion:reduce){',
+          '[data-parallax] .parallax-layer{transform:none!important;}',
           '}',
         ]
       : []),
@@ -749,6 +767,30 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
     // Long email addresses are the other reliable source of a sideways scroll.
     '.contact-list a[href^="mailto:"]{word-break:break-word;overflow-wrap:anywhere;}',
+
+    /*
+     * SECTIONS RISE IN AS THEY ARRIVE.
+     *
+     * EVERY RULE HERE IS BEHIND [data-reveal], WHICH ONLY THE SCRIPT SETS. Nothing in the markup
+     * carries it, so a page whose JavaScript never ran is a page with all of its text on screen.
+     * The alternative, hiding sections in the stylesheet and revealing them with script, means one
+     * error blanks a customer's website. An animation is not worth that.
+     *
+     * Small movement on purpose: 18px and a fade. Sites that throw sections halfway up the screen
+     * read as a template showing off, and these are trade businesses, not agency showreels.
+     */
+    '@media (prefers-reduced-motion:no-preference){',
+    '[data-reveal] .reveal{opacity:0;transform:translateY(18px);' +
+      'transition:opacity .55s var(--ease-out,cubic-bezier(.16,1,.3,1)),transform .55s var(--ease-out,cubic-bezier(.16,1,.3,1));}',
+    '[data-reveal] .reveal.is-in{opacity:1;transform:none;}',
+    '}',
+    /*
+     * The belt to the script's braces. Someone who has asked their OS for less movement gets the
+     * finished state outright, even if the observer has already added the class.
+     */
+    '@media (prefers-reduced-motion:reduce){',
+    '[data-reveal] .reveal{opacity:1;transform:none;transition:none;}',
+    '}',
   ]
 
   return [

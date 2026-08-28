@@ -222,12 +222,22 @@ When servicePages is not empty, the customer has paid for a dedicated page per e
 
 # JAVASCRIPT
 
-One script block, no libraries, wrapped so it cannot leak globals. It does five things and nothing else:
+One script block, no libraries, wrapped so it cannot leak globals. It does these six things and nothing else:
 1. Header scroll state class toggle, using a passive scroll listener.
 2. Mobile menu open and close, including closing on link click and on Escape.
 3. Stat counters via IntersectionObserver.
 4. Smooth scroll for in-page anchors that accounts for the fixed header height.
 5. Both form submissions: INTERCEPT the form's own submit event with preventDefault and send it with fetch to the same URL that is already in the form's action attribute. You are enhancing a form that already works, not replacing it, so never remove or omit the action attribute: rule 8 requires it and a check enforces it. Disable the button and show a sending state, then replace the form with a plain success message, or show an error message that tells the customer to ring instead if the request fails. Never leave a form in a state where the customer cannot tell what happened.
+
+6. SECTIONS RISING IN AS THEY ARRIVE, via a second IntersectionObserver. Give each section a class, observe them, add a class when one enters and unobserve it. Keep the movement small: a fade plus about 18px of travel over half a second. Sections that fly halfway up the screen read as a template showing off, and these are trade businesses.
+
+  THE HIDDEN STATE MUST BE SET BY THE SCRIPT, NEVER IN THE MARKUP OR THE STYLESHEET ALONE. Set an attribute on the html element as the first thing the observer code does, and write every rule that hides a section behind that attribute. A page whose JavaScript never ran must be a page with all of its words visible. If the stylesheet hides sections and the script is what reveals them, one error blanks the customer's whole website, and no animation is worth that.
+
+  Wrap the whole thing so it does not run at all under prefers-reduced-motion, and put a rule in the stylesheet that forces the finished state under that same query.
+
+  PARALLAX ON THE HERO PHOTO belongs in this same block when the customer has asked for it, and only then. Give the photo about 12% of extra height so there is something to travel through, then translate it on scroll by up to about 6% of the hero's height, driven by the hero's own getBoundingClientRect rather than raw scrollY so it is correct wherever the hero sits. Read the position inside requestAnimationFrame so the scroll listener itself does no layout work.
+
+  Use transform, NEVER background-attachment: fixed. iOS Safari has never supported it: it rescales and crops the image instead of scrolling it, so the effect is broken on the device most of these websites are read on. Transform is composited and works everywhere, including on a phone.
 
 Guard every querySelector result before using it. If the script throws, the page is broken and the verification stage will catch it, so write it defensively.
 

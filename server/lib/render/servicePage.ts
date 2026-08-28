@@ -42,6 +42,30 @@ import {
  * service area, gives a search engine something specific to match. That is why the h1, the meta
  * description, the intro copy and the areas section on this page are all about one service.
  */
+/*
+ * MOTION, AND THE ONE WAY IT MUST NOT FAIL.
+ *
+ * Two effects live in the script at the bottom of this file, and neither of them ships a comment,
+ * because everything inside that template literal is downloaded by every visitor of every page.
+ *
+ * SECTIONS RISING IN AS THEY ARRIVE. An IntersectionObserver adds a class as each section enters
+ * the viewport. The attribute the hiding hangs off, data-reveal, is set BY THE SCRIPT and appears
+ * nowhere in the markup, so a page whose JavaScript threw, was blocked, or never loaded is simply
+ * a page with all of its words on screen. Hiding sections in the stylesheet and revealing them
+ * with script would mean one error blanks a customer's website, which is not a trade worth making
+ * for an animation. There is a test on exactly this in test/pageset.test.ts.
+ *
+ * PARALLAX ON THE HERO PHOTO, on the styles whose layout asks for it. Transform, never
+ * background-attachment: fixed, which iOS Safari has never supported: it rescales and crops the
+ * image rather than scrolling it, which is why the previous version was fenced behind a
+ * pointer:fine query that excluded every phone. The photo carries 12% of extra height and travels
+ * through it by up to 6% of the hero, driven off the hero's own position rather than raw scrollY
+ * so it is right wherever the hero sits, and read inside requestAnimationFrame so the scroll
+ * listener does no layout.
+ *
+ * Both are skipped entirely under prefers-reduced-motion, and the stylesheet forces the finished
+ * state under the same query.
+ */
 export function renderServicePage(args: {
   plan: ContentPlan
   facts: BuildFacts
@@ -429,6 +453,48 @@ ${stylesheet(plan, spec, surfaces)}
       });
     });
   });
+
+  var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduced&&'IntersectionObserver' in window){
+    var targets=Array.prototype.slice.call(document.querySelectorAll('.section, .trust-bar'));
+    if(targets.length){
+      document.documentElement.setAttribute('data-reveal','');
+      targets.forEach(function(el){el.classList.add('reveal');});
+      var io=new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(!entry.isIntersecting){return;}
+          entry.target.classList.add('is-in');
+          io.unobserve(entry.target);
+        });
+      },{rootMargin:'0px 0px -12% 0px',threshold:0.05});
+      targets.forEach(function(el){io.observe(el);});
+    }
+  }
+
+  var layer=document.querySelector('.hero__bg picture, .hero__bg img');
+  if(layer&&!reduced&&${spec.layout.parallax}){
+    layer.classList.add('parallax-layer');
+    document.documentElement.setAttribute('data-parallax','');
+    var hero=document.querySelector('.hero');
+    var ticking=false;
+    var place=function(){
+      ticking=false;
+      if(!hero){return;}
+      var box=hero.getBoundingClientRect();
+      if(box.bottom<0||box.top>window.innerHeight){return;}
+      var progress=(window.innerHeight-box.top)/(window.innerHeight+box.height);
+      var shift=(progress-0.5)*box.height*0.12;
+      layer.style.transform='translate3d(0,'+shift.toFixed(1)+'px,0)';
+    };
+    var onScrollParallax=function(){
+      if(ticking){return;}
+      ticking=true;
+      window.requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener('scroll',onScrollParallax,{passive:true});
+    window.addEventListener('resize',onScrollParallax,{passive:true});
+  }
 })();
 </script>
 </body>
