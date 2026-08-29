@@ -206,8 +206,18 @@ export const PROBE_SCRIPT = `async () => {
     if (el.children.length > 0) continue
     const text = (el.textContent || '').trim()
     if (text.length < 3) continue
-    if (getComputedStyle(el).display === 'inline') continue
+    const cs = getComputedStyle(el)
+    if (cs.display === 'inline') continue
     if (isSentenceFragment(el)) continue
+    /*
+     * TWENTY, BECAUSE THAT IS WHERE BODY COPY ENDS AND DISPLAY TYPE BEGINS, not because it is a
+     * round number. Body and label text on these sites runs 13 to 18px; anything at 20 or above is
+     * a heading, and a heading wraps because it is large, which is the design rather than a fault.
+     *
+     * The first attempt at this used 28 and a real heading measured 27, which is what an arbitrary
+     * cliff looks like from the wrong side. The squeezes this check exists for were 13 and 16px.
+     */
+    if (parseFloat(cs.fontSize) >= 20) continue
     const lines = lineTops(el)
     const words = text.split(/\\s+/).filter(Boolean).length
     if (lines < 2 || words < 2) continue
@@ -219,6 +229,8 @@ export const PROBE_SCRIPT = `async () => {
   for (const h of Array.from(document.querySelectorAll('h1,h2,h3,h4'))) {
     const text = (h.textContent || '').trim()
     const words = text.split(/\\s+/).filter(Boolean).length
+    // Same boundary as above: display type wraps because it is large.
+    if (parseFloat(getComputedStyle(h).fontSize) >= 20) continue
     if (words > 0 && words <= 3 && lineTops(h) > 1) {
       wrappedHeadings.push(h.tagName.toLowerCase() + ' of ' + words + ' word(s) wraps: "' + text.slice(0, 60) + '"')
     }

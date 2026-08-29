@@ -31,8 +31,6 @@ const FIRST_PAINT = /<\/section>|<\/header>|<h1[\s>]/i
 /** A write per chunk is wasted work; a write per frame looks continuous and costs almost nothing. */
 const FRAME_MS = 120
 
-/** No bytes for this long while still building means something is wrong, and saying so beats a lie. */
-const STALL_MS = 45_000
 
 export type StreamState = 'idle' | 'streaming' | 'done' | 'failed'
 
@@ -113,7 +111,6 @@ export function StreamingPreview({
   const writtenRef = useRef(0)
   const openedRef = useRef(false)
   const [visible, setVisible] = useState(false)
-  const [stalled, setStalled] = useState(false)
   const [, forceTick] = useState(0)
   const lastChunkAt = useRef<number>(Date.now())
 
@@ -131,7 +128,6 @@ export function StreamingPreview({
         writtenRef.current = 0
         openedRef.current = false
         setVisible(false)
-        setStalled(false)
       }
     }
   }, [state, html.length])
@@ -175,17 +171,6 @@ export function StreamingPreview({
         /* already closed */
       }
     }
-  }, [state])
-
-  useEffect(() => {
-    if (state !== 'streaming') {
-      setStalled(false)
-      return
-    }
-    const t = window.setInterval(() => {
-      setStalled(Date.now() - lastChunkAt.current > STALL_MS)
-    }, 5_000)
-    return () => window.clearInterval(t)
   }, [state])
 
   const building = state === 'streaming'
@@ -260,12 +245,6 @@ export function StreamingPreview({
                 {Math.floor((Date.now() - startedAt) / 1000)}s so far, of about ten minutes
               </p>
             ) : null}
-          </div>
-        ) : null}
-
-        {stalled && building ? (
-          <div className="absolute inset-x-0 bottom-0 border-t border-amber-300 bg-amber-50 px-4 py-2 text-[13px] text-amber-900">
-            This is taking longer than usual. Leave the page open, it is still going.
           </div>
         ) : null}
 

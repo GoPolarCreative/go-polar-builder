@@ -258,6 +258,11 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--hairline:' + (onDarkPage ? 'var(--veil-14)' : 'var(--line)') + ';',
     '--font-head:' + spec.headingFamily + ';',
     '--font-body:' + spec.bodyFamily + ';',
+    // The face the payoff phrase of a heading switches to. See the em rule below for why.
+    '--font-accent:' + spec.accentFamily + ';',
+    '--accent-style:' + spec.accentStyle + ';',
+    '--accent-weight:' + spec.accentWeight + ';',
+    '--accent-track:' + spec.accentTracking + ';',
     '--weight-head:' + spec.headingWeight + ';',
     '--track-head:' + spec.headingTracking + ';',
     '--track-btn:' + spec.buttonTracking + ';',
@@ -318,7 +323,18 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     'h3{font-size:var(--h3);line-height:1.25;}',
     'p{margin:0 0 1rem;}',
     '/* The two-tone heading device: the payoff phrase of a heading, set in the accent colour. */',
-    'em{font-style:normal;color:var(--accent);}',
+    /*
+     * THE PAYOFF PHRASE CHANGES TYPEFACE, NOT JUST COLOUR.
+     *
+     * This rule used to be font-style:normal, which actively threw away the one device that makes
+     * Driftwood look designed: "Solid work. *Beautifully* considered." changes FACE mid-heading,
+     * into a serif italic. Ours only recoloured the words, so every heading was one voice in two
+     * colours, which reads as a highlighter rather than as typography.
+     *
+     * The face is per style, so this lands differently on each: a serif italic where the style is
+     * settled, the display face itself where the style is loud.
+     */
+    'em{font-family:var(--font-accent);font-style:var(--accent-style);font-weight:var(--accent-weight);color:var(--accent);letter-spacing:var(--accent-track);}',
     '.wrap{width:100%;max-width:var(--wrap);margin:0 auto;padding:0 20px;}',
     '.section{padding:var(--section-pad) 0;}',
     '@media (min-width:900px){.section{padding:var(--section-pad-lg) 0;}}',
@@ -639,6 +655,27 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
   const cta = [
     '.cta-band{background:var(--dark-block);color:var(--on-dark);text-align:center;}',
+
+    /*
+     * THE PARALLAX IMAGE BAND.
+     *
+     * What was here before was a flat block of colour, and the only thing carrying parallax was
+     * the hero photo, which a reader has scrolled past within a second. Chris asked twice for a
+     * parallax image SECTION and was right that there was not one: the dark bands held no picture
+     * at all, so there was nothing to move.
+     *
+     * This is the band you scroll through while the photo behind it travels the other way. The
+     * image is 130% of the band's height, which is the room the movement needs; without the extra
+     * height it would pull away from its own edge and show the section behind.
+     */
+    '.cta-band--photo{position:relative;overflow:hidden;isolation:isolate;' +
+      'padding-top:calc(var(--section-pad) * 1.4);padding-bottom:calc(var(--section-pad) * 1.4);}',
+    '.band__bg{position:absolute;inset:0;z-index:-1;overflow:hidden;}',
+    '.band__bg [data-parallax-layer]{position:absolute;inset:-15% 0;}',
+    '.band__bg img,.band__bg picture{width:100%;height:100%;object-fit:cover;display:block;}',
+    // Dark enough that white type is readable over any photo a tradie sends us.
+    '.band__scrim{position:absolute;inset:0;background:var(--dark-block);opacity:0.72;}',
+    '.cta-band--photo .wrap{position:relative;}',
     '.cta-band h2{color:var(--on-dark);}',
     '.cta-band p{color:var(--on-dark-72);max-width:56ch;margin-left:auto;margin-right:auto;}',
     '.cta-band__actions{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:1.75rem;}',
@@ -767,6 +804,71 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
     // Long email addresses are the other reliable source of a sideways scroll.
     '.contact-list a[href^="mailto:"]{word-break:break-word;overflow-wrap:anywhere;}',
+
+    /*
+     * THE RATING UNDER THE HERO BUTTONS. One line, sitting on the hero's dark ground, so it has to
+     * read against a photo rather than against a card.
+     */
+    '.hero__rating{display:inline-flex;align-items:center;gap:9px;margin:0 0 1.5rem;padding:9px 15px;' +
+      'border:1px solid var(--veil-18);border-radius:999px;' +
+      'background:var(--veil-10);text-decoration:none;font-size:0.84rem;color:var(--on-dark);' +
+      'transition:background-color .2s ease;}',
+    '.hero__rating:hover{background:var(--veil-18);}',
+    '.hero__rating strong{font-family:var(--font-head);font-size:1.05rem;line-height:1;}',
+    '.hero__rating .stars{margin:0;gap:2px;}',
+    '.hero__rating .stars .icon{width:13px;height:13px;}',
+    '.hero--light .hero__rating{color:var(--page-fg);border-color:var(--hairline);background:var(--surface);}',
+
+    /*
+     * THE TRUST LINE. A row of small notes on a hairline band, closer to a caption than a section.
+     * It centres when there is room and wraps to two neat rows on a phone.
+     */
+    '.trust-line{display:flex;flex-wrap:wrap;gap:14px 32px;justify-content:center;padding:15px 20px;}',
+    '.trust-note{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}',
+    '.trust-note .icon{width:15px;height:15px;color:var(--accent);}',
+    ...(spec.layout.sectionJoin === 'hard'
+      ? [
+          // Stated, not whispered. Small capitals on the dark ground the rest of the style uses.
+          '.trust-bar{background:var(--dark-block);border-bottom:1px solid var(--veil-12);}',
+          '.trust-note{font-size:0.74rem;font-weight:700;text-transform:uppercase;' +
+            'letter-spacing:0.10em;color:var(--on-dark-72);}',
+        ]
+      : [
+          // A caption on a hairline. Sentence case, so it sits under the hero rather than shouting.
+          '.trust-bar{background:var(--surface);border-top:1px solid var(--hairline);' +
+            'border-bottom:1px solid var(--hairline);}',
+          '.trust-note{font-size:0.82rem;font-weight:600;color:var(--page-muted);}',
+        ]),
+
+    /*
+     * THE FIGURES INSIDE ABOUT. A definition list, because that is what they are: a number and
+     * what it counts. Sized to sit under the paragraphs rather than compete with the heading.
+     */
+    '.about__figures{display:flex;flex-wrap:wrap;gap:10px 40px;margin:1.75rem 0 0;padding:1.35rem 0 0;' +
+      'border-top:1px solid var(--hairline);}',
+    '.about__figures div{min-width:0;}',
+    '.about__figures dt{font-family:var(--font-head);font-size:1.6rem;line-height:1;font-weight:var(--weight-head);' +
+      'letter-spacing:var(--track-head);color:var(--accent);}',
+    '.about__figures dd{margin:5px 0 0;font-size:0.79rem;color:var(--page-muted);max-width:16ch;line-height:1.35;}',
+
+    /*
+     * NO HARD CUTS BETWEEN SECTIONS.
+     *
+     * Alternating a tinted section against a white one produced a visible ruled line every time
+     * the ground changed, which is what makes a page read as blocks stacked by a machine. A tinted
+     * section now fades out of the one above it and back into the one below, so the joins are
+     * transitions rather than edges. Two pseudo elements, no extra markup, and it costs nothing on
+     * a section whose neighbour is the same colour because the gradient ends in the same value.
+     */
+    ...(spec.layout.sectionJoin === 'soft'
+      ? [
+          '.section--alt{position:relative;}',
+          '.section--alt::before,.section--alt::after{content:"";position:absolute;left:0;right:0;' +
+            'height:56px;pointer-events:none;}',
+          '.section--alt::before{top:0;background:linear-gradient(to bottom,var(--page-bg),transparent);}',
+          '.section--alt::after{bottom:0;background:linear-gradient(to top,var(--page-bg),transparent);}',
+        ]
+      : []),
 
     /*
      * SECTIONS RISE IN AS THEY ARRIVE.
@@ -951,6 +1053,26 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
         <a class="btn btn--primary" href="${esc(plan.hero.ctaPrimary.href)}">${icon(ICON_PHONE)}${esc(clean(plan.hero.ctaPrimary.label))}</a>
         <a class="btn btn--ghost" href="${esc(plan.hero.ctaSecondary.href)}">${esc(clean(plan.hero.ctaSecondary.label))}</a>
       </div>
+      ${
+        /*
+         * RIGHT UNDER THE BUTTONS, WHERE THE EYE ALREADY IS.
+         *
+         * A rating is the strongest thing most of these businesses have and it was buried two
+         * thirds down the page. One line, the mark, the score, five stars and a link to the
+         * profile, so it is checkable in a tap rather than a number we typed.
+         *
+         * Only when there is a profile AND a score. A rating with nothing behind it is exactly
+         * the unverifiable claim the house rules exist to stop.
+         */
+        facts.googleReviewLink && facts.googleRating
+          ? `<a class="hero__rating" href="${esc(facts.googleReviewLink)}" target="_blank" rel="noopener">
+        <svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg>
+        <strong>${facts.googleRating.toFixed(1)}</strong>
+        <span class="stars" aria-hidden="true">${icon(ICON_STAR).repeat(Math.round(facts.googleRating))}</span>
+        <span>rated on Google${facts.googleReviewCount ? ` from ${facts.googleReviewCount} reviews` : ''}</span>
+      </a>`
+          : ''
+      }
       <ul class="hero__points">
         ${points}
       </ul>
@@ -981,6 +1103,13 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
   ]
 
   const aboutPhoto = facts.photos[1] ?? null
+  /*
+   * The photo behind the parallax band. Third if there is one, so the hero, the about panel and
+   * this band are three different pictures: a page showing the same job three times reads as a
+   * business with one job. Falls back rather than going empty, and the band stays flat colour when
+   * there are no photos at all.
+   */
+  const bandPhoto = facts.photos[2] ?? facts.photos[0] ?? null
   const jsonLd = buildJsonLd(plan, facts)
 
   const assumptionComments = plan.assumptions
@@ -1030,13 +1159,24 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
   </div>
 </section>
 `,
+    /*
+     * ONE QUIET LINE, NOT FOUR CARDS.
+     *
+     * This was a bordered grid of four cards, each with an icon, a bold label and a line of
+     * detail, and it rendered as a tall panel immediately under the hero: the second thing on
+     * every page and one of the largest, for content that is genuinely a footnote. Licensed and
+     * insured is worth saying once, quietly, on the way past.
+     *
+     * The detail line is dropped rather than shrunk. Four labels read in a second; four labels
+     * each with a subtitle is a paragraph pretending to be a strip.
+     */
     trust: `
 <section class="trust-bar" data-gp="trust_strip">
-  <div class="wrap trust-grid">
+  <div class="wrap trust-line">
     ${plan.trustStrip
       .map(
         (item, i) =>
-          `<div class="trust-item">${icon([ICON_SHIELD, ICON_CLOCK, ICON_TICK, ICON_PIN][i % 4]!)}<div><b>${esc(clean(item.label))}</b><small>${esc(clean(item.detail))}</small></div></div>`,
+          `<span class="trust-note">${icon([ICON_SHIELD, ICON_CLOCK, ICON_TICK, ICON_PIN][i % 4]!)}${esc(clean(item.label))}</span>`,
       )
       .join('\n    ')}
   </div>
@@ -1051,6 +1191,26 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
       <h2>${twoTone(plan.about.heading, spec.twoTone)}</h2>
       ${plan.about.body.map((b) => `<p>${esc(clean(b))}</p>`).join('\n      ')}
       <blockquote class="pull-quote">${esc(clean(plan.about.pullQuote))}</blockquote>
+      ${
+        /*
+         * THE NUMBERS LIVE HERE NOW, AS A LINE UNDER THE STORY.
+         *
+         * They used to own a full-width band of their own, animated counters and all, which made
+         * "10+ years" and "free quotes" the tallest thing between two sections that were actually
+         * about the business. They are supporting evidence for the paragraph above them, not a
+         * chapter, so they read as one quiet row at the end of it.
+         */
+        plan.stats.length > 0
+          ? `<dl class="about__figures">
+        ${plan.stats
+          .map(
+            (st) =>
+              `<div><dt>${st.value}${esc(st.suffix)}</dt><dd>${esc(clean(st.label))}</dd></div>`,
+          )
+          .join('\n        ')}
+      </dl>`
+          : ''
+      }
       <div class="about__actions">
         <a class="btn btn--primary" href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
         <a class="btn btn--outline" href="#services">Our services</a>
@@ -1158,19 +1318,12 @@ ${
 </section>
 
 `,
-    stats: `
-<section class="stats-band" id="stats" data-gp="stats">
-  <div class="wrap stats-grid">
-    ${plan.stats
-      .map(
-        (s) =>
-          `<div class="stat"><strong data-count="${s.value}">${s.value}${esc(s.suffix)}</strong><span>${esc(clean(s.label))}</span></div>`,
-      )
-      .join('\n    ')}
-  </div>
-</section>
-
-`,
+    /*
+     * Deliberately empty. The numbers moved into About, and every style's order still lists
+     * 'stats', so this stays as a key that renders nothing rather than becoming an undefined
+     * lookup in the join below. The marker comment keeps the section addressable for edits.
+     */
+    stats: `<!-- data-gp="stats": the figures are rendered inside the about section. -->\n`,
     process: `
 <section class="section" id="process" data-gp="process">
   <div class="wrap">
@@ -1293,7 +1446,19 @@ ${
   </div>
 </section>
 
-<section class="section cta-band" data-gp="cta_band">
+<section class="section cta-band${bandPhoto ? ' cta-band--photo' : ''}" data-gp="cta_band">
+  ${
+    bandPhoto
+      ? `<div class="band__bg"><div data-parallax-layer>${picture({
+          webp: bandPhoto.webWebp,
+          jpeg: bandPhoto.webJpeg,
+          alt: clean(`${plan.brand.businessName} at work in ${plan.meta.geoPlacename}`),
+          width: bandPhoto.width,
+          height: bandPhoto.height,
+          sizes: '100vw',
+        })}</div><div class="band__scrim"></div></div>`
+      : ''
+  }
   <div class="wrap">
     <span class="eyebrow">Get started</span>
     <h2>${twoTone(plan.ctaBand.heading, spec.twoTone)}</h2>
@@ -1556,6 +1721,50 @@ ${orderedBody}
       });
     });
   });
+
+  var reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!reduced&&"IntersectionObserver" in window){
+    var targets=Array.prototype.slice.call(document.querySelectorAll(".section, .trust-bar, .cta-band"));
+    if(targets.length){
+      document.documentElement.setAttribute("data-reveal","");
+      targets.forEach(function(el){el.classList.add("reveal");});
+      var io=new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(!entry.isIntersecting){return;}
+          entry.target.classList.add("is-in");
+          io.unobserve(entry.target);
+        });
+      },{rootMargin:"0px 0px -12% 0px",threshold:0.05});
+      targets.forEach(function(el){io.observe(el);});
+    }
+  }
+
+  var parallaxLayers=Array.prototype.slice.call(document.querySelectorAll("[data-parallax-layer]"));
+  if(parallaxLayers.length&&!reduced){
+    document.documentElement.setAttribute("data-parallax","");
+    var ticking=false;
+    var place=function(){
+      ticking=false;
+      for(var i=0;i<parallaxLayers.length;i++){
+        var el=parallaxLayers[i];
+        var host=el.parentElement&&el.parentElement.parentElement;
+        if(!host){continue;}
+        var box=host.getBoundingClientRect();
+        if(box.bottom<-200||box.top>window.innerHeight+200){continue;}
+        var progress=(window.innerHeight-box.top)/(window.innerHeight+box.height);
+        var shift=(progress-0.5)*box.height*0.22;
+        el.style.transform="translate3d(0,"+shift.toFixed(1)+"px,0)";
+      }
+    };
+    var onScrollParallax=function(){
+      if(ticking){return;}
+      ticking=true;
+      window.requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll",onScrollParallax,{passive:true});
+    window.addEventListener("resize",onScrollParallax,{passive:true});
+  }
 })();
 </script>
 </body>

@@ -252,7 +252,7 @@ describe('the allowance is enforced on the plan, server side', () => {
  * later moves the hiding into the stylesheet "to avoid a flash", that test fails, and it should.
  */
 describe('sections rise in as they arrive', () => {
-  const render = (style: 'industrial' | 'established') => {
+  const render = (style: 'industrial' | 'modern' | 'established' | 'direct') => {
     const f = makeFixture({ ownPageServices: ['Blocked drains'] })
     const plan = { ...f.plan, style: { chosen: style, resolved: style, reason: 't', constraints: [] } }
     const pages = pagesFor(plan)
@@ -295,9 +295,16 @@ describe('sections rise in as they arrive', () => {
     expect(html).toContain('[data-parallax] .hero__bg img')
   })
 
-  it('leaves it out entirely on a style that does not', () => {
-    const html = render('established')
-    expect(html).not.toContain('[data-parallax] .hero__bg img')
+  /*
+   * EVERY STYLE, NOT SOME. It shipped on two of the four, so half of Chris's builds would never
+   * have had the thing he asked for twice. The four stay distinct through their fonts, colour,
+   * section order, hero shape and how a tinted band meets its neighbour; a drifting hero photo is
+   * not what was telling them apart.
+   */
+  it('is on for every style, because a customer on any of them asked for it', () => {
+    for (const style of ['industrial', 'modern', 'established', 'direct'] as const) {
+      expect(render(style), style).toContain('[data-parallax] .hero__bg img')
+    }
   })
 
   it('never uses background-attachment, which iOS Safari has never supported', () => {

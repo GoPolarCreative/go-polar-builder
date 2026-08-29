@@ -30,7 +30,6 @@ export const SECTION_IDS = [
   'services',
   'gallery',
   'why_us',
-  'stats',
   'process',
   'service_areas',
   'testimonials',
@@ -57,7 +56,8 @@ export const PLAN_KEY_SECTIONS: Record<string, SectionId[]> = {
   services: ['services'],
   gallery: ['gallery'],
   whyUs: ['why_us'],
-  stats: ['stats'],
+  // The figures moved into the about section, so that is the block an edit to them must patch.
+  stats: ['about'],
   process: ['process'],
   serviceAreas: ['service_areas'],
   testimonials: ['testimonials'],

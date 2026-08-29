@@ -21,11 +21,21 @@ import { KLAVIYO_METRICS, type KlaviyoMetric } from './klaviyo.js'
  *
  *   CANNOT  whether a flow exists, or whether an email was delivered. Only Klaviyo knows that.
  *
+ * AND THE CASE THAT BROKE THE "CAN" ABOVE. That inference held only while the events table could
+ * be trusted to hold everything that ever happened, and it cannot: wipe-jobs deletes a job's event
+ * rows along with the job. After every production job was wiped on 29 August this panel reported
+ * all twelve metrics as NEVER FIRED, on an account whose post-purchase flow was live and verified,
+ * because the evidence had been deleted and not the flows.
+ *
+ * So an empty table is now reported as no_record rather than never. The distinction is the whole
+ * point of the panel: "definitely broken" and "we cannot see" are different answers, and only one
+ * of them should send somebody to rebuild their Klaviyo flows.
+ *
  * So this is a "what is definitely broken" panel, not a "what is definitely working" one, and the
  * UI says so rather than implying a green tick means delivery.
  */
 
-export type MetricState = 'never' | 'recent' | 'quiet' | 'failing'
+export type MetricState = 'never' | 'recent' | 'quiet' | 'failing' | 'no_record'
 
 export interface MetricHealth {
   key: KlaviyoMetric
@@ -48,6 +58,10 @@ export async function klaviyoHealth(now: Date = new Date()): Promise<{
   window: string
   neverFired: number
   failing: number
+  /** Metrics we simply have no evidence about, because the events table is empty. */
+  noRecord: number
+  /** False when there is not a single stored Klaviyo event to reason from. */
+  historyPresent: boolean
   metrics: MetricHealth[]
 }> {
   const db = await getDb()
@@ -66,6 +80,14 @@ export async function klaviyoHealth(now: Date = new Date()): Promise<{
     .where(inArray(schema.events.type, ['klaviyo.sent', 'klaviyo.failed']))
     .orderBy(desc(schema.events.createdAt))
     .limit(5000)
+
+  /*
+   * Not one klaviyo row anywhere. Either nothing has ever fired on a fresh install, or the history
+   * has been deleted; from here those look identical, so the panel says which it cannot tell apart
+   * instead of picking the alarming one. A single row of history is enough to trust "never" again
+   * for the metrics that lack one.
+   */
+  const noHistoryAtAll = rows.length === 0
 
   const metrics: MetricHealth[] = (Object.keys(KLAVIYO_METRICS) as KlaviyoMetric[]).map((key) => {
     const name = KLAVIYO_METRICS[key]
@@ -90,6 +112,10 @@ export async function klaviyoHealth(now: Date = new Date()): Promise<{
     if (lastFailed && (!lastFired || lastFailed > lastFired)) {
       state = 'failing'
       detail = `The last attempt FAILED. The event never reached Klaviyo, so no flow could have run. Check /api/admin/events.`
+    } else if (!lastFired && noHistoryAtAll) {
+      state = 'no_record'
+      detail =
+        `No record on our side. This app has no Klaviyo events stored at all, which happens on a fresh install and after jobs are wiped, so this cannot tell you whether the metric has ever fired. Klaviyo keeps its own history and your flows are unaffected. The next build will start filling this in.`
     } else if (!lastFired) {
       state = 'never'
       detail = `Never fired. Klaviyo will not offer this metric in the flow picker until one event arrives, so a flow cannot exist yet.`
@@ -117,13 +143,20 @@ export async function klaviyoHealth(now: Date = new Date()): Promise<{
    * Ordered by how much they should worry somebody: failing first, then never fired, then quiet,
    * then working. An operator opening this should not have to hunt for the bad news.
    */
-  const rank: Record<MetricState, number> = { failing: 0, never: 1, quiet: 2, recent: 3 }
+  // no_record sits below never: it is not evidence of a fault, so it must not outrank one.
+  const rank: Record<MetricState, number> = { failing: 0, never: 1, no_record: 2, quiet: 3, recent: 4 }
   metrics.sort((a, b) => rank[a.state] - rank[b.state] || a.name.localeCompare(b.name))
 
   return {
     window: `${WINDOW_DAYS} days`,
     neverFired: metrics.filter((m) => m.state === 'never').length,
     failing: metrics.filter((m) => m.state === 'failing').length,
+    /*
+     * Surfaced so the screen can lead with one honest sentence rather than twelve red rows. An
+     * operator seeing every metric flagged assumes the worst, and here the worst is not true.
+     */
+    noRecord: metrics.filter((m) => m.state === 'no_record').length,
+    historyPresent: !noHistoryAtAll,
     metrics,
   }
 }

@@ -31,6 +31,11 @@ export function LogoUploader({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const upload = async (file: File) => {
+    const oversize = tooLargeMessage(file)
+    if (oversize) {
+      setError(oversize)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -130,6 +135,26 @@ export function LogoUploader({
   )
 }
 
+/*
+ * THE SIZE CHECK HAPPENS HERE, BEFORE THE FILE LEAVES THE BROWSER.
+ *
+ * The server has its own 10MB limit with a friendly message attached, and that message has never
+ * once been seen. Vercel refuses a request body over about 4.5MB at the platform edge, so an
+ * oversized photo never reaches our handler: the customer got "Request Entity Too Large
+ * FUNCTION_PAYLOAD_TOO_LARGE syd1::2mvxs-1787954708213-3993ee00318a", which tells a tradie
+ * nothing at all and looks like the site is broken.
+ *
+ * Checking in the browser is the only place the real message can be given, because it is the only
+ * place we still have the file when something can still be done about it.
+ */
+const UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
+
+function tooLargeMessage(file: File): string | null {
+  if (file.size <= UPLOAD_LIMIT_BYTES) return null
+  const mb = (file.size / 1024 / 1024).toFixed(1)
+  return `${file.name} is ${mb}MB, which is too big to upload. Resize it to under 4MB and add it again. Photos straight off a phone are often 5 to 10MB, so shrinking it on your phone before you upload is usually the quickest fix.`
+}
+
 export function PhotoUploader({
   jobId,
   photos,
@@ -164,6 +189,12 @@ export function PhotoUploader({
     const added: AssetRecord[] = []
     for (const [i, file] of queue.entries()) {
       setProgress({ done: i, total: queue.length, name: file.name })
+      const oversize = tooLargeMessage(file)
+      if (oversize) {
+        setError(oversize)
+        setProgress({ done: i + 1, total: queue.length, name: file.name })
+        continue
+      }
       try {
         const { stats } = await analyseUpload(file, 'photo')
         const { asset } = await api.uploadAsset(jobId, file, 'photo', stats)

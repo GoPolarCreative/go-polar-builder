@@ -3,14 +3,21 @@ import { useEffect, useState } from 'react'
 type Metric = {
   key: string
   name: string
-  state: 'never' | 'recent' | 'quiet' | 'failing'
+  state: 'never' | 'recent' | 'quiet' | 'failing' | 'no_record'
   lastFiredAt: string | null
   lastFailedAt: string | null
   recentSends: number
   detail: string
 }
 
-type Health = { window: string; neverFired: number; failing: number; metrics: Metric[] }
+type Health = {
+  window: string
+  neverFired: number
+  failing: number
+  noRecord: number
+  historyPresent: boolean
+  metrics: Metric[]
+}
 
 /**
  * Which emails can actually reach a customer.
@@ -71,6 +78,18 @@ export function KlaviyoPanel({ token }: { token: string }) {
 
       {open ? (
         <div className="border-t border-ice-100 px-4 pb-4 pt-3">
+          {!data.historyPresent ? (
+            <div className="mb-3 rounded-lg border border-ice-200 bg-ice-50 px-3 py-2">
+              <p className="text-sm font-semibold">No history stored on our side</p>
+              <p className="field-hint">
+                There is not a single Klaviyo event in this install, which happens on a fresh setup
+                and after jobs are wiped. That means this panel cannot tell you what has or has not
+                fired, so nothing below is evidence of a fault. Klaviyo keeps its own history and
+                your flows are unaffected. The next build starts filling this in.
+              </p>
+            </div>
+          ) : null}
+
           <p className="field-hint mb-3">
             This shows what the app sent, not what Klaviyo delivered. A metric that has never fired
             definitely has no flow. One that fired recently only means our side worked.
@@ -96,16 +115,21 @@ export function KlaviyoPanel({ token }: { token: string }) {
                         ? 'text-red-800'
                         : m.state === 'quiet'
                           ? 'text-amber-800'
-                          : 'text-emerald-800'
+                          : // no_record is not a pass either, so it must not be green.
+                            m.state === 'no_record'
+                            ? 'text-ice-500'
+                            : 'text-emerald-800'
                     }`}
                   >
                     {m.state === 'never'
                       ? 'NEVER FIRED'
                       : m.state === 'failing'
                         ? 'LAST ATTEMPT FAILED'
-                        : m.lastFiredAt
-                          ? whenever(m.lastFiredAt)
-                          : ''}
+                        : m.state === 'no_record'
+                          ? 'NO RECORD'
+                          : m.lastFiredAt
+                            ? whenever(m.lastFiredAt)
+                            : ''}
                   </span>
                 </div>
                 <p className="field-hint mt-1">{m.detail}</p>

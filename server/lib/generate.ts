@@ -6,26 +6,13 @@ import { config } from '../config.js'
 import type { IntakePayload } from '../../shared/intake.js'
 import { TRADE_SCHEMA_TYPE } from '../../shared/trades.js'
 import { constraintsFor, resolveDesignStyle } from '../../shared/styles.js'
-import {
-  callMessage,
-  extractJson,
-  isTruncated,
-  streamMessage,
-  stripCodeFence,
-  MAX_TOKENS_BUILD,
-  MAX_TOKENS_PLAN,
-  MAX_TOKENS_SECTION,
-} from './anthropic.js'
-import { HOUSE_RULES, PLAN_SYSTEM } from '../prompts/houseRules.js'
-import {
-  SECTION_SPECS,
-  buildUserMessage,
-  planUserMessage,
-  sectionUserMessage,
-} from '../prompts/messages.js'
+import { callMessage, extractJson, MAX_TOKENS_PLAN } from './anthropic.js'
+import { PLAN_SYSTEM } from '../prompts/houseRules.js'
+import { planUserMessage } from '../prompts/messages.js'
 import { buildFacts } from './facts.js'
 import { isUsablePhoto } from './audit.js'
-import { offlinePlan, offlineHtml } from './offline.js'
+import { offlinePlan } from './offline.js'
+import { renderSite } from './render/site.js'
 import { enforcePagesAllowed, slugify } from './pages.js'
 
 export type Emit = (e: GenerationEvent) => void | Promise<void>
@@ -357,145 +344,57 @@ function derivedStats(intake: IntakePayload): ContentPlan['stats'] {
 // Call 2 - build
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The home page.
+ *
+ * THIS IS A TEMPLATE NOW, AND THE MODEL NO LONGER WRITES HTML.
+ *
+ * It used to: the whole document came back from a build call steered by three hundred and fifty
+ * lines of house rules that already specified the section order, four style specs, the colour
+ * system, the type scale, the spacing rhythm, the icons, the form markup and the JavaScript. The
+ * model was re-typing a specification we already held, from a description of it, at four hundred
+ * seconds a build, and getting it wrong often enough that the repair pass was routine rather than
+ * exceptional. Chris counted four generations that looked the same anyway.
+ *
+ * Everything that went wrong in a fortnight of builds was the model failing to reproduce a rule
+ * that was written down: a nav dropdown with no resting state, a missing mobile call bar, a logo
+ * drawn at the wrong aspect, escaped tags showing in headings, a two column trust strip on a
+ * phone, colour literals outside :root. None of those are possible now, because the markup is not
+ * being invented each time.
+ *
+ * WHAT THE MODEL STILL DOES, AND IT IS THE PART THAT MATTERS: it writes the words. generatePlan
+ * produces the headline, the service blurbs, the about copy, the FAQ, the service page copy, all
+ * of it specific to this business. That call is untouched. The split is now the sensible one, with
+ * the model doing the writing and the renderer doing the building.
+ *
+ * The four styles are the variation: different fonts, colour, section order, hero shape, section
+ * joins and accent face, chosen per job. See shared/styles.ts.
+ */
 export async function generateHtml(args: { plan: ContentPlan; facts: BuildFacts; emit: Emit },
 ): Promise<{ html: string; sectioned: boolean }> {
   const { plan, facts, emit } = args
 
-  if (config().offlineGeneration) {
-    await emit({
-      type: 'status',
-      stage: 'building',
-      message: 'Building your site (offline fixture, no Anthropic key configured)',
-    })
-    const html = offlineHtml(plan, facts)
-    // Stream it out in chunks anyway, so the front end path is exercised exactly as it will be.
-    for (let i = 0; i < html.length; i += 2000) {
-      await emit({ type: 'html_chunk', text: html.slice(i, i + 2000) })
-    }
-    return { html, sectioned: false }
-  }
-
   await emit({ type: 'status', stage: 'building', message: 'Building your site' })
 
-  let html = ''
-  let stopReason: string | null = null
+  const html = renderSite(plan, facts)
 
-  for await (const chunk of streamMessage({
-    system: [
-      // The cached prefix. Large, identical every build. Do not interpolate into HOUSE_RULES.
-      { type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral', ttl: '1h' } },
-    ],
-    messages: [{ role: 'user', content: buildUserMessage(plan, facts) }],
-    maxTokens: MAX_TOKENS_BUILD,
-    /*
-     * THE SINGLE BIGGEST NUMBER IN THE WHOLE PIPELINE, and it is configurable so it can be judged
-     * on output rather than argued about.
-     *
-     * At 'high' the model thinks for 231 seconds before emitting the first byte of the document.
-     * That is the four minutes of blank screen that makes this feel broken next to tools that
-     * start drawing immediately, and no amount of progressive rendering fixes it, because for
-     * those 231 seconds there is genuinely nothing to draw.
-     *
-     * Quality is the constraint, not speed: Chris has chosen bespoke sites written for each
-     * business, so this only moves if the output holds up. BUILD_EFFORT exists so the comparison
-     * is made on real generated sites side by side.
-     */
-    effort: (process.env.BUILD_EFFORT as 'low' | 'medium' | 'high' | undefined) ?? 'high',
-  })) {
-    if (chunk.type === 'text') {
-      html += chunk.text
-      await emit({ type: 'html_chunk', text: chunk.text })
-    } else {
-      stopReason = chunk.stopReason
-    }
+  /*
+   * Streamed in chunks even though it is instant, because the front end is built around watching
+   * the page arrive and that is worth keeping. It now arrives in under a second instead of after
+   * four minutes of blank screen.
+   */
+  for (let i = 0; i < html.length; i += 2000) {
+    await emit({ type: 'html_chunk', text: html.slice(i, i + 2000) })
   }
 
-  html = stripCodeFence(html)
-
-  if (!isTruncated(html, stopReason)) return { html, sectioned: false }
-
-  // Brief s5: a finished site runs 80-150KB and one response may not carry it. Build the
-  // sectioned path from the start, it will be needed.
-  await emit({
-    type: 'status',
-    stage: 'assembling',
-    message: 'This one is a big site. Building it section by section',
-  })
-  const sectioned = await generateSectioned({ plan, facts, emit })
-  return { html: sectioned, sectioned: true }
+  return { html, sectioned: false }
 }
 
-/**
- * Sectioned fallback. Part 1 emits the head and the complete stylesheet, then each section is
- * generated against that stylesheet, then the parts are concatenated here rather than by the
- * model. Assembly server side is the point: it cannot forget a section.
+/*
+ * assembleSections is kept: it is a small pure helper with its own tests, and the edit path may
+ * still want it. generateSectioned, which called the model section by section when a single build
+ * call ran out of tokens, is gone. A template cannot truncate.
  */
-export async function generateSectioned(args: { plan: ContentPlan; facts: BuildFacts; emit: Emit },
-): Promise<string> {
-  const { plan, facts, emit } = args
-
-  const specs = SECTION_SPECS.filter((s) => {
-    if (s.id === 'gallery' && !plan.gallery.enabled) return false
-    if (s.id === 'testimonials' && !plan.testimonials.enabled) return false
-    return true
-  })
-
-  const parts: string[] = []
-  let stylesheet: string | null = null
-  const done: string[] = []
-
-  for (const [index, spec] of specs.entries()) {
-    await emit({
-      type: 'status',
-      stage: 'assembling',
-      message: `Building ${spec.label.toLowerCase()}`,
-    })
-
-    let text = ''
-    for await (const chunk of streamMessage({
-      system: [{ type: 'text', text: HOUSE_RULES, cache_control: { type: 'ephemeral', ttl: '1h' } }],
-      messages: [
-        {
-          role: 'user',
-          content: sectionUserMessage({
-            plan,
-            facts,
-            spec,
-            stylesheet,
-            previousSectionIds: done,
-          }),
-        },
-      ],
-      maxTokens: spec.id === 'head' ? MAX_TOKENS_BUILD : MAX_TOKENS_SECTION,
-      effort: 'high',
-    })) {
-      if (chunk.type === 'text') {
-        text += chunk.text
-        await emit({ type: 'html_chunk', text: chunk.text })
-      }
-    }
-
-    const cleaned = stripCodeFence(text)
-    parts.push(cleaned)
-    done.push(spec.id)
-
-    if (spec.id === 'head') {
-      const match = cleaned.match(/<style[^>]*>([\s\S]*?)<\/style>/i)
-      stylesheet = match?.[1]?.trim() ?? null
-    }
-
-    await emit({
-      type: 'section_done',
-      section: spec.label,
-      index: index + 1,
-      total: specs.length,
-    })
-  }
-
-  return assembleSections(parts)
-}
-
-/** Join the parts and make sure the document actually closes, whatever the last part did. */
 export function assembleSections(parts: string[]): string {
   let html = parts.map((p) => p.trim()).join('\n\n')
   if (!/<\/body>/i.test(html)) html += '\n</body>'

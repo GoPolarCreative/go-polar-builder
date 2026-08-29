@@ -170,6 +170,14 @@ export interface LayoutSpec {
   parallax: boolean
   /** Which sections appear, and in what order. */
   order: SectionKey[]
+  /**
+   * How a tinted section meets the one above and below it.
+   *
+   * 'soft' fades the ground in and out over about 56px, so the page reads as one surface. 'hard'
+   * leaves the edge, which is what a heavy, high-contrast style is for. Applying soft everywhere
+   * made the four styles measurably more alike, and test/styles.test.ts said so.
+   */
+  sectionJoin: 'soft' | 'hard'
 }
 
 export interface StyleSpec {
@@ -181,6 +189,21 @@ export interface StyleSpec {
   fontsQuery: string
   headingFamily: string
   bodyFamily: string
+  /*
+   * THE FACE THE PAYOFF PHRASE OF A HEADING SWITCHES TO.
+   *
+   * twoTone wraps the tail of a heading in <em>, and that used to be recoloured and nothing else,
+   * which reads as a highlighter rather than as typography. What makes the reference builds look
+   * designed is that the face CHANGES mid-heading: Driftwood runs "Solid work." in its sans and
+   * "Beautifully" in a serif italic underneath.
+   *
+   * Each style gets its own answer, so the device reads as that style's rather than as one trick
+   * applied four times.
+   */
+  accentFamily: string
+  accentStyle: 'normal' | 'italic'
+  accentWeight: number
+  accentTracking: string
   headingWeight: number
   headingTransform: 'uppercase' | 'none'
   headingTracking: string
@@ -229,9 +252,14 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
       hero: 'centred',
       heroForm: false,
       parallax: true,
-      order: ['trust', 'services', 'work', 'stats', 'why', 'quote', 'process', 'areas', 'reviews', 'faq', 'about', 'contact'],
+      order: ['trust', 'services', 'work', 'why', 'quote', 'process', 'areas', 'reviews', 'faq', 'about', 'contact'],
+      sectionJoin: 'hard',
     },
     reference: 'naarmearthmoving.com.au',
+    accentFamily: 'Poppins, system-ui, sans-serif',
+    accentStyle: 'italic',
+    accentWeight: 700,
+    accentTracking: '-0.01em',
     fontsQuery: 'family=Bebas+Neue&family=Poppins:wght@300;400;500;600;700',
     headingFamily: '"Bebas Neue", Impact, sans-serif',
     bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -277,9 +305,14 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
       hero: 'centred',
       heroForm: true,
       parallax: true,
-      order: ['trust', 'services', 'quote', 'work', 'reviews', 'why', 'stats', 'about', 'process', 'areas', 'faq', 'contact'],
+      order: ['trust', 'services', 'quote', 'work', 'reviews', 'why', 'about', 'process', 'areas', 'faq', 'contact'],
+      sectionJoin: 'hard',
     },
     reference: 'summithvacr.com.au',
+    accentFamily: 'Poppins, system-ui, sans-serif',
+    accentStyle: 'italic',
+    accentWeight: 700,
+    accentTracking: '-0.01em',
     fontsQuery: 'family=Oswald:wght@500;600;700&family=Poppins:wght@400;500;600;700',
     headingFamily: 'Oswald, "Arial Narrow", sans-serif',
     bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -326,11 +359,16 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     layout: {
       hero: 'editorial',
       heroForm: false,
-      parallax: false,
-      order: ['trust', 'about', 'reviews', 'services', 'quote', 'work', 'why', 'process', 'areas', 'stats', 'faq', 'contact'],
+      parallax: true,
+      order: ['trust', 'about', 'reviews', 'services', 'quote', 'work', 'why', 'process', 'areas', 'faq', 'contact'],
+      sectionJoin: 'soft',
     },
     reference: 'gildonconstructions.com.au',
-    fontsQuery: 'family=Poppins:wght@400;500;600;700;800',
+    accentFamily: '"Playfair Display", Georgia, "Times New Roman", serif',
+    accentStyle: 'italic',
+    accentWeight: 500,
+    accentTracking: '0',
+    fontsQuery: 'family=Playfair+Display:ital,wght@1,500&family=Poppins:wght@400;500;600;700;800',
     headingFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
     bodyFamily: 'Poppins, system-ui, -apple-system, "Segoe UI", sans-serif',
     headingWeight: 700,
@@ -376,11 +414,16 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     layout: {
       hero: 'split',
       heroForm: true,
-      parallax: false,
-      order: ['trust', 'about', 'services', 'work', 'why', 'stats', 'process', 'areas', 'reviews', 'faq', 'contact'],
+      parallax: true,
+      order: ['trust', 'about', 'services', 'work', 'why', 'process', 'areas', 'reviews', 'faq', 'contact'],
+      sectionJoin: 'soft',
     },
     reference: 'turquoiseplumbing.com.au',
-    fontsQuery: 'family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;700',
+    accentFamily: '"Playfair Display", Georgia, serif',
+    accentStyle: 'italic',
+    accentWeight: 500,
+    accentTracking: '0',
+    fontsQuery: 'family=Playfair+Display:ital,wght@1,500&family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;700',
     headingFamily: '"Space Grotesk", system-ui, sans-serif',
     bodyFamily: '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
     headingWeight: 700,

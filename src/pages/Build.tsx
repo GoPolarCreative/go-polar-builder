@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { InboxBeforeBuild } from '../components/InboxSetup'
 import { StreamingPreview } from '../components/StreamingPreview'
 import { Link, useParams } from 'react-router-dom'
-import type { CheckResult, GenerationEvent, GenerationStage, VerificationReport } from '../../shared/types'
+import type { GenerationEvent, GenerationStage } from '../../shared/types'
 import { ApiCallError, api, previewUrl, streamGeneration } from '../lib/api'
 import { Banner, BrandFooter, BrandHeader, Eyebrow } from '../components/ui'
 import { BuildProgress } from '../components/BuildProgress'
@@ -18,7 +18,6 @@ export default function Build() {
   const { jobId = '' } = useParams()
   const [stage, setStage] = useState<GenerationStage | null>(null)
   const [message, setMessage] = useState('')
-  const [report, setReport] = useState<VerificationReport | null>(null)
   const [version, setVersion] = useState<number | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null)
@@ -52,7 +51,6 @@ export default function Build() {
     setError(null)
     setStreamed('')
     setPlan(null)
-    setReport(null)
     setSections([])
     setVersion(null)
 
@@ -77,7 +75,6 @@ export default function Build() {
             setSections((s) => [...s, `${event.index}/${event.total} ${event.section}`])
             break
           case 'verification':
-            setReport(event.report)
             break
           case 'repair':
             setMessage(`Repair pass ${event.attempt}: ${event.failing.join(', ')}`)
@@ -215,7 +212,6 @@ export default function Build() {
         reassurance this screen owed the customer. The code was never the reassurance.
       */}
 
-      {report ? <ReportPanel report={report} /> : null}
 
       {version ? (
         <section className="mt-8">
@@ -236,19 +232,6 @@ export default function Build() {
             <a className="btn-ghost" href={previewUrl(jobId, version)} target="_blank" rel="noreferrer">
               Open in a new tab
             </a>
-            <button
-              className="btn-ghost"
-              onClick={async () => {
-                try {
-                  const res = await api.reverify(jobId, version)
-                  setReport(res.report as VerificationReport)
-                } catch (err) {
-                  setError({ message: 'Re-check failed', detail: String(err) })
-                }
-              }}
-            >
-              Run the checks again
-            </button>
           </div>
         </section>
       ) : null}
@@ -264,67 +247,3 @@ export default function Build() {
   )
 }
 
-function ReportPanel({ report }: { report: VerificationReport }) {
-  const all = [...report.static, ...report.render]
-  const failed = all.filter((c) => c.status === 'fail')
-  const skipped = all.filter((c) => c.status === 'skipped')
-
-  return (
-    <section className="mb-8">
-      <Eyebrow>What we checked</Eyebrow>
-      <h2 className="mb-3 text-xl">It checks its own work.</h2>
-      <div className="mb-4">
-        {report.passed ? (
-          <Banner tone="ok" title="Everything passed">
-            <p>
-              {all.length - skipped.length} of {all.length} checks passed
-              {skipped.length > 0 ? `, ${skipped.length} could not run on this machine` : ''}.
-              {report.repairPasses > 0 ? ` It fixed its own work ${report.repairPasses} time(s) to get there.` : ''}
-            </p>
-          </Banner>
-        ) : (
-          <Banner tone="error" title={`${failed.length} check(s) failed`}>
-            <p>After {report.repairPasses} repair pass(es). The customer is not shown a build in this state.</p>
-          </Banner>
-        )}
-      </div>
-
-      <ul className="divide-y divide-ice-100 overflow-hidden rounded-xl border border-ice-200 bg-white">
-        {all.map((c) => (
-          <CheckRow key={c.id} check={c} />
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function CheckRow({ check }: { check: CheckResult }) {
-  const tone =
-    check.status === 'pass'
-      ? 'text-emerald-600'
-      : check.status === 'fail'
-        ? 'text-red-600'
-        : 'text-ice-300'
-  const glyph = check.status === 'pass' ? 'PASS' : check.status === 'fail' ? 'FAIL' : 'SKIP'
-
-  return (
-    <li className="px-4 py-3">
-      <div className="flex items-start gap-3">
-        <span className={`mt-0.5 w-10 shrink-0 text-xs font-bold ${tone}`}>{glyph}</span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{check.label}</p>
-          {check.detail ? <p className="mt-0.5 text-xs text-ice-500">{check.detail}</p> : null}
-          {check.evidence?.length ? (
-            <ul className="mt-1.5 space-y-0.5">
-              {check.evidence.map((e, i) => (
-                <li key={i} className="font-mono text-[11px] break-words text-ice-700">
-                  {e}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </div>
-    </li>
-  )
-}

@@ -80,6 +80,22 @@ export interface RepairOutcome {
 export async function verifyAndRepair(args: {
   html: string
   facts: BuildFacts
+  /**
+   * Whether a failing document may be handed to the model to patch.
+   *
+   * FALSE FOR ANYTHING A TEMPLATE PRODUCED, WHICH IS NOW THE HOME PAGE AND EVERY SERVICE PAGE.
+   * Repair works by giving the model the failing checks and the whole document and taking back a
+   * rewritten one. That was right when the model wrote the document in the first place. Against
+   * template output it is actively wrong: the model rewrites markup it did not author, so a single
+   * failing check throws away the template and returns something else entirely, at about two
+   * hundred seconds a pass.
+   *
+   * A template that fails a check is a bug in the template. It gets fixed in the renderer, once,
+   * for every customer, instead of being papered over per build by a model that cannot see the
+   * renderer. The report is still attached to the build so the failure is visible rather than
+   * silent.
+   */
+  allowRepair?: boolean
   onEvent?: (
     e:
       | { type: 'verification'; report: VerificationReport }
@@ -90,8 +106,9 @@ export async function verifyAndRepair(args: {
   let report = await verify(html, args.facts)
   await args.onEvent?.({ type: 'verification', report })
 
+  const allowRepair = args.allowRepair ?? true
   let attempts = 0
-  while (!report.passed && attempts < MAX_REPAIR_ATTEMPTS) {
+  while (allowRepair && !report.passed && attempts < MAX_REPAIR_ATTEMPTS) {
     attempts++
     const failing = failingChecks(report)
     await args.onEvent?.({ type: 'repair', attempt: attempts, failing: failing.map((f) => f.label) })

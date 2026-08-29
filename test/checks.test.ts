@@ -499,7 +499,8 @@ describe('reviews are attributed to Google when there is a profile', () => {
     const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
     expect(f.html).toContain('Read our reviews on Google')
     expect(f.html).toContain('Leave a Google review')
-    expect((f.html.match(/g\.page\/r\/CdTest/g) ?? []).length).toBe(2)
+    // Three: the hero rating line, and the two buttons under the reviews.
+    expect((f.html.match(/g\.page\/r\/CdTest/g) ?? []).length).toBe(3)
   })
 
   /*

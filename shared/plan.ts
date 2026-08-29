@@ -20,7 +20,6 @@ export const SECTION_IDS = [
   'services',
   'gallery',
   'why_us',
-  'stats',
   'process',
   'service_areas',
   'testimonials',

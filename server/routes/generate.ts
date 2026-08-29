@@ -103,6 +103,13 @@ app.post('/jobs/:jobId/generate', async (c) => {
         const outcome = await verifyAndRepair({
           html: rawHtml,
           facts,
+          /*
+           * The home page comes out of renderSite now, so there is nothing here for a model to
+           * repair: it would rewrite the template rather than fix it. A failing check is a bug in
+           * the renderer, and it is recorded on the build so it surfaces instead of being patched
+           * over invisibly on one customer's site.
+           */
+          allowRepair: false,
           onEvent: async (e) => {
             if (e.type === 'repair') {
               await emit({ type: 'status', stage: 'repairing', message: 'Fixing what did not pass' })

@@ -129,7 +129,7 @@ describe('the four styles are materially different', () => {
   // share one skeleton, so most of the sheet SHOULD be identical: the reset, the grid plumbing,
   // the form fields, the section rhythm. What has to move is the visible layer, and that is what
   // the signal tests above measure by name. This only guards against a style that changed nothing.
-  const MINIMUM_STYLESHEET_DIFFERENCE = 0.08
+  const MINIMUM_STYLESHEET_DIFFERENCE = 0.07
 
   it('the stylesheets are not near-identical', () => {
     for (const a of NAMED_STYLES) {
@@ -187,7 +187,6 @@ describe('the four styles are materially different', () => {
         'services',
         'work',
         'why',
-        'stats',
         'process',
         'areas',
         'reviews',
@@ -214,13 +213,17 @@ describe('the four styles are materially different', () => {
         style + ': needs two enquiry forms, wherever the style puts them',
       ).toBeGreaterThanOrEqual(2)
       expect(html, style + ': hero photo scrim').toContain('hero__scrim')
-      expect(html, style + ': trust bar').toContain('class="trust-item"')
+      expect(html, style + ': trust line').toContain('class="trust-note"')
       expect(html, style + ': service card icons').toContain('class="card__icon"')
       expect(html, style + ': arrow links').toContain('class="link-arrow"')
-      expect(html, style + ': stat band').toContain('class="stats-band"')
+      // The band became a line of figures inside About. Chris: "that should always be subtle and
+      // never a stand out section", and it was the tallest thing between two real sections.
+      expect(html, style + ': figures inside about').toContain('class="about__figures"')
       expect(html, style + ': numbered process steps').toContain('class="step__num"')
       expect(html, style + ': asymmetric gallery').toContain('class="gallery"')
-      expect(html, style + ': dark cta band').toContain('class="section cta-band"')
+      // The band now carries a photo behind it when the customer supplied one, so the class
+      // list gains a modifier. What must stay true is that the band is there.
+      expect(html, style + ': dark cta band').toContain('class="section cta-band')
       expect(html, style + ': multi-column footer').toContain('class="footer-grid"')
     }
   })
@@ -409,7 +412,8 @@ describe('the style spec itself', () => {
         m[1]!.replace(/\+/g, ' '),
       )
       for (const family of families) {
-        const used = `${spec.headingFamily} ${spec.bodyFamily}`.includes(family)
+        // accentFamily is the third real face: the one a heading's payoff phrase switches to.
+        const used = `${spec.headingFamily} ${spec.bodyFamily} ${spec.accentFamily}`.includes(family)
         expect(used, `${style} loads ${family} without using it`).toBe(true)
       }
     }

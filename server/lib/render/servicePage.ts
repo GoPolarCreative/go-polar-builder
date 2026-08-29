@@ -471,20 +471,22 @@ ${stylesheet(plan, spec, surfaces)}
     }
   }
 
-  var layer=document.querySelector('.hero__bg picture, .hero__bg img');
-  if(layer&&!reduced&&${spec.layout.parallax}){
-    layer.classList.add('parallax-layer');
-    document.documentElement.setAttribute('data-parallax','');
-    var hero=document.querySelector('.hero');
+  var parallaxLayers=Array.prototype.slice.call(document.querySelectorAll("[data-parallax-layer]"));
+  if(parallaxLayers.length&&!reduced){
+    document.documentElement.setAttribute("data-parallax","");
     var ticking=false;
     var place=function(){
       ticking=false;
-      if(!hero){return;}
-      var box=hero.getBoundingClientRect();
-      if(box.bottom<0||box.top>window.innerHeight){return;}
-      var progress=(window.innerHeight-box.top)/(window.innerHeight+box.height);
-      var shift=(progress-0.5)*box.height*0.12;
-      layer.style.transform='translate3d(0,'+shift.toFixed(1)+'px,0)';
+      for(var i=0;i<parallaxLayers.length;i++){
+        var el=parallaxLayers[i];
+        var host=el.parentElement&&el.parentElement.parentElement;
+        if(!host){continue;}
+        var box=host.getBoundingClientRect();
+        if(box.bottom<-200||box.top>window.innerHeight+200){continue;}
+        var progress=(window.innerHeight-box.top)/(window.innerHeight+box.height);
+        var shift=(progress-0.5)*box.height*0.22;
+        el.style.transform="translate3d(0,"+shift.toFixed(1)+"px,0)";
+      }
     };
     var onScrollParallax=function(){
       if(ticking){return;}
@@ -492,8 +494,8 @@ ${stylesheet(plan, spec, surfaces)}
       window.requestAnimationFrame(place);
     };
     place();
-    window.addEventListener('scroll',onScrollParallax,{passive:true});
-    window.addEventListener('resize',onScrollParallax,{passive:true});
+    window.addEventListener("scroll",onScrollParallax,{passive:true});
+    window.addEventListener("resize",onScrollParallax,{passive:true});
   }
 })();
 </script>
