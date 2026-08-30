@@ -6,6 +6,7 @@ import {
   STEP_TITLES,
   TRAVEL_RADII,
   emptyIntake,
+  maxServices,
   unallocatedPages,
   type IntakePayload,
   type Palette,
@@ -143,6 +144,14 @@ export default function Intake() {
      * five pages for.
      */
     if (index === 1) {
+      // Same rule as the submit route, same reason it cannot be a schema rule: the allowance is
+      // on the job row, not in the answers.
+      const cap = maxServices(pagesAllowed)
+      const picked = data.services ?? []
+      if (picked.length > cap && !next.services) {
+        next.services = `Pick no more than ${cap}.`
+      }
+
       const left = unallocatedPages(pagesAllowed, data.ownPageServices, data.services ?? [])
       if (left > 0 && !next.ownPageServices) {
         next.ownPageServices =

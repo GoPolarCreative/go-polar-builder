@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { intakeSchema, unallocatedPages, type IntakePayload } from '../../shared/intake.js'
+import { intakeSchema, maxServices, unallocatedPages, type IntakePayload } from '../../shared/intake.js'
 import { suburbKey } from '../../shared/suburbs.js'
 import { AuSuburbProvider } from '../lib/suburbs.js'
 import { normaliseAuPhone } from '../../shared/phone.js'
@@ -61,6 +61,30 @@ app.post('/jobs/:jobId/intake/submit', async (c) => {
         error: 'validation_failed',
         detail: 'Service areas must be picked from the suburb list',
         issues: unknown.map((u) => ({ path: 'suburbsServiced', message: `Unknown suburb: ${u}` })),
+      },
+      422,
+    )
+  }
+
+  /*
+   * The services ceiling is twenty in the schema so that somebody who bought twenty pages can
+   * name twenty services. Everyone else is still held to ten, and only this side of the wire can
+   * tell the two apart, because the allowance is on the job row rather than in the answers.
+   */
+  const serviceCap = maxServices(job.pagesAllowed ?? 1)
+  if (payload.services.length > serviceCap) {
+    return c.json(
+      {
+        error: 'validation_failed',
+        detail: 'Too many services for this build',
+        issues: [
+          {
+            path: 'services',
+            message:
+              'Pick no more than ' + serviceCap + '. Buy more service pages if you need to list ' +
+              'more than that.',
+          },
+        ],
       },
       422,
     )

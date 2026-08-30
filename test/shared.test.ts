@@ -14,7 +14,7 @@ import {
   variantEnvKey,
   variantIdFor,
 } from '../shared/pricing'
-import { STEP_SCHEMAS, intakeSchema } from '../shared/intake'
+import { STEP_SCHEMAS, intakeSchema, maxServices } from '../shared/intake'
 import { runGapAudit, statedYearsFromText, isUsablePhoto } from '../server/lib/audit'
 import { hoursLines, openingHoursSpec } from '../server/lib/facts'
 import { assembleSections, enforcePlanInvariants } from '../server/lib/generate'
@@ -339,16 +339,41 @@ describe('intake validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects fewer than three services and more than ten', () => {
+  const names = (n: number) => Array.from({ length: n }, (_, i) => 'Service ' + (i + 1))
+
+  it('rejects fewer than three services', () => {
     expect(intakeSchema.safeParse(makeIntake({ services: ['One', 'Two'], primaryService: 'One' })).success).toBe(false)
-    expect(
-      intakeSchema.safeParse(
-        makeIntake({
-          services: ['a1', 'b2', 'c3', 'd4', 'e5', 'f6', 'g7', 'h8', 'i9', 'j10', 'k11'],
-          primaryService: 'a1',
-        }),
-      ).success,
-    ).toBe(false)
+  })
+
+  /*
+   * THE SCHEMA CEILING IS TWENTY AND THE TEN IS ENFORCED ELSEWHERE.
+   *
+   * It used to be ten here. It cannot be, because a customer who has paid for twenty service
+   * pages has to be able to name twenty services to put on them, and the schema cannot see how
+   * many pages they bought: the allowance is on the job row, not in the answers. So the schema
+   * holds the outer bound and maxServices holds the line, on both the browser and the route.
+   */
+  it('accepts twenty services, which a twenty-one page job needs', () => {
+    const result = intakeSchema.safeParse(makeIntake({ services: names(20), primaryService: 'Service 1' }))
+    expect(result.success, result.success ? '' : JSON.stringify(result.error.issues.slice(0, 2))).toBe(true)
+  })
+
+  it('rejects twenty-one services', () => {
+    expect(intakeSchema.safeParse(makeIntake({ services: names(21), primaryService: 'Service 1' })).success).toBe(false)
+  })
+
+  it('holds an ordinary buyer to ten and a twenty-page buyer to twenty', () => {
+    // The $220 build token on its own. One page, and the keyword-dump guard is unchanged.
+    expect(maxServices(1)).toBe(10)
+    // A missing or nonsense allowance must not widen the cap.
+    expect(maxServices(0)).toBe(10)
+    // Eleven pages was the old maximum job. Ten services, still ten.
+    expect(maxServices(11)).toBe(10)
+    // Each additional page past that buys the right to name one more service.
+    expect(maxServices(16)).toBe(15)
+    expect(maxServices(21)).toBe(20)
+    // And nothing beyond the schema ceiling, whatever the job row says.
+    expect(maxServices(40)).toBe(20)
   })
 
   /*

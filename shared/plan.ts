@@ -181,9 +181,9 @@ export const planSchema = z.preprocess(stripDeep, z.object({
       }),
     )
     .min(3)
-    // Matches the intake cap. Raising one without the other means a customer can submit ten
-    // services and then have the plan rejected for containing them.
-    .max(10),
+    // Matches the intake ceiling. Raising one without the other means a customer can submit
+    // twenty services and then have the plan rejected for containing them.
+    .max(20),
 
   /**
    * One extra page per additional page the customer bought, each about a single service.
@@ -208,10 +208,10 @@ export const planSchema = z.preprocess(stripDeep, z.object({
         included: z.array(z.string().min(10).max(160)).min(3).max(6),
       }),
     )
-    // Matches the intake's ownPageServices cap. A customer can buy a page per service, and with
-    // the services cap at ten this has to reach ten as well or the plan is rejected for containing
-    // exactly the pages the customer paid for.
-    .max(10)
+    // Matches the intake's ownPageServices ceiling. A customer can buy a page per service, and
+    // with the services ceiling at twenty this has to reach twenty as well or the plan is
+    // rejected for containing exactly the pages the customer paid for.
+    .max(20)
     .default([]),
 
   /*

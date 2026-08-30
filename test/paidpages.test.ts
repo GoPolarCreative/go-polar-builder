@@ -4,7 +4,7 @@ import { planUserMessage } from '../server/prompts/messages'
 import { buildFacts } from '../server/lib/facts'
 import { offlinePlan } from '../server/lib/offline'
 import { pagesDeliveredCheck } from '../server/lib/buildSet'
-import { unallocatedPages } from '../shared/intake'
+import { maxServices, unallocatedPages } from '../shared/intake'
 import { makeIntake } from './fixtures/site'
 import type { ContentPlan } from '../shared/plan'
 import { planSchema } from '../shared/plan'
@@ -282,10 +282,95 @@ describe('the page caps describe one coherent maximum job', () => {
     expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 3))).toBe(true)
   })
 
-  it('the delivered set matches the entitlement at the maximum', () => {
+  it('the delivered set matches the entitlement at the old maximum', () => {
     const delivered = ['index.html', ...TEN.map((s) => `services/${s.toLowerCase().replace(/\s+/g, '-')}/index.html`)]
     const check = pagesDeliveredCheck(TEN, delivered, 11)
     expect(check.status, check.detail).toBe('pass')
+  })
+
+  /*
+   * THE MAXIMUM JOB THE STOREFRONT CAN SELL, END TO END.
+   *
+   * The stepper goes to twenty additional pages, so twenty-one is the largest job that can be
+   * bought, and every cap in the chain has to reach it or the customer pays for pages that
+   * nothing downstream will accept. There were five separate caps of ten and they had to move
+   * together: the intake ceiling, ownPageServices, the plan's services array, the plan's
+   * servicePages array, and the support route's grant ceiling.
+   *
+   * The failure this pins is not hypothetical arithmetic. With the intake still at ten, a
+   * customer who bought twenty pages could allocate at most ten of them, unallocatedPages would
+   * never reach zero, and the submit route refuses on exactly that: they would have paid seven
+   * hundred and twenty dollars and been unable to submit the intake at all.
+   */
+  const TWENTY = [
+    ...TEN,
+    'Termite Inspections',
+    'Termite Treatment',
+    'Possum Removal',
+    'Bird Proofing',
+    'Tick Control',
+    'Moth Control',
+    'Carpet Beetle Control',
+    'Borer Treatment',
+    'Rodent Proofing',
+    'End of Lease Pest Control',
+  ]
+
+  it('twenty services is what a twenty-one page job is allowed to name', () => {
+    expect(TWENTY).toHaveLength(20)
+    expect(maxServices(21)).toBe(TWENTY.length)
+  })
+
+  it('a page for every one of twenty services leaves nothing unallocated', () => {
+    expect(unallocatedPages(21, TWENTY, TWENTY)).toBe(0)
+  })
+
+  it('twenty service pages satisfy the plan schema', () => {
+    const plan = basePlan(intakeWithPages(TWENTY, TWENTY))
+    const withPages: ContentPlan = {
+      ...plan,
+      services: TWENTY.map((name) => ({
+        name,
+        blurb: `${name} across Sydney and the surrounding suburbs.`,
+        iconHint: 'shield',
+      })),
+      servicePages: TWENTY.map((service) => ({
+        slug: service.toLowerCase().replace(/\s+/g, '-'),
+        service,
+        title: `${service} | Pest-Aside`,
+        metaDescription: `${service} across Sydney and NSW. Safe, effective treatments with long lasting results, and same day service when it is urgent.`,
+        h1: `${service} across Sydney`,
+        intro: [`We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`],
+        included: ['Inspection first.', 'Treatment tailored to the property.', 'Advice on prevention.'],
+      })),
+    }
+    const parsed = planSchema.safeParse(withPages)
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 3))).toBe(true)
+  })
+
+  it('the delivered set matches the entitlement at twenty-one pages', () => {
+    const delivered = [
+      'index.html',
+      ...TWENTY.map((s) => `services/${s.toLowerCase().replace(/\s+/g, '-')}/index.html`),
+    ]
+    const check = pagesDeliveredCheck(TWENTY, delivered, 21)
+    expect(check.status, check.detail).toBe('pass')
+  })
+
+  /*
+   * And the guard still bites at the top of the range. One page short of what was paid for is
+   * the failure the whole entitlement chain exists to catch, and a bigger maximum must not be a
+   * place where it quietly stops working.
+   */
+  it('nineteen pages built against twenty paid for still fails', () => {
+    const short = TWENTY.slice(0, 19)
+    const delivered = [
+      'index.html',
+      ...short.map((s) => `services/${s.toLowerCase().replace(/\s+/g, '-')}/index.html`),
+    ]
+    const check = pagesDeliveredCheck(short, delivered, 21)
+    expect(check.status).toBe('fail')
+    expect(check.detail).toContain('never assigned')
   })
 })
 

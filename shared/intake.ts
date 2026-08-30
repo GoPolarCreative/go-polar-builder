@@ -158,7 +158,16 @@ export const step2Schema = z
     services: z
       .array(z.string().trim().min(2).max(60))
       .min(3, 'Pick at least 3')
-      .max(10, 'Pick no more than 10'),
+      /*
+       * TWENTY IS THE OUTER BOUND, NOT THE LIMIT MOST PEOPLE MEET.
+       *
+       * The ten above is still the right answer for the ordinary buyer and is still enforced,
+       * just not here: see maxServices below. This number only has to be high enough that a
+       * customer who has PAID for twenty service pages can name twenty services to put on them.
+       * The schema cannot tell those two customers apart because the allowance lives on the job
+       * row, so it holds the ceiling and the entitlement-aware rule holds the line.
+       */
+      .max(20, 'Pick no more than 20'),
     primaryService: z.string().trim().min(2, 'Required'),
     /**
    * Services the customer has chosen to give a dedicated page. Each one costs an additional page
@@ -170,7 +179,7 @@ export const step2Schema = z
    * pest types, and an eight cap here would have silently stranded two paid-for pages with no
    * service to put on them.
    */
-  ownPageServices: z.array(z.string()).max(10).default([]),
+  ownPageServices: z.array(z.string()).max(20).default([]),
   freeQuotes: z.boolean(),
     emergency: z.boolean(),
   })
@@ -197,6 +206,28 @@ export type Step2 = z.infer<typeof step2Schema>
  * A service that is no longer in `services` does not count as allocated. Deselecting a service
  * on a later pass must give its page back rather than stranding it.
  */
+/**
+ * The most services this particular customer may list.
+ *
+ * TEN FOR ALMOST EVERYONE, AND THE REASON IS UNCHANGED. A home page covering a keyword dump is
+ * the failure this guards against, and the same customer whose real answer was ten had first
+ * listed eighty-eight. Ten holds that line while fitting a genuine list.
+ *
+ * BUT TEN CANNOT BE THE ANSWER FOR SOMEBODY WHO BOUGHT TWENTY PAGES. Every additional page has
+ * to be pointed at a service before the build will run, and ownPageServices is a subset of
+ * services, so a customer with twenty paid pages and a ten service cap could never allocate more
+ * than ten of them. The submit route refuses on unallocated pages, so that customer would have
+ * paid for twenty pages and then been unable to submit the intake at all, permanently, with no
+ * message telling them why. Raising the storefront stepper without raising this is how that
+ * happens.
+ *
+ * It is a shared function for the reason unallocatedPages is: the browser and the submit route
+ * have to give the same answer, and the failure being guarded against is the two disagreeing.
+ */
+export function maxServices(pagesAllowed: number): number {
+  return Math.min(20, Math.max(10, (pagesAllowed || 1) - 1))
+}
+
 export function unallocatedPages(
   pagesAllowed: number,
   ownPageServices: string[] | undefined,

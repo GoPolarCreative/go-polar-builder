@@ -1046,19 +1046,19 @@ app.post('/admin/grant-pages', async (c) => {
   const jobId = body.jobId ?? ''
   const pagesAllowed = Number(body.pagesAllowed)
   /*
-   * ELEVEN, NOT TEN, AND THE ARITHMETIC MATTERS.
+   * TWENTY-ONE, AND THE ARITHMETIC IS THE POINT.
    *
    * pagesAllowed counts the TOTAL pages including the home page, so the extras a customer gets
-   * are pagesAllowed - 1. A ceiling of ten therefore allowed nine service pages while the intake
-   * happily accepts ten services and ten ownPageServices, so the most a customer could ever be
-   * granted was one page short of a page per service.
+   * are pagesAllowed - 1. This ceiling therefore has to be the services ceiling PLUS ONE or the
+   * most a customer can be granted is one page short of a page per service. It was ten for that
+   * reason, then eleven when Pest-Aside Sydney bought a page for each of ten pest types, and it
+   * is twenty-one now that the storefront sells up to twenty additional pages.
    *
-   * Pest-Aside Sydney hit exactly that: ten pest types, a page for each, eleven pages in total.
-   * Eleven is the coherent ceiling because it is the services cap plus the home page, so the
-   * entitlement, the picker and the delivered-pages check now agree on the same maximum instead
-   * of the picker offering an allocation the grant could not fund.
+   * The number that must not drift is the relationship, not the value: entitlement, picker and
+   * delivered-pages check all have to agree on the same maximum, or the picker offers an
+   * allocation the grant cannot fund. Change the services ceiling and change this with it.
    */
-  const MAX_PAGES = 11
+  const MAX_PAGES = 21
   if (!jobId || !Number.isInteger(pagesAllowed) || pagesAllowed < 1 || pagesAllowed > MAX_PAGES) {
     return c.json(
       { error: 'bad_request', detail: `jobId and pagesAllowed (1 to ${MAX_PAGES}) are required.` },
