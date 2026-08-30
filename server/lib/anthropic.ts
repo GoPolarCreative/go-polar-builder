@@ -27,8 +27,18 @@ const API_VERSION = '2023-06-01'
 export const MAX_TOKENS_BUILD = 64_000
 /** Output ceiling for one section in the sectioned fallback. */
 export const MAX_TOKENS_SECTION = 24_000
-/** The content plan is compact JSON, but the thinking that precedes it is not. */
-export const MAX_TOKENS_PLAN = 32_000
+/*
+ * The content plan is compact JSON, but the thinking that precedes it is not.
+ *
+ * SIXTY-FOUR, BECAUSE THE PLAN IS NOW THE WHOLE BUILD. It was 32,000 when the plan was a
+ * sketch and a second call wrote the site. renderSite replaced that call, so this is the only
+ * place the model writes anything, and service pages now carry their own steps, scope factors
+ * and FAQ. A twenty-one page job runs roughly 1,100 tokens of JSON per service page: at
+ * 32,000 that job truncates, and truncation does not arrive as truncation, it arrives as a
+ * parse error about an unterminated string. MAX_TOKENS_BUILD sat at 64,000 against the same
+ * model, so this is a ceiling already known to be accepted rather than a hopeful number.
+ */
+export const MAX_TOKENS_PLAN = 64_000
 
 export interface SystemBlock {
   type: 'text'

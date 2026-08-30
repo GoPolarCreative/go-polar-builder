@@ -726,6 +726,62 @@ function faqMismatchEvidence(html: string, s: Structure): string[] {
   return evidence
 }
 
+/**
+ * A page somebody paid twenty five dollars for has its own middle, not just its own heading.
+ *
+ * THE MEASUREMENT THAT PUT THIS HERE. Two service pages off a real build, compared block by
+ * block: 480 words of visible text, 350 of them IDENTICAL on both pages, 130 about the actual
+ * service. The renderer was reprinting the home page process steps and the home page FAQ on
+ * every service page, so the two largest sections of a page about decking were about the
+ * business in general. Nothing noticed, because every page was valid, complete and passed.
+ *
+ * The plan schema now carries steps, scopeFactors and faqs per page, and the house rules ask
+ * for them. A prompt instruction is a hope, so this is the part that looks. The renderer
+ * stamps where each section came from, because a filled page and a fallback page are the same
+ * markup apart from the words.
+ *
+ * WARN, NOT FAIL, AND THE REASON IS NOT SQUEAMISHNESS. Repair is off for template output, so
+ * a fail holds the job. The one case that legitimately has no steps is the page
+ * enforcePlanInvariants synthesises when the model omitted a page the customer paid for:
+ * synthesised copy cannot know how a retaining wall gets built, and it is deliberately plain
+ * because thin and true beats padded and wrong. Failing here would block exactly the case the
+ * fallback exists to rescue, and would turn a thin page into no website at all.
+ */
+export function checkServicePageSubstance(html: string): CheckResult {
+  const label = 'Service pages are about their own service'
+  const canonical = /<link[^>]+rel="canonical"[^>]+href="([^"]*)"/i.exec(html)?.[1] ?? ''
+  if (!canonical.includes('/services/')) {
+    return { id: 'service_page_substance', label, status: 'pass', detail: 'Not a service page.' }
+  }
+
+  const wanted: [string, string][] = [
+    ['service_process', 'steps: how this job actually runs'],
+    ['service_scope', 'scopeFactors: what makes this job bigger or smaller'],
+    ['service_faq', 'faqs: questions about this service'],
+  ]
+  const missing = wanted.filter(([m]) => !html.includes('data-gp="' + m + '"'))
+
+  if (missing.length === 0) {
+    return {
+      id: 'service_page_substance',
+      label,
+      status: 'pass',
+      detail: 'Its own steps, scope factors and questions.',
+    }
+  }
+
+  return {
+    id: 'service_page_substance',
+    label,
+    status: 'warn',
+    detail:
+      missing.length +
+      ' of 3 page-specific sections are missing, so this page uses the home page content ' +
+      'in their place. The customer paid for this page.',
+    evidence: missing.map(([, why]) => why),
+  }
+}
+
 export async function runStaticChecks(html: string, facts: BuildFacts): Promise<CheckResult[]> {
   const s = readStructure(html)
 
@@ -746,6 +802,7 @@ export async function runStaticChecks(html: string, facts: BuildFacts): Promise<
     checkNoEscapedMarkup(html),
     checkAssets(html, s, facts),
     checkPageWeight(html, s, facts),
+    checkServicePageSubstance(html),
   ]
 
   const jsonLd = results.find((r) => r.id === 'jsonld_valid')!

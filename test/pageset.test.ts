@@ -11,6 +11,7 @@ import {
 import { renderSiteSet } from '../server/lib/render/set'
 import { renderServicePage } from '../server/lib/render/servicePage'
 import { verifySet } from '../server/lib/verify'
+import { runStaticChecks } from '../server/lib/checks/static'
 import { makeFixture } from './fixtures/site'
 
 /**
@@ -81,7 +82,7 @@ describe('links work served AND opened from disk', () => {
 })
 
 describe('every check runs on every page', () => {
-  it('all 20 pass on all three pages of a two-page-extra build', async () => {
+  it('all 21 pass on all three pages of a two-page-extra build', async () => {
     const set = renderSiteSet(twoExtra.plan, twoExtra.facts)
     const report = await verifySet(
       set.pages.map((p) => ({ path: p.path, url: p.url, title: p.title, html: p.html })),
@@ -93,8 +94,80 @@ describe('every check runs on every page', () => {
     expect(report.failures).toEqual([])
     expect(report.passed).toBe(true)
     for (const page of report.pages) {
-      expect(page.report.static, page.path).toHaveLength(16)
+      expect(page.report.static, page.path).toHaveLength(17)
     }
+  })
+
+  /*
+   * THE PARAGRAPH THAT SHIPPED TWICE.
+   *
+   * The hero subtitle rendered intro[0] and the "what it involves" section rendered the whole
+   * intro array, so every page whose intro was one paragraph printed its opening sentence
+   * twice, a screen apart. It shipped on Driftwood: the same sentence at lines 459 and 505 of
+   * services/commercial-carpentry/index.html. The schema now requires two paragraphs and the
+   * body starts at the second, so the two uses cannot collide.
+   */
+  it('never prints the opening paragraph twice', () => {
+    const set = renderSiteSet(twoExtra.plan, twoExtra.facts)
+    const servicePages = set.pages.filter((p) => p.path !== 'index.html')
+    expect(servicePages.length).toBeGreaterThan(0)
+
+    for (const page of servicePages) {
+      const content = twoExtra.plan.servicePages.find((sp) => page.path.includes(sp.slug))!
+      const first = content.intro[0]!
+      const occurrences = page.html.split(first).length - 1
+      expect(occurrences, page.path).toBe(1)
+    }
+  })
+
+  /*
+   * CHECK 24, SEEN TO FIRE BEFORE IT IS TRUSTED.
+   *
+   * The offline plan has no steps, scopeFactors or faqs, which is exactly the shape of a page
+   * that fell back to the home page content. The check has to warn on that and pass once the
+   * page carries its own, or it is decoration.
+   */
+  it('warns when a service page falls back to the home page content', async () => {
+    const set = renderSiteSet(twoExtra.plan, twoExtra.facts)
+    const page = set.pages.find((p) => p.path !== 'index.html')!
+    const results = await runStaticChecks(page.html, twoExtra.facts)
+    const check = results.find((r) => r.id === 'service_page_substance')!
+    expect(check.status).toBe('warn')
+    expect(check.evidence?.length).toBe(3)
+  })
+
+  it('passes once the page carries its own steps, scope factors and questions', async () => {
+    const filled = {
+      ...twoExtra.plan,
+      servicePages: twoExtra.plan.servicePages.map((sp) => ({
+        ...sp,
+        steps: [
+          { title: 'Mark it out', body: 'We set out the line and check the levels before anything gets dug.' },
+          { title: 'Do the work', body: 'The stage where the actual job happens, start to finish, on site.' },
+          { title: 'Clean up', body: 'Everything that came out goes away with us and the site is left tidy.' },
+        ],
+        scopeFactors: [
+          { label: 'Access', detail: 'Whether a machine can get in changes how long the job takes.' },
+          { label: 'Ground', detail: 'Rock, clay and sand all behave differently once you start digging.' },
+          { label: 'Size', detail: 'Length and height drive the materials and the hours more than anything.' },
+        ],
+        faqs: [
+          { q: 'How long does it take?', a: 'It depends on the size and the access, and we will tell you when we look at it.' },
+          { q: 'Do I need approval?', a: 'Sometimes, depending on height and where it sits, and we will talk you through it.' },
+          { q: 'What about drainage?', a: 'Water sitting behind a wall is what pushes it over, so it gets dealt with properly.' },
+        ],
+      })),
+    }
+    const set = renderSiteSet(filled, twoExtra.facts)
+    const page = set.pages.find((p) => p.path !== 'index.html')!
+    const results = await runStaticChecks(page.html, twoExtra.facts)
+    const check = results.find((r) => r.id === 'service_page_substance')!
+    expect(check.status, JSON.stringify(check.evidence)).toBe('pass')
+
+    // And the page is no longer mostly the home page.
+    expect(page.html).toContain('data-gp="service_process"')
+    expect(page.html).toContain('data-gp="service_scope"')
+    expect(page.html).toContain('data-gp="service_faq"')
   })
 
   it('A SET DOES NOT PASS WHEN ONE PAGE FAILS, even if the home page is perfect', async () => {

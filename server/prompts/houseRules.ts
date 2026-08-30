@@ -346,7 +346,11 @@ Return one JSON object and nothing else. No markdown fence, no commentary, no tr
 
 # RULES THAT DECIDE THE CONTENT
 
-1. NEVER INVENT A FACT. You may write, arrange and sharpen. You may not add information. No made-up testimonials, no invented years, no fabricated job counts, no licence numbers, no awards, no "over 500 happy customers", no response-time promises the business did not make. If the intake does not contain it, it does not exist.
+1. NEVER INVENT A FACT ABOUT THIS BUSINESS. You may write, arrange and sharpen. You may not add information. No made-up testimonials, no invented years, no fabricated job counts, no licence numbers, no awards, no "over 500 happy customers", no response-time promises the business did not make. If the intake does not contain it, it does not exist.
+
+1a. HOW THE TRADE WORKS IS NOT A FACT ABOUT THIS BUSINESS, AND YOU MAY WRITE IT. That a retaining wall needs drainage behind it, that turf wants watering in for the first fortnight, that a fence line gets marked out before any post goes in: this is general knowledge about the work, true of anyone doing it, and it is the difference between a page that reads as written and a page that reads as filled in. Write it plainly and only where you are confident it is right.
+
+The line between 1 and 1a is who the sentence is about. "We install ag pipe behind every wall" is a claim about this business and needs the intake to support it. "Water sitting behind a wall is what pushes it over, so drainage matters more than the blocks do" is about the work. Where you are unsure which side a sentence falls on, write the general version. Never state a rule, a standard, a council requirement, a measurement or a price as though you had checked it: say what generally applies and that the specifics get confirmed on site.
 
 2. STATS COME FROM THE INTAKE ONLY. Every entry in the stats array names the intake field it came from in its "source" property. Years in business, number of suburbs serviced, number of services offered, number of reviews supplied. If you cannot source four honest stats, return three.
 
@@ -364,7 +368,20 @@ Return one JSON object and nothing else. No markdown fence, no commentary, no tr
 
 9. COLOUR TOKENS. Build the full token set from the supplied palette. Keep enough contrast for text on every surface you name: primary is used behind white text, so it cannot be pale. Derive primaryDark and primaryLight from the primary rather than picking unrelated colours.
 
-10. SERVICE PAGES ARE NOT YOURS TO CHOOSE. The facts tell you which services the customer asked to have their own page and how many pages they have paid for. Write a servicePages entry for each one named there and no others: not one per service, and not an extra because a service looks important. Each entry is about that one service in the business's own service area, with its own title, meta description, h1 and intro, and an "included" list of what the job actually involves taken from the intake. It goes deeper than the home page's blurb rather than repeating it. If none were asked for, return an empty array.
+10. SERVICE PAGES ARE NOT YOURS TO CHOOSE, AND THEY ARE NOT A HEADING WITH A PARAGRAPH UNDER IT. The facts tell you which services the customer asked to have their own page and how many pages they have paid for. Write a servicePages entry for each one named there and no others: not one per service, and not an extra because a service looks important. If none were asked for, return an empty array.
+
+Every entry needs all of this, and the last three are what make it a page rather than a stub:
+
+  slug, service, title, metaDescription, h1   the service and the service area, not the business name alone
+  intro       TWO OR THREE paragraphs. The first is the hero subtitle and is read on its own, so it must stand up without the ones after it. Do not repeat it in the second.
+  included    three to six lines of what the job actually involves, from the intake
+  steps       three to five stages of how THIS job runs, start to finish. Not the business's general enquiry process, which is already on the home page and will be reprinted here if you leave this out. Marking out and checking levels, digging and setting posts, drainage, backfill, clean up: the actual sequence of the work.
+  scopeFactors  three to five things that make this job bigger or smaller. Height and length, access for machinery, what the ground is, what has to come out first, whether there is a slope. This is how a customer gets an honest answer to "what will it cost" without being quoted a price. NEVER put a number, a dollar figure or a range in here.
+  faqs        three to five questions someone would actually type before booking THIS job, answered. Specific to the service, not to the business. If the home page FAQ already answers it, ask a different question.
+
+WHY THIS MATTERS MORE THAN IT LOOKS. Two service pages from a real build were compared word by word: 480 words on the page, 350 of them identical to the other page, 130 about the service. When steps and faqs are missing the renderer falls back to the home page versions, which is how that happened. A customer paid twenty five dollars for that page. Fill it.
+
+Everything in it obeys rule 1 and rule 1a: the sequence of the work and what drives its scope are general trade knowledge and are yours to write, while anything about what this business specifically does, guarantees or charges comes from the intake or does not appear.
 
 11. THREE ARRAYS MUST HAVE EXACTLY FOUR ENTRIES. hero.trustPoints, trustStrip, and process. Not three, not five. These are rejected outright rather than trimmed, because trimming would silently drop something you wrote and padding would invent something you did not. If you cannot find four honest trust points, make them shorter rather than fewer.
 

@@ -211,7 +211,17 @@ ${stylesheet(plan, spec, surfaces)}
     <div class="about__copy">
       <span class="eyebrow">What it involves</span>
       <h2>${twoTone(`${content.service}, done properly`, spec.twoTone)}</h2>
-      ${content.intro.map((para) => `<p>${esc(clean(para))}</p>`).join('\n      ')}
+      ${
+        /*
+         * FROM THE SECOND PARAGRAPH. intro[0] is already the hero subtitle a screen above
+         * this, and rendering the whole array here printed it twice on every page that had
+         * one paragraph. The schema now requires two, so this is never empty.
+         */
+        content.intro
+          .slice(1)
+          .map((para) => `<p>${esc(clean(para))}</p>`)
+          .join('\n      ')
+      }
       <div class="about__actions">
         <a class="btn btn--primary" href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
         <a class="btn btn--outline" href="${esc(linkTo(home))}#services">All our services</a>
@@ -255,6 +265,31 @@ ${stylesheet(plan, spec, surfaces)}
   </div>
 </section>
 
+${
+  content.scopeFactors
+    ? `<section class="section" id="scope" data-gp="service_scope">
+  <div class="wrap">
+    ${sectionHead({
+      eyebrow: 'Before you book',
+      heading: `What shapes a ${content.service.toLowerCase()} job`,
+      blurb: null,
+      spec,
+    })}
+    <div class="grid grid--3">
+      ${content.scopeFactors
+        .map(
+          (f) => `<article class="card">
+        <h3>${esc(clean(f.label))}</h3>
+        <p>${esc(clean(f.detail))}</p>
+      </article>`,
+        )
+        .join('\n      ')}
+    </div>
+  </div>
+</section>
+`
+    : ''
+}
 <section class="section section--dark" id="areas">
   <div class="wrap">
     ${sectionHead({
@@ -270,16 +305,19 @@ ${stylesheet(plan, spec, surfaces)}
   </div>
 </section>
 
-<section class="section" id="process">
+<section class="section" id="process" data-gp="${content.steps ? 'service_process' : 'process'}">
   <div class="wrap">
     ${sectionHead({
       eyebrow: 'How it works',
-      heading: 'A clear path, from first call to finished job',
+      // The page's own steps when it has them, the home page's when it does not.
+      heading: content.steps
+        ? `How a ${content.service.toLowerCase()} job runs`
+        : 'A clear path, from first call to finished job',
       blurb: null,
       spec,
     })}
     <div class="process-grid">
-      ${plan.process
+      ${(content.steps ?? plan.process)
         .map(
           (step, i) => `<div class="step">
         <span class="step__num">${String(i + 1).padStart(2, '0')}</span>
@@ -292,12 +330,19 @@ ${stylesheet(plan, spec, surfaces)}
   </div>
 </section>
 
-<section class="section section--alt" id="faq">
+<section class="section section--alt" id="faq" data-gp="${content.faqs ? 'service_faq' : 'faq'}">
   <div class="wrap">
-    ${sectionHead({ eyebrow: 'Common questions', heading: 'Questions, answered', blurb: null, spec })}
+    ${sectionHead({
+      eyebrow: 'Common questions',
+      heading: content.faqs
+        ? `${content.service}, answered`
+        : 'Questions, answered',
+      blurb: null,
+      spec,
+    })}
     <div class="faq">
-      ${plan.faq
-        .slice(0, 4)
+      ${(content.faqs ?? plan.faq)
+        .slice(0, 5)
         .map(
           (f, i) => `<div class="faq-item" data-faq data-open="${i === 0 ? 'true' : 'false'}">
         <button type="button" aria-expanded="${i === 0 ? 'true' : 'false'}">${esc(clean(f.q))}${icon(ICON_CHEVRON)}</button>

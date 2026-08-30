@@ -274,7 +274,10 @@ describe('the page caps describe one coherent maximum job', () => {
         title: `${service} | Pest-Aside Sydney`,
         metaDescription: `${service} across Sydney and NSW. Safe, effective treatments with long lasting results, and same day service when it is urgent.`,
         h1: `${service} across Sydney`,
-        intro: [`We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`],
+        intro: [
+          `We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`,
+          `A second paragraph, because intro[0] is the hero subtitle and the body starts at the next one.`,
+        ],
         included: ['Inspection first.', 'Treatment tailored to the property.', 'Advice on prevention.'],
       })),
     }
@@ -340,7 +343,10 @@ describe('the page caps describe one coherent maximum job', () => {
         title: `${service} | Pest-Aside`,
         metaDescription: `${service} across Sydney and NSW. Safe, effective treatments with long lasting results, and same day service when it is urgent.`,
         h1: `${service} across Sydney`,
-        intro: [`We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`],
+        intro: [
+          `We handle ${service.toLowerCase()} for homes and businesses right across Sydney.`,
+          `A second paragraph, because intro[0] is the hero subtitle and the body starts at the next one.`,
+        ],
         included: ['Inspection first.', 'Treatment tailored to the property.', 'Advice on prevention.'],
       })),
     }
@@ -395,7 +401,10 @@ describe('plan text is stripped of markup on the way in', () => {
           metaDescription:
             'A meta description that comfortably clears the seventy character minimum this schema asks for.',
           h1,
-          intro: ['An introduction paragraph that is comfortably past the forty character minimum.'],
+          intro: [
+            'An introduction paragraph that is comfortably past the forty character minimum.',
+            'And a second one, because the hero uses the first and the body uses the rest.',
+          ],
           included: ['Inspection first.', 'Treatment tailored to it.', 'Advice on prevention.'],
         },
       ],

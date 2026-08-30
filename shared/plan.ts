@@ -203,9 +203,72 @@ export const planSchema = z.preprocess(stripDeep, z.object({
         title: z.string().min(10).max(70),
         metaDescription: z.string().min(70).max(165),
         h1: z.string().min(10).max(90),
-        intro: z.array(z.string().min(40)).min(1).max(3),
+        /*
+         * TWO PARAGRAPHS MINIMUM, AND THE REASON IS A BUG THIS SCHEMA ALLOWED.
+         *
+         * The first paragraph is the hero subtitle and the rest are the body of the "what it
+         * involves" section. While one was legal, both places rendered intro[0], and every
+         * real page printed its opening sentence twice: once under the h1 and again a screen
+         * later. Confirmed on the shipped Driftwood export. Requiring two makes the two uses
+         * distinct by construction rather than by the renderer remembering to slice.
+         */
+        intro: z.array(z.string().min(40)).min(2).max(3),
         /** What the job actually involves. Three to six lines, from the intake, never invented. */
         included: z.array(z.string().min(10).max(160)).min(3).max(6),
+
+        /*
+         * WHY THESE THREE EXIST, MEASURED RATHER THAN GUESSED.
+         *
+         * Two service pages off the last real build were compared block by block: 480 words
+         * of visible text, of which 350 were IDENTICAL on both pages and 130 were about the
+         * service. The template was reprinting the home page's process steps and the home
+         * page's FAQ on every service page, so the two biggest content sections on a page
+         * about decking were about the business in general.
+         *
+         * A page carrying 130 words about its own subject is a container with the right label
+         * on it. These give the page its own middle: how this particular job runs, what makes
+         * it bigger or smaller, and the questions people actually ask about it.
+         *
+         * OPTIONAL ON PURPOSE. enforcePlanInvariants synthesises a page from the intake when
+         * the model omits one it was paid to write, and synthesised copy cannot know how a
+         * retaining wall gets built. When they are absent the renderer falls back to the home
+         * page's sections, which is what it always did. Thin and true beats padded and wrong.
+         */
+        steps: z
+          .array(
+            z.object({
+              title: z.string().min(3).max(60),
+              body: z.string().min(40).max(300),
+            }),
+          )
+          .min(3)
+          .max(5)
+          .optional(),
+        /*
+         * What makes this job bigger or smaller. Mechanism only: D44 forbids quoting a price
+         * or promising a result, and this is the honest way to answer "what will it cost"
+         * without doing either.
+         */
+        scopeFactors: z
+          .array(
+            z.object({
+              label: z.string().min(3).max(60),
+              detail: z.string().min(40).max(300),
+            }),
+          )
+          .min(3)
+          .max(5)
+          .optional(),
+        faqs: z
+          .array(
+            z.object({
+              q: z.string().min(10).max(120),
+              a: z.string().min(60).max(600),
+            }),
+          )
+          .min(3)
+          .max(5)
+          .optional(),
       }),
     )
     // Matches the intake's ownPageServices ceiling. A customer can buy a page per service, and

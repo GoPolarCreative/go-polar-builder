@@ -130,7 +130,7 @@ ${
     ? 'None. This is a one page website. Return an empty servicePages array.'
     : `The customer has paid for a dedicated page for each of these services, and ONLY these:\n${pageServices
         .map((s) => `- ${s}`)
-        .join('\n')}\nWrite one servicePages entry for each name above, using that exact name in the service field. The allowance for this job is ${pagesAllowed} page(s) in total, home page included.`
+        .join('\n')}\nWrite one servicePages entry for each name above, using that exact name in the service field. The allowance for this job is ${pagesAllowed} page(s) in total, home page included.\n\nEach of those entries must carry its own steps, scopeFactors and faqs as well as intro and included. Those three are what the page is actually made of: leave them out and the page falls back to the home page's process and the home page's FAQ, and the customer has paid for a page that repeats the one they already had. See house rule 10.`
 }
 
 # SERVICE AREA

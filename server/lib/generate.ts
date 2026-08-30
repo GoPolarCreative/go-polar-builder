@@ -193,9 +193,17 @@ export function enforcePlanInvariants(
       title: (service + " | " + intake.businessName).slice(0, 70),
       metaDescription: meta.length >= 70 ? meta : (meta + " " + intake.businessName + " services " + where + ".").slice(0, 165),
       h1: (service + " in " + intake.baseSuburb.name).slice(0, 90),
+      /*
+       * TWO PARAGRAPHS, because the schema requires two and the renderer uses the first as
+       * the hero subtitle and the rest as the body. Both are still assembled entirely from
+       * the intake: the name, the service, the suburbs, the years and the phone number. This
+       * is the page nobody wrote, so it stays plainer than anything the model produces.
+       */
       intro: [
         intake.businessName + " handles " + service.toLowerCase() + " across " + where +
           ". Ring us and we will talk through what your job actually involves.",
+        "We have been working in the area for " + intake.yearsInBusiness +
+          " years. Call " + phone + " and we will come and look at the job before quoting on it.",
       ],
       included: [
         "Servicing " + where + " and the surrounding suburbs.",

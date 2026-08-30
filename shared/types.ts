@@ -161,6 +161,7 @@ export type CheckId =
   | 'header_closed_at_rest'
   | 'page_weight'
   | 'pages_delivered'
+  | 'service_page_substance'
 
 export type CheckStatus = 'pass' | 'fail' | 'skipped' | 'warn'
 
