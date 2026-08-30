@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+ import { describe, expect, it } from 'vitest'
 import { enforcePlanInvariants } from '../server/lib/generate'
 import { planUserMessage } from '../server/prompts/messages'
 import { buildFacts } from '../server/lib/facts'
@@ -516,5 +517,44 @@ describe('headings are only required for sections that render', () => {
       testimonials: { enabled: true, heading: '', items: [] },
     })
     expect(r.success).toBe(false)
+  })
+})
+
+/**
+ * THE PICKER MUST NOT KEEP ITS OWN MAXIMUM.
+ *
+ * Callum's landscaping build hit this on the intake screen. He had paid for ten extra pages, and
+ * the services picker said "8 of 8 chosen" directly above a panel telling him he had 2 pages
+ * still to allocate and could not continue until he had. Both statements were true and the screen
+ * had no way out of itself. He had already paid.
+ *
+ * The eight was hardcoded in five places in StepServices and had never matched anything: the
+ * schema has allowed ten since Pest-Aside. A cap below the page allowance is not a limit, it is a
+ * dead end, because the submit route refuses while any paid page is unallocated.
+ *
+ * This reads the source rather than the DOM because the failure was a literal in the markup, not
+ * a behaviour a rendered component would show without a browser. It follows the same pattern as
+ * the copy tests, which grep the prompts for the same class of reason.
+ */
+describe('the services picker takes its cap from the entitlement', () => {
+  const source = readFileSync(new URL('../src/pages/Intake.tsx', import.meta.url), 'utf8')
+  const step = source.slice(source.indexOf('function StepServices'), source.indexOf('function StepOwnPages'))
+
+  it('derives the cap from maxServices', () => {
+    expect(step).toContain('const cap = maxServices(pagesAllowed)')
+  })
+
+  it('has no hardcoded numeric cap left anywhere in the picker', () => {
+    // selected.length < 8, and the four others that went with it.
+    expect(step).not.toMatch(/selected\.length\s*<\s*\d/)
+    expect(step).not.toMatch(/of 8 chosen/)
+    expect(step).not.toMatch(/between 3 and 8/)
+  })
+
+  it('the cap always covers the pages the customer paid for', () => {
+    // The property that was violated: you can never be shown fewer services than you have pages.
+    for (const pagesAllowed of [1, 3, 9, 11, 16, 21]) {
+      expect(maxServices(pagesAllowed)).toBeGreaterThanOrEqual(pagesAllowed - 1)
+    }
   })
 })

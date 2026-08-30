@@ -520,11 +520,18 @@ function StepServices({
   const trade = (data.trade ?? 'other') as Trade
   const presets = SERVICE_PRESETS[trade] ?? []
   const selected = data.services ?? []
+  /*
+   * Ten for an ordinary build, more only for somebody who has paid for more pages. Every
+   * service page has to be pointed at a service before the build will run, so a cap below
+   * the page allowance is not a limit, it is a dead end: the submit route refuses while any
+   * paid page is unallocated. Same function the route and the step validator use.
+   */
+  const cap = maxServices(pagesAllowed)
 
   const toggle = (name: string) => {
     const next = selected.includes(name)
       ? selected.filter((s) => s !== name)
-      : selected.length < 8
+      : selected.length < cap
         ? [...selected, name]
         : selected
     patch({
@@ -540,7 +547,8 @@ function StepServices({
         <h1 className="text-3xl">What do you actually do?</h1>
       </div>
       <p className="text-sm text-ice-700">
-        Pick between 3 and 8. These become the services section, and the first one drives your headline.
+        Pick between 3 and {cap}. These become the services section, and the first one drives your
+        headline.
       </p>
 
       <div>
@@ -565,7 +573,10 @@ function StepServices({
             ))}
         </div>
         {errors.services ? <p className="field-error">{errors.services}</p> : null}
-        <p className="field-hint">{selected.length} of 8 chosen.</p>
+        <p className="field-hint">
+          {selected.length} of {cap} chosen.
+          {selected.length >= cap ? " That is the most this build can have." : ''}
+        </p>
 
         <div className="mt-3 flex gap-2">
           <TextInput
@@ -576,7 +587,7 @@ function StepServices({
               if (e.key === 'Enter') {
                 e.preventDefault()
                 const name = custom.trim()
-                if (name.length >= 2 && !selected.includes(name) && selected.length < 8) {
+                if (name.length >= 2 && !selected.includes(name) && selected.length < cap) {
                   patch({ services: [...selected, name] })
                   setCustom('')
                 }
@@ -588,7 +599,7 @@ function StepServices({
             className="btn-ghost"
             onClick={() => {
               const name = custom.trim()
-              if (name.length >= 2 && !selected.includes(name) && selected.length < 8) {
+              if (name.length >= 2 && !selected.includes(name) && selected.length < cap) {
                 patch({ services: [...selected, name] })
                 setCustom('')
               }
