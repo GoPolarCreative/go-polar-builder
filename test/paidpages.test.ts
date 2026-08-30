@@ -5,7 +5,7 @@ import { planUserMessage } from '../server/prompts/messages'
 import { buildFacts } from '../server/lib/facts'
 import { offlinePlan } from '../server/lib/offline'
 import { pagesDeliveredCheck } from '../server/lib/buildSet'
-import { maxServices, unallocatedPages } from '../shared/intake'
+import { MAX_PHOTOS, maxServices, unallocatedPages } from '../shared/intake'
 import { makeIntake } from './fixtures/site'
 import type { ContentPlan } from '../shared/plan'
 import { planSchema } from '../shared/plan'
@@ -556,5 +556,54 @@ describe('the services picker takes its cap from the entitlement', () => {
     for (const pagesAllowed of [1, 3, 9, 11, 16, 21]) {
       expect(maxServices(pagesAllowed)).toBeGreaterThanOrEqual(pagesAllowed - 1)
     }
+  })
+})
+
+/**
+ * THE SWEEP THAT FOLLOWED THE PICKER BUG.
+ *
+ * The services cap was found by a customer, not by us, so every other numeric limit in the intake
+ * was compared against its schema afterwards. These pin the two that were worth changing, and the
+ * agreement of the rest.
+ *
+ * Nothing here tests a rendered component. The failures in this class are literals sitting in
+ * markup, which is what a source read catches and a unit test does not.
+ */
+describe('the intake limits agree with the schema', () => {
+  const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
+
+  it('the photo maximum is written once and read everywhere', () => {
+    const uploader = src('../src/components/Uploader.tsx')
+    expect(MAX_PHOTOS).toBe(20)
+    // The four copies that used to exist: the slice, the label, the disabled state, the schema.
+    expect(uploader).not.toMatch(/photos\.length\s*>=\s*\d/)
+    expect(uploader).not.toMatch(/slice\(0,\s*\d+\s*-\s*photos\.length\)/)
+    expect(uploader).not.toMatch(/of 20 photos/)
+    expect(uploader).toContain('MAX_PHOTOS')
+  })
+
+  it('says so when photos are dropped rather than discarding them quietly', () => {
+    const uploader = src('../src/components/Uploader.tsx')
+    expect(uploader).toContain('const skipped = files.length - queue.length')
+    expect(uploader).toMatch(/skipped > 0 && !problem/)
+  })
+
+  /*
+   * The rest of the wizard, checked once so the sweep is a record rather than a memory. Each pair
+   * is a schema bound and the number the customer is shown beside it.
+   */
+  it('every other bound the customer can see matches its schema', () => {
+    const intake = src('../src/pages/Intake.tsx')
+    const story = src('../src/components/StoryInputs.tsx')
+
+    // Years in business: schema min 1 max 100.
+    expect(intake).toContain('min={1}')
+    expect(intake).toContain('max={100}')
+    // About: schema min 40 max 600.
+    expect(intake).toContain('min={40} max={600}')
+    // What makes you different: schema max 1200, which nothing on screen used to say.
+    expect(intake).toContain('max={1200}')
+    // Reviews: schema max 6, and the add button disappears at 6.
+    expect(story).toContain('value.length < 6')
   })
 })

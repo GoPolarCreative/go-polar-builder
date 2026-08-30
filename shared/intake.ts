@@ -224,6 +224,16 @@ export type Step2 = z.infer<typeof step2Schema>
  * It is a shared function for the reason unallocatedPages is: the browser and the submit route
  * have to give the same answer, and the failure being guarded against is the two disagreeing.
  */
+/**
+ * The most photos a site uses.
+ *
+ * Exported because the number was written out four times: the schema, the uploader's slice,
+ * its label and its disabled state. Four copies of a limit is how the services picker ended up
+ * capping at eight while everything else said ten, and a customer who had paid for ten pages
+ * could not finish the intake. One number, one home.
+ */
+export const MAX_PHOTOS = 20
+
 export function maxServices(pagesAllowed: number): number {
   return Math.min(20, Math.max(10, (pagesAllowed || 1) - 1))
 }
@@ -327,7 +337,7 @@ export const step5Schema = z.object({
    * for payloads written before this field existed, which must keep parsing.
    */
   designStyle: z.enum(DESIGN_STYLES).default('auto'),
-  photoAssetIds: z.array(z.string()).max(20, 'Up to 20 photos'),
+  photoAssetIds: z.array(z.string()).max(MAX_PHOTOS, 'Up to ' + MAX_PHOTOS + ' photos'),
   palette: paletteSchema,
   existingDomain: z
     .string()

@@ -737,7 +737,11 @@ function StepStory({ data, patch, errors }: StepProps) {
         />
       </Field>
 
-      <Field label="What makes you different?" error={errors.different} hint="Optional, but it is usually the best bit.">
+      <Field
+        label="What makes you different?"
+        error={errors.different}
+        hint={<CharCounter value={data.different ?? ''} min={0} max={1200} />}
+      >
         <TextArea
           value={data.different ?? ''}
           onChange={(v) => patch({ different: v })}

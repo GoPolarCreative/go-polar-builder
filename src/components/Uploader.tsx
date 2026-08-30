@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { AssetRecord } from '../../shared/types'
-import type { Palette } from '../../shared/intake'
+import { MAX_PHOTOS, type Palette } from '../../shared/intake'
 import { api, assetUrl, ApiCallError } from '../lib/api'
 import { analyseUpload } from '../lib/image'
 import { Banner } from './ui'
@@ -181,7 +181,18 @@ export function PhotoUploader({
   const [progress, setProgress] = useState<{ done: number; total: number; name: string } | null>(null)
 
   const uploadMany = async (files: File[]) => {
-    const queue = files.slice(0, 20 - photos.length)
+    /*
+     * THE CAP WAS ALREADY HERE. WHAT WAS MISSING WAS SAYING SO.
+     *
+     * Dropping twenty five photos onto an empty uploader uploaded twenty and discarded five
+     * without a word, so the customer saw a number they did not choose and no reason for it.
+     * Silently delivering less than was asked for is the same failure as the paid page that
+     * was never built: recoverable, invisible, and found by the customer rather than by us.
+     */
+    const room = Math.max(0, MAX_PHOTOS - photos.length)
+    const queue = files.slice(0, room)
+    const skipped = files.length - queue.length
+    let problem = false
     setBusy(true)
     setError(null)
     setProgress({ done: 0, total: queue.length, name: queue[0]?.name ?? '' })
@@ -192,6 +203,7 @@ export function PhotoUploader({
       const oversize = tooLargeMessage(file)
       if (oversize) {
         setError(oversize)
+        problem = true
         setProgress({ done: i + 1, total: queue.length, name: file.name })
         continue
       }
@@ -200,6 +212,7 @@ export function PhotoUploader({
         const { asset } = await api.uploadAsset(jobId, file, 'photo', stats)
         added.push(asset)
       } catch (err) {
+        problem = true
         setError(
           `${file.name}: ${
             err instanceof ApiCallError ? (err.detail ?? err.message) : err instanceof Error ? err.message : 'failed'
@@ -212,6 +225,16 @@ export function PhotoUploader({
     }
 
     if (added.length > 0) onChange([...photos, ...added])
+    // Only when nothing worse happened: a file that was too big is the more useful message.
+    if (skipped > 0 && !problem) {
+      setError(
+        skipped +
+          (skipped === 1 ? ' photo was' : ' photos were') +
+          ' not added, because ' +
+          MAX_PHOTOS +
+          ' is the most a website uses. Remove some and add them again if you want different ones.',
+      )
+    }
     setBusy(false)
     setProgress(null)
   }
@@ -275,7 +298,7 @@ export function PhotoUploader({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">
-              {photos.length} of 20 photos. The first one is used biggest.
+              {photos.length} of {MAX_PHOTOS} photos. The first one is used biggest.
             </p>
             <p className="field-hint">
               Photos straight off your phone work best. We need at least 3 to build the gallery, and we will not
@@ -285,7 +308,7 @@ export function PhotoUploader({
           <button
             type="button"
             className="btn-ghost py-1.5 text-sm"
-            disabled={busy || photos.length >= 20}
+            disabled={busy || photos.length >= MAX_PHOTOS}
             onClick={() => inputRef.current?.click()}
           >
             {busy ? 'Uploading' : 'Add photos'}
