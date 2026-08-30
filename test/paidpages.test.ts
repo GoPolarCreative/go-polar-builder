@@ -607,3 +607,104 @@ describe('the intake limits agree with the schema', () => {
     expect(story).toContain('value.length < 6')
   })
 })
+
+/**
+ * THE SHAPE THE MODEL ACTUALLY RETURNED.
+ *
+ * Callum's landscaping build died after three attempts on
+ * "servicePages.0.steps.0: Expected object, received string". steps, scopeFactors and faqs were
+ * described to the model in prose in the house rules and never given a shape in the JSON skeleton,
+ * which is the block it actually learns shapes from, so it wrote a list of sentences. That is a
+ * fair reading of "three to five stages of how this job runs".
+ *
+ * The skeleton now shows the shape and that is the real fix. These pin the seatbelt: repair is off
+ * for template output, so a plan that will not validate is a build that does not happen, on a job
+ * somebody has paid for. A page without these falls back to the home page sections and is caught
+ * by check 24 as a warning, which is a plainer page rather than no website.
+ */
+describe('a service page survives the model returning the wrong shape', () => {
+  const base = basePlan(intakeWithPages(['A one', 'B two', 'C three'], ['A one']))
+  const withSteps = (steps: unknown) => ({
+    ...base,
+    servicePages: [
+      {
+        slug: 'a-one',
+        service: 'A one',
+        title: 'A one service page for the tests',
+        metaDescription:
+          'A one across the service area, carried out properly and tidied up afterwards, with a price confirmed before any of the work begins.',
+        h1: 'A one across the area',
+        intro: [
+          'An introduction paragraph that is comfortably past the forty character minimum.',
+          'And a second one, because the hero uses the first and the body uses the rest.',
+        ],
+        included: ['Inspection first.', 'Treatment tailored to the property.', 'Advice on prevention.'],
+        steps,
+      },
+    ],
+  })
+
+  it('lifts a colon separated sentence into a title and a body', () => {
+    const parsed = planSchema.safeParse(
+      withSteps([
+        'Mark it out: we set out the line and check the levels before anything at all gets dug.',
+        'Dig and set: the holes go in, the posts are set and everything is checked against the string line.',
+        'Backfill and tidy: drainage goes in behind it, the backfill is compacted and the site is left clean.',
+      ]),
+    )
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 2))).toBe(true)
+    const steps = parsed.success ? parsed.data.servicePages[0]!.steps : undefined
+    expect(steps?.[0]).toEqual({
+      title: 'Mark it out',
+      body: 'we set out the line and check the levels before anything at all gets dug.',
+    })
+  })
+
+  it('falls back to the first sentence when there is no colon', () => {
+    const parsed = planSchema.safeParse(
+      withSteps([
+        'Mark it out. We set out the line and check the levels before anything at all gets dug up.',
+        'Dig and set. The holes go in, the posts are set and everything is checked against the line.',
+        'Backfill and tidy. Drainage goes in behind it, the backfill is compacted and the site is clean.',
+      ]),
+    )
+    expect(parsed.success).toBe(true)
+    expect(parsed.success ? parsed.data.servicePages[0]!.steps?.[0]?.title : '').toBe('Mark it out')
+  })
+
+  /*
+   * The important one. Rubbish in this field must cost the section, never the build.
+   */
+  it('drops the field rather than failing the plan when nothing can be salvaged', () => {
+    const parsed = planSchema.safeParse(withSteps(['Dig', 'Set', 'Fill']))
+    expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 2))).toBe(true)
+    expect(parsed.success ? parsed.data.servicePages[0]!.steps : 'not parsed').toBeUndefined()
+  })
+
+  it('drops the field when the model sends something that is not a list at all', () => {
+    const parsed = planSchema.safeParse(withSteps('Mark it out, dig, backfill, tidy up afterwards.'))
+    expect(parsed.success).toBe(true)
+    expect(parsed.success ? parsed.data.servicePages[0]!.steps : 'not parsed').toBeUndefined()
+  })
+
+  it('still accepts the shape that was asked for', () => {
+    const parsed = planSchema.safeParse(
+      withSteps([
+        { title: 'Mark it out', body: 'We set out the line and check the levels before anything gets dug.' },
+        { title: 'Dig and set', body: 'The holes go in, the posts are set and checked against the string line.' },
+        { title: 'Backfill', body: 'Drainage goes in behind it and the backfill is compacted in layers.' },
+      ]),
+    )
+    expect(parsed.success).toBe(true)
+    expect(parsed.success ? parsed.data.servicePages[0]!.steps?.length : 0).toBe(3)
+  })
+
+  it('the skeleton the model reads carries all three shapes and the new intro bound', () => {
+    const skeleton = readFileSync(new URL('../server/prompts/messages.ts', import.meta.url), 'utf8')
+    expect(skeleton).toContain('"steps": [ { "title": "3 to 60 chars", "body": "40 to 300 chars" } ]')
+    expect(skeleton).toContain('"scopeFactors": [ { "label": "3 to 60 chars", "detail": "40 to 300 chars" } ]')
+    expect(skeleton).toContain('"faqs": [ { "q": "10 to 120 chars", "a": "60 to 600 chars" } ]')
+    // The bound that would have been the next failure.
+    expect(skeleton).not.toContain('array of 1 to 3 paragraphs')
+  })
+})

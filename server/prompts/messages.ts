@@ -54,8 +54,26 @@ const PLAN_SHAPE = `{
   "about": { "heading": "string", "body": ["2 to 4 paragraphs"], "pullQuote": "string" },
   "services": [ { "name": "string", "blurb": "30 to 300 chars", "iconHint": "what to draw, e.g. water drop" } ],
   // One entry per service named under PAGES THEY HAVE PAID FOR, and none otherwise. Empty array
-  // on a one page build. slug is kebab-case of the service name. intro and included are ARRAYS.
-  "servicePages": [ { "slug": "kebab-case-of-the-service-name", "service": "exact service name", "title": "10 to 70 chars", "metaDescription": "70 to 165 chars", "h1": "10 to 90 chars", "intro": ["array of 1 to 3 paragraphs, each 40+ chars"], "included": ["array of 3 to 6 lines, each 10 to 160 chars"] } ],
+  // on a one page build. slug is kebab-case of the service name.
+  //
+  // EVERY ARRAY IS SHOWN WITH ITS SHAPE, AND THE LAST THREE HOLD OBJECTS, NOT STRINGS. A build
+  // died on "servicePages.0.steps.0: Expected object, received string" because those three were
+  // described in the house rules and never given a shape here. This block is where the model
+  // learns what a field looks like; prose about a field whose shape it cannot see is a guess
+  // waiting to happen. The intro bound moved from 1 to 3 at the same time and would have been
+  // the next failure, since the schema now requires two.
+  "servicePages": [ {
+    "slug": "kebab-case-of-the-service-name",
+    "service": "exact service name",
+    "title": "10 to 70 chars",
+    "metaDescription": "70 to 165 chars",
+    "h1": "10 to 90 chars",
+    "intro": ["2 or 3 paragraphs, each 40+ chars. The FIRST is the hero subtitle and is read alone, so do not repeat it in the second"],
+    "included": ["3 to 6 lines, each 10 to 160 chars"],
+    "steps": [ { "title": "3 to 60 chars", "body": "40 to 300 chars" } ],
+    "scopeFactors": [ { "label": "3 to 60 chars", "detail": "40 to 300 chars" } ],
+    "faqs": [ { "q": "10 to 120 chars", "a": "60 to 600 chars" } ]
+  } ],   // steps, scopeFactors and faqs: 3 to 5 entries each, every entry an OBJECT
   "gallery": { "enabled": boolean, "heading": "string", "items": [ { "assetId": "id from the photo list", "alt": "5 to 125 chars" } ] },
   "whyUs": [ { "title": "string", "body": "string" } ],
   "stats": [ { "value": number, "suffix": "+ or none", "label": "string", "source": "which intake field this came from" } ],

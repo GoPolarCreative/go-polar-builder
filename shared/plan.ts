@@ -94,6 +94,64 @@ function stripDeep(value: unknown): unknown {
   return value
 }
 
+/**
+ * An entry that arrived as a sentence instead of an object.
+ *
+ * Callum's landscaping build died after three attempts on "servicePages.0.steps.0: Expected
+ * object, received string". The model had been told in prose that steps were stages of the job
+ * and never shown that a stage is an object, so it wrote a list of sentences, which is a
+ * perfectly reasonable reading. The skeleton now shows the shape and that is the real fix.
+ *
+ * This is the seatbelt. These three fields are optional by design, so the worst honest outcome
+ * is a page without them, which falls back to the home page sections and is caught by check 24
+ * as a warning. That is a plainer page. A plan that will not validate is no website at all, on
+ * a build somebody has paid for, and the difference between those two is not close.
+ *
+ * NOTHING IS INVENTED. A title is only ever taken from the model's own sentence: the part
+ * before a colon, or the first sentence, or failing both the opening few words. An entry that
+ * cannot be salvaged inside the real bounds is dropped rather than padded, and if fewer than
+ * three survive the whole field goes, because half a section is worse than none.
+ */
+function coercePairs(
+  keyA: string,
+  keyB: string,
+  bounds: { aMin: number; aMax: number; bMin: number; bMax: number },
+) {
+  const fits = (a: string, b: string) =>
+    a.length >= bounds.aMin && a.length <= bounds.aMax && b.length >= bounds.bMin && b.length <= bounds.bMax
+
+  const one = (value: unknown): Record<string, string> | null => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const o = value as Record<string, unknown>
+      const a = typeof o[keyA] === 'string' ? (o[keyA] as string).trim() : ''
+      const b = typeof o[keyB] === 'string' ? (o[keyB] as string).trim() : ''
+      return fits(a, b) ? { [keyA]: a, [keyB]: b } : null
+    }
+    if (typeof value !== 'string') return null
+
+    const text = value.trim()
+    // "Mark it out: we set the line and check levels before anything is dug."
+    for (const sep of [': ', '. ']) {
+      const at = text.indexOf(sep)
+      if (at <= 0) continue
+      const a = text.slice(0, at).trim()
+      const b = text.slice(at + sep.length).trim()
+      if (fits(a, b)) return { [keyA]: a, [keyB]: b }
+    }
+    // No split to be had. The opening words become the heading and every word is kept.
+    const head = text.split(/\s+/).slice(0, 5).join(' ').slice(0, bounds.aMax)
+    return fits(head, text) ? { [keyA]: head, [keyB]: text } : null
+  }
+
+  return (value: unknown) => {
+    // Anything that is not a list at all is dropped, not handed on to fail against the array
+    // rule underneath. The field is optional, so absent is a legal answer and a dead build is not.
+    if (!Array.isArray(value)) return undefined
+    const kept = value.map(one).filter((x): x is Record<string, string> => x !== null)
+    return kept.length >= 3 ? kept.slice(0, 5) : undefined
+  }
+}
+
 export const planSchema = z.preprocess(stripDeep, z.object({
   meta: z.object({
     title: z.string().min(10).max(70),
@@ -234,41 +292,35 @@ export const planSchema = z.preprocess(stripDeep, z.object({
          * retaining wall gets built. When they are absent the renderer falls back to the home
          * page's sections, which is what it always did. Thin and true beats padded and wrong.
          */
-        steps: z
-          .array(
-            z.object({
-              title: z.string().min(3).max(60),
-              body: z.string().min(40).max(300),
-            }),
-          )
-          .min(3)
-          .max(5)
-          .optional(),
+        steps: z.preprocess(
+          coercePairs('title', 'body', { aMin: 3, aMax: 60, bMin: 40, bMax: 300 }),
+          z
+            .array(z.object({ title: z.string().min(3).max(60), body: z.string().min(40).max(300) }))
+            .min(3)
+            .max(5)
+            .optional(),
+        ),
         /*
          * What makes this job bigger or smaller. Mechanism only: D44 forbids quoting a price
          * or promising a result, and this is the honest way to answer "what will it cost"
          * without doing either.
          */
-        scopeFactors: z
-          .array(
-            z.object({
-              label: z.string().min(3).max(60),
-              detail: z.string().min(40).max(300),
-            }),
-          )
-          .min(3)
-          .max(5)
-          .optional(),
-        faqs: z
-          .array(
-            z.object({
-              q: z.string().min(10).max(120),
-              a: z.string().min(60).max(600),
-            }),
-          )
-          .min(3)
-          .max(5)
-          .optional(),
+        scopeFactors: z.preprocess(
+          coercePairs('label', 'detail', { aMin: 3, aMax: 60, bMin: 40, bMax: 300 }),
+          z
+            .array(z.object({ label: z.string().min(3).max(60), detail: z.string().min(40).max(300) }))
+            .min(3)
+            .max(5)
+            .optional(),
+        ),
+        faqs: z.preprocess(
+          coercePairs('q', 'a', { aMin: 10, aMax: 120, bMin: 60, bMax: 600 }),
+          z
+            .array(z.object({ q: z.string().min(10).max(120), a: z.string().min(60).max(600) }))
+            .min(3)
+            .max(5)
+            .optional(),
+        ),
       }),
     )
     // Matches the intake's ownPageServices ceiling. A customer can buy a page per service, and
