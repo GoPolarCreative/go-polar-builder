@@ -136,6 +136,18 @@ labels
   Use it when the request is about a word on the page that is not a heading and not their own
   copy, for example "change Request a quote to Get a price".
 
+sectionCopy[section].eyebrowColor
+  A hex colour for the label above ONE section heading. tokens.eyebrow moves all of them at once;
+  this moves one. Use it when the request names particular sections.
+
+layout.ctaBandPhoto
+  false removes the photograph behind the closing call to action band. On by default.
+
+  A NOTE ON labels: services.cardPageCta is the WHOLE text of the link on a service card, and
+  {service} in it is replaced by the service name. "More on {service}" reads per card; "LEARN
+  MORE" is the same three words on every card. Do not leave the placeholder in when the customer
+  asked for fixed wording.
+
 # WHAT THE CUSTOMER HAS ASKED FOR NOW
 
 """

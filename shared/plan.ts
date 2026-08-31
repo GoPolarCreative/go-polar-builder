@@ -221,6 +221,13 @@ const planObject = z.object({
   layout: z
     .object({
       galleryColumns: z.number().int().min(2).max(4).optional(),
+      /*
+       * The photograph behind the closing call to action. On by default because a flat band of
+       * colour there is what made the page read as blocks stacked by a machine. Off is a real
+       * request though: it is their photo on their website, and "remove the image behind READY
+       * TO GET STARTED" had no way to be carried out.
+       */
+      ctaBandPhoto: z.boolean().optional(),
     })
     .optional(),
 
@@ -245,6 +252,12 @@ const planObject = z.object({
         eyebrow: z.string().max(40).optional(),
         heading: z.string().max(90).optional(),
         blurb: z.string().max(220).optional(),
+        /*
+         * The colour of that label, for this section only. tokens.eyebrow sets them all at
+         * once, which is the right answer until somebody wants two of them black and the rest
+         * left alone, and then it is no answer at all.
+         */
+        eyebrowColor: hex.optional(),
       }),
     )
     .optional(),

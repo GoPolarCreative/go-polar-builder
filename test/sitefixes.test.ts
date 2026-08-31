@@ -626,7 +626,72 @@ describe('every word on the page can be reached from the editor', () => {
     // A key nobody reads is a promise the editor cannot keep.
     const plain = renderSiteSet(fixture.plan, fixture.facts).pages.map((p) => p.html).join('')
     for (const [key, text] of Object.entries(DEFAULT_LABELS)) {
-      expect(plain, key).toContain(text)
+      // A placeholder is substituted at render time, so match the part either side of it.
+      const fixed = text.split('{service}')[0]!.trim()
+      expect(plain, key).toContain(fixed)
     }
+  })
+})
+
+/**
+ * THREE MORE, AND THE FIRST ONE IS THE INSTRUCTIVE ONE.
+ *
+ * "change the More on text to just say LEARN MORE" DID work, and produced "Learn more concrete
+ * sleeper retaining walls", because the label was a PREFIX with the service name glued on after
+ * it. The customer changed the only part they were given and got a worse sentence than they
+ * started with. Making a thing editable is not the same as making it changeable.
+ */
+describe('the last three things on the page that could not be changed', () => {
+  it('the card link is a whole label, not a prefix', () => {
+    const whole = render({
+      ...fixture.plan,
+      labels: { 'services.cardPageCta': 'LEARN MORE' },
+    })
+    expect(whole).toMatch(/link-arrow" href="services[^>]*>LEARN MORE</)
+    // The service name is not glued on the end of it any more.
+    expect(whole).not.toMatch(/LEARN MORE blocked drains/)
+  })
+
+  it('and still reads per card by default', () => {
+    expect(render()).toMatch(/link-arrow" href="services[^>]*>More on blocked drains</)
+  })
+
+  it('{service} is substituted wherever it is put', () => {
+    const html = render({
+      ...fixture.plan,
+      labels: { 'services.cardPageCta': '{service} explained' },
+    })
+    expect(html).toContain('blocked drains explained')
+  })
+
+  /*
+   * tokens.eyebrow paints every label at once, which is right until somebody wants two of them
+   * black and the other ten left alone.
+   */
+  it('an eyebrow colour can be set for one section without moving the rest', () => {
+    const html = render({
+      ...fixture.plan,
+      sectionCopy: { faq: { eyebrowColor: '#000000' } },
+    })
+    expect(html).toContain('--eyebrow-faq:#000000;')
+    expect(html).toContain('[data-gp="faq"] .eyebrow{color:var(--eyebrow-faq);}')
+    // The site-wide one is untouched, so every other label stays where it was.
+    expect(html).toContain('--eyebrow-color:' + fixture.plan.tokens.accent + ';')
+  })
+
+  it('the tint is a token in :root, because check 1 rejects a hex anywhere else', async () => {
+    const { runStaticChecks } = await import('../server/lib/checks/static')
+    const html = render({
+      ...fixture.plan,
+      sectionCopy: { faq: { eyebrowColor: '#000000' }, service_areas: { eyebrowColor: '#000000' } },
+    })
+    const failed = (await runStaticChecks(html, fixture.facts)).filter((r) => r.status === 'fail')
+    expect(failed.map((f) => f.id)).toEqual([])
+  })
+
+  it('the photo behind the closing call to action can be turned off', () => {
+    const marker = '<div class="band__bg">'
+    expect(render()).toContain(marker)
+    expect(render({ ...fixture.plan, layout: { ctaBandPhoto: false } })).not.toContain(marker)
   })
 })

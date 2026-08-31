@@ -185,13 +185,46 @@ export const DEFAULT_LABELS: Record<string, string> = {
   'form.note': 'We will get back to you as soon as we can. If it is urgent, ring us instead.',
   'about.servicesLink': 'Our services',
   'services.cardCta': 'Request a quote',
-  'services.cardPageCta': 'More on',
+  /*
+   * THE WHOLE LINK TEXT, NOT A PREFIX.
+   *
+   * This was "More on" with the service name glued on after it, so asking for the link to
+   * "just say LEARN MORE" produced "Learn more concrete sleeper retaining walls". The customer
+   * changed the only part they were given and got a worse sentence than they started with.
+   *
+   * {service} is substituted if it appears, so the default still reads per card and anyone who
+   * wants the same three words on every card just writes them.
+   */
+  'services.cardPageCta': 'More on {service}',
   'contact.hours': 'Opening hours',
   'footer.company': 'Company',
   'footer.services': 'Services',
   'footer.allServices': 'All services',
   'mobileBar.call': 'Call now',
   'servicePage.allServices': 'All our services',
+}
+
+/**
+ * Per-section eyebrow colours, as a stylesheet block.
+ *
+ * tokens.eyebrow paints every label at once, which is the right answer until somebody wants
+ * two of them black and the other ten left alone. Written as tokens in :root and one rule per
+ * section keyed off the data-gp attribute the sections already carry, because check 1 rejects a
+ * hex anywhere but :root and an inline style would have failed the build.
+ */
+export function eyebrowTints(plan: ContentPlan): string {
+  const entries = Object.entries(plan.sectionCopy ?? {}).filter(([, v]) => v?.eyebrowColor)
+  if (entries.length === 0) return ''
+  const vars = entries
+    .map(([id, v]) => '--eyebrow-' + id + ':' + v!.eyebrowColor + ';')
+    .join('')
+  const rules = entries
+    .map(
+      ([id]) =>
+        '[data-gp="' + id + '"] .eyebrow{color:var(--eyebrow-' + id + ');}',
+    )
+    .join('\n')
+  return ':root{' + vars + '}\n' + rules
 }
 
 /**
@@ -1064,6 +1097,8 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     contact,
     footer,
     mobile,
+    // Last, so a per-section eyebrow colour wins over the site-wide one it overrides.
+    eyebrowTints(plan),
   ]
     .flat()
     .join('\n')
@@ -1340,7 +1375,8 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
     (st) => !/review/i.test(st.source) && !/review/i.test(st.label),
   )
 
-  const bandPhoto = facts.photos[2] ?? facts.photos[0] ?? null
+  const bandPhoto =
+    plan.layout?.ctaBandPhoto === false ? null : (facts.photos[2] ?? facts.photos[0] ?? null)
   const jsonLd = buildJsonLd(plan, facts)
 
   const assumptionComments = plan.assumptions
@@ -1513,7 +1549,9 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
            */
           const page = plan.servicePages.find((sp) => sp.service === s.name)
           return page
-            ? `<a class="link-arrow" href="services/${page.slug}/index.html">${esc(label(plan, 'services.cardPageCta'))} ${esc(clean(s.name.toLowerCase()))}${icon(ICON_ARROW)}</a>`
+            ? `<a class="link-arrow" href="services/${page.slug}/index.html">${esc(
+                label(plan, 'services.cardPageCta').replace('{service}', clean(s.name.toLowerCase())),
+              )}${icon(ICON_ARROW)}</a>`
             : `<a class="link-arrow" href="#contact">${esc(label(plan, 'services.cardCta'))}${icon(ICON_ARROW)}</a>`
         })()}
       </article>`,
