@@ -62,6 +62,12 @@ const PLAN_SHAPE = `{
   // learns what a field looks like; prose about a field whose shape it cannot see is a guess
   // waiting to happen. The intro bound moved from 1 to 3 at the same time and would have been
   // the next failure, since the schema now requires two.
+  // The small label above each section heading, and the heading and blurb where the template
+  // supplies one. OPTIONAL: leave a section out and the built-in wording is used. This exists so
+  // the customer can change these words later, because they are words on their website.
+  // Section ids: hero, hero_form, about, services, gallery, why_us, process, service_areas,
+  // testimonials, faq, cta_band, contact.
+  "sectionCopy": { "services": { "eyebrow": "up to 40 chars", "heading": "up to 90", "blurb": "up to 220" } },
   "servicePages": [ {
     "slug": "kebab-case-of-the-service-name",
     "service": "exact service name",

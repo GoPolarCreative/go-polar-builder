@@ -160,6 +160,23 @@ export function twoTone(text: string, enabled: boolean): string {
   return esc(copy)
 }
 
+/**
+ * The words for a section, with the template wording as a fallback.
+ *
+ * Every string this returns used to be a literal in the markup below, which made it invisible
+ * to the edit step: the customer could ask to change it and the model had nothing to change.
+ * The fallback is still the wording that ships on a fresh build, so nothing moves until
+ * somebody asks for it to.
+ */
+export function sectionCopy(
+  plan: ContentPlan,
+  section: string,
+  field: 'eyebrow' | 'heading' | 'blurb',
+  fallback: string,
+): string {
+  return plan.sectionCopy?.[section]?.[field] ?? fallback
+}
+
 /** The small ALL CAPS label that sits above a section heading on every reference site. */
 export function sectionHead(args: {
   eyebrow: string
@@ -267,6 +284,8 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--track-head:' + spec.headingTracking + ';',
     '--track-btn:' + spec.buttonTracking + ';',
     '--track-eyebrow:' + spec.eyebrowTracking + ';',
+    // Falls back to the accent, which is what the eyebrow always was.
+    '--eyebrow-color:' + (t.eyebrow ?? t.accent) + ';',
     '--eyebrow-size:' + spec.eyebrowSize + ';',
     '--h1:' + spec.scale.h1 + ';',
     '--h2:' + spec.scale.h2 + ';',
@@ -377,7 +396,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       : []),
     '.section--dark h2,.section--dark h3{color:var(--on-dark);}',
     '.section--dark p{color:var(--on-dark-72);}',
-    '.eyebrow{display:block;color:var(--accent);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}',
+    '.eyebrow{display:block;color:var(--eyebrow-color);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}',
     '.section-head{margin-bottom:2.5rem;' + (spec.headingAlign === 'centred' ? 'text-align:center;' : '') + '}',
     '.section-head p{color:var(--page-muted);max-width:var(--measure);font-size:var(--step-lead);' +
       (spec.headingAlign === 'centred' ? 'margin-left:auto;margin-right:auto;' : '') +
@@ -1186,7 +1205,7 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
         subject: facts.heroFormSubject,
         key: facts.web3formsKey,
         headingLevel: 2,
-        eyebrow: 'Start a conversation',
+        eyebrow: sectionCopy(plan, 'hero_form', 'eyebrow', 'Start a conversation'),
       })
     : ''
 
@@ -1305,7 +1324,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 <section class="section section--quote" id="quote">
   <div class="wrap quote-wrap">
     <div class="quote-intro">
-      <span class="eyebrow">Start a conversation</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'hero', 'eyebrow', 'Start a conversation'))}</span>
       <h2>${twoTone(plan.hero.formHeading, spec.twoTone)}</h2>
       <p>${esc(clean(plan.hero.sub))}</p>
     </div>
@@ -1348,7 +1367,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 <section class="section" id="about" data-gp="about">
   <div class="wrap about-grid">
     <div class="about__copy">
-      <span class="eyebrow">About us</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'about', 'eyebrow', 'About us'))}</span>
       <h2>${twoTone(plan.about.heading, spec.twoTone)}</h2>
       ${plan.about.body.map((b) => `<p>${esc(clean(b))}</p>`).join('\n      ')}
       <blockquote class="pull-quote">${esc(clean(plan.about.pullQuote))}</blockquote>
@@ -1413,9 +1432,14 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 <section class="section section--alt" id="services" data-gp="services">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'What we do',
-      heading: `What we do, and how we work`,
-      blurb: `Practical, carefully managed work across ${plan.meta.geoPlacename} and the surrounding suburbs.`,
+      eyebrow: sectionCopy(plan, 'services', 'eyebrow', 'What we do'),
+      heading: sectionCopy(plan, 'services', 'heading', 'What we do, and how we work'),
+      blurb: sectionCopy(
+        plan,
+        'services',
+        'blurb',
+        `Practical, carefully managed work across ${plan.meta.geoPlacename} and the surrounding suburbs.`,
+      ),
       spec,
     })}
     <div class="grid grid--3">
@@ -1441,9 +1465,9 @@ ${
     ? `<section class="section" id="work" data-gp="gallery">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Our work',
+      eyebrow: sectionCopy(plan, 'gallery', 'eyebrow', 'Our work'),
       heading: plan.gallery.heading,
-      blurb: 'Real jobs, photographed on site. No stock photography.',
+      blurb: sectionCopy(plan, 'gallery', 'blurb', 'Real jobs, photographed on site. No stock photography.'),
       spec,
     })}
     <div class="gallery" style="--cols:${galleryColumns(plan.gallery.items.length)}">
@@ -1472,9 +1496,9 @@ ${
 <section class="section section--dark" id="why" data-gp="why_us">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Why choose us',
-      heading: `A better experience, from the first call`,
-      blurb: `${plan.whyUs.length} reasons our clients keep working with us.`,
+      eyebrow: sectionCopy(plan, 'why_us', 'eyebrow', 'Why choose us'),
+      heading: sectionCopy(plan, 'why_us', 'heading', 'A better experience, from the first call'),
+      blurb: sectionCopy(plan, 'why_us', 'blurb', `${plan.whyUs.length} reasons our clients keep working with us.`),
       spec,
       dark: true,
     })}
@@ -1503,9 +1527,9 @@ ${
 <section class="section" id="process" data-gp="process">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'How it works',
-      heading: 'A clear path, from first call to finished job',
-      blurb: 'Four steps, so you always know what happens next.',
+      eyebrow: sectionCopy(plan, 'process', 'eyebrow', 'How it works'),
+      heading: sectionCopy(plan, 'process', 'heading', 'A clear path, from first call to finished job'),
+      blurb: sectionCopy(plan, 'process', 'blurb', 'Four steps, so you always know what happens next.'),
       spec,
     })}
     <div class="process-grid">
@@ -1527,7 +1551,7 @@ ${
 <section class="section section--alt" id="areas" data-gp="service_areas">
   <div class="wrap areas-grid">
     <div>
-      <span class="eyebrow">Service areas</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'service_areas', 'eyebrow', 'Service areas'))}</span>
       <h2>${twoTone(plan.serviceAreas.heading, spec.twoTone)}</h2>
       <p>${esc(clean(plan.serviceAreas.blurb))}</p>
     </div>
@@ -1544,7 +1568,7 @@ ${
     ? `<section class="section" id="reviews" data-gp="testimonials">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'What clients say',
+      eyebrow: sectionCopy(plan, 'testimonials', 'eyebrow', 'What clients say'),
       heading: plan.testimonials.heading,
       blurb: facts.googleReviewLink ? 'Straight from our Google business profile.' : null,
       spec,
@@ -1624,8 +1648,8 @@ ${
 <section class="section section--alt" id="faq" data-gp="faq">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Common questions',
-      heading: 'Questions, answered',
+      eyebrow: sectionCopy(plan, 'faq', 'eyebrow', 'Common questions'),
+      heading: sectionCopy(plan, 'faq', 'heading', 'Questions, answered'),
       blurb: null,
       spec,
     })}
@@ -1656,7 +1680,7 @@ ${
       : ''
   }
   <div class="wrap">
-    <span class="eyebrow">Get started</span>
+    <span class="eyebrow">${esc(sectionCopy(plan, 'cta_band', 'eyebrow', 'Get started'))}</span>
     <h2>${twoTone(plan.ctaBand.heading, spec.twoTone)}</h2>
     <p>${esc(clean(plan.ctaBand.body))}</p>
     <div class="cta-band__actions">
@@ -1671,7 +1695,7 @@ ${
 <section class="section" id="contact" data-gp="contact">
   <div class="wrap contact-grid">
     <div>
-      <span class="eyebrow">Get in touch</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'contact', 'eyebrow', 'Get in touch'))}</span>
       <h2>${twoTone(plan.contact.heading, spec.twoTone)}</h2>
       <p>${esc(clean(plan.contact.blurb))}</p>
       <ul class="contact-list">
@@ -1703,7 +1727,7 @@ ${
       subject: facts.contactFormSubject,
       key: facts.web3formsKey,
       headingLevel: 3,
-      eyebrow: 'Send an enquiry',
+      eyebrow: sectionCopy(plan, 'contact', 'eyebrow', 'Send an enquiry'),
     })}
   </div>
 </section>

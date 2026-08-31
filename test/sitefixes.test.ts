@@ -288,3 +288,106 @@ describe('the services dropdown is readable when it opens', () => {
     expect(contrast).not.toContain('if (r.width === 0 || r.height === 0) continue')
   })
 })
+
+/**
+ * THE WORDS THE TEMPLATE HAD SWALLOWED.
+ *
+ * renderSite hardcoded eleven eyebrows and five section headings and blurbs. They are the same on
+ * every site, which felt like the point of a template, and they are also WORDS ON A CUSTOMER'S
+ * WEBSITE that the customer is paying for ten rounds of changes to.
+ *
+ * Chris asked four times to change the label above a heading. Every edit reported success and
+ * charged a round, because the model dutifully changed something in the plan, and the label never
+ * moved because the label was not in the plan. Reporting success while delivering less than was
+ * asked for is the failure this codebase keeps returning to.
+ */
+describe('every label on the page can be changed', () => {
+  const withCopy = (sectionCopy: ContentPlan['sectionCopy']): ContentPlan => ({
+    ...fixture.plan,
+    sectionCopy,
+  })
+
+  it('uses the built-in wording when the plan says nothing', () => {
+    const html = render()
+    expect(html).toContain('>What we do<')
+    expect(html).toContain('>Why choose us<')
+    expect(html).toContain('>Get in touch<')
+  })
+
+  it('an eyebrow the plan sets replaces it', () => {
+    const html = render(withCopy({ services: { eyebrow: 'The work we take on' } }))
+    expect(html).toContain('>The work we take on<')
+    expect(html).not.toContain('>What we do<')
+  })
+
+  it('a heading and a blurb too', () => {
+    const html = render(
+      withCopy({ services: { heading: 'Fencing, walls and turf', blurb: 'Across the coast.' } }),
+    )
+    // Headings pass through twoTone, which puts the tail in an em, so match the rendered shape.
+    const h2 = /<section[^>]*id="services"[\s\S]*?<h2>([\s\S]*?)<\/h2>/.exec(html)![1]!
+    expect(h2.replace(/<[^>]+>/g, '')).toBe('Fencing, walls and turf')
+    expect(html).toContain('Across the coast.')
+    expect(html).not.toContain('and how we work')
+  })
+
+  it('covers every section that carries a label', () => {
+    // The ids the renderer reads. A section missing from this list is one a customer cannot edit.
+    for (const section of [
+      'hero',
+      'about',
+      'services',
+      'gallery',
+      'why_us',
+      'process',
+      'service_areas',
+      'testimonials',
+      'faq',
+      'cta_band',
+      'contact',
+    ]) {
+      const html = render(withCopy({ [section]: { eyebrow: 'MARKER ' + section } }))
+      expect(html, section).toContain('MARKER ' + section)
+    }
+  })
+
+  /*
+   * The hero enquiry card only exists on the styles that carry one, so it needs a plan whose
+   * resolved style has it rather than the fixture default.
+   */
+  it('covers the hero enquiry card, on a style that has one', () => {
+    const html = render({
+      ...fixture.plan,
+      style: { ...fixture.plan.style, chosen: 'direct', resolved: 'direct' },
+      sectionCopy: { hero_form: { eyebrow: 'Tell us about the job' } },
+    })
+    expect(html).toContain('Tell us about the job')
+  })
+
+  it('no label is left hardcoded in the markup', () => {
+    const source = readFileSync(new URL('../server/lib/render/site.ts', import.meta.url), 'utf8')
+    expect(source).not.toMatch(/eyebrow: '[A-Z]/)
+    expect(source).not.toMatch(/class="eyebrow">[A-Z]/)
+  })
+
+  /*
+   * The eyebrow is the one place the accent lands on a photo or a dark band, which is where a
+   * customer is most likely to want it plain white. It falls back to the accent, which is what it
+   * always was.
+   */
+  it('the eyebrow colour can be set without moving the whole accent', () => {
+    expect(render()).toContain('--eyebrow-color:' + fixture.plan.tokens.accent + ';')
+    const white = render({ ...fixture.plan, tokens: { ...fixture.plan.tokens, eyebrow: '#FFFFFF' } })
+    expect(white).toContain('--eyebrow-color:#FFFFFF;')
+    // And the accent itself is untouched, so buttons and links do not follow it.
+    expect(white).toContain('--eyebrow-color:#FFFFFF;')
+    expect(white).toContain(fixture.plan.tokens.accent)
+  })
+
+  it('the model is told the field exists, in both places it reads', async () => {
+    const { PLAN_SYSTEM } = await import('../server/prompts/houseRules')
+    expect(PLAN_SYSTEM).toContain('THE SECTION LABELS ARE YOURS TO WRITE, AND THEIRS TO CHANGE')
+    const skeleton = readFileSync(new URL('../server/prompts/messages.ts', import.meta.url), 'utf8')
+    expect(skeleton).toContain('"sectionCopy"')
+  })
+})

@@ -194,6 +194,34 @@ export const planSchema = z.preprocess(stripDeep, z.object({
 
   // Every colour the build is allowed to use, declared once. The house rules forbid hex values
   // anywhere in the CSS outside :root, so this list is the complete palette.
+  /*
+   * THE WORDS THE TEMPLATE USED TO OWN.
+   *
+   * renderSite hardcoded eleven eyebrows and five section headings and blurbs, because they
+   * are the same on every site and writing them once seemed like the point of a template. It
+   * is not: they are WORDS ON A CUSTOMER'S WEBSITE, and the customer is paying for ten rounds
+   * of changes to their words.
+   *
+   * Chris asked four times to change the label above a heading. Every edit reported success
+   * and charged a round, because the model dutifully changed something in the plan, and the
+   * label never moved because the label was not in the plan. Reporting success while
+   * delivering less than was asked for is the failure this codebase keeps coming back to, and
+   * this is the version of it I introduced.
+   *
+   * Optional and keyed by section id, so an older plan renders exactly as it does today and
+   * anything the model leaves out falls back to the built-in wording.
+   */
+  sectionCopy: z
+    .record(
+      z.string(),
+      z.object({
+        eyebrow: z.string().max(40).optional(),
+        heading: z.string().max(90).optional(),
+        blurb: z.string().max(220).optional(),
+      }),
+    )
+    .optional(),
+
   tokens: z.object({
     primary: hex,
     primaryDark: hex,
@@ -207,6 +235,13 @@ export const planSchema = z.preprocess(stripDeep, z.object({
     white: hex,
     black: hex,
     success: hex,
+    /*
+     * The small caps label above a heading. Optional, falling back to the accent, which is
+     * what it always was. It is separate because the accent is a brand colour used on buttons
+     * and links where it works, and the eyebrow is the one place it lands on a photo or a dark
+     * band where a customer may simply want it white.
+     */
+    eyebrow: hex.optional(),
   }),
 
   hero: z.object({
