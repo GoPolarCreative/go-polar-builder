@@ -94,6 +94,27 @@ ${
         .join('\n')}\n`
     : ''
 }
+# FIELDS THAT MAY BE MISSING FROM THE PLAN ABOVE
+
+The plan you have been given may have been written before a field existed, so a field being
+ABSENT does not mean it is unavailable. Add it when the request calls for it.
+
+sectionCopy
+  The small label above a section heading, and the heading and blurb where the template
+  supplies one rather than the plan. Keyed by section id: hero, hero_form, about, services,
+  gallery, why_us, process, service_areas, testimonials, faq, cta_band, contact. Each holds
+  { "eyebrow": string, "heading": string, "blurb": string }, all optional.
+
+  THIS IS WHERE A CHANGE TO A SECTION LABEL GOES, and it is the only place it can go. If
+  somebody asks about the small text above a heading, the wording of a section heading, or
+  the line underneath it, put it here. Changing something else instead means their website
+  comes back looking identical and they have spent a round for nothing.
+
+tokens.eyebrow
+  A hex colour for those small labels on their own, separate from the accent. Use it when the
+  request is about the colour of the text above a heading, so their buttons and links do not
+  move with it.
+
 # WHAT THE CUSTOMER HAS ASKED FOR NOW
 
 """

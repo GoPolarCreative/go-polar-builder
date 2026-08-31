@@ -32,6 +32,25 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
   ctaBand: ['cta_band'],
   faq: ['faq'],
   contact: ['contact'],
+  /*
+   * sectionCopy is keyed by section itself, so it belongs to whichever sections the edit
+   * declared. Listing every id here means a declaration of any one of them lets it through,
+   * which is right: a request to change the label above the services heading declares
+   * 'services', and the change lands in sectionCopy.services.
+   */
+  sectionCopy: [
+    'hero',
+    'about',
+    'services',
+    'gallery',
+    'why_us',
+    'process',
+    'service_areas',
+    'testimonials',
+    'faq',
+    'cta_band',
+    'contact',
+  ],
 }
 
 /**
@@ -41,7 +60,7 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
  * stylesheet, so it only travels under a "global" declaration. Everything else needs at least one
  * of its sections named.
  */
-function keyIsDeclared(key: string, declared: Set<string>): boolean {
+export function keyIsDeclared(key: string, declared: Set<string>): boolean {
   if (declared.has('global')) return true
   const sections = PLAN_KEY_SECTIONS[key]
   if (!sections) return false

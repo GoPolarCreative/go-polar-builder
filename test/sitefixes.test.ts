@@ -391,3 +391,61 @@ describe('every label on the page can be changed', () => {
     expect(skeleton).toContain('"sectionCopy"')
   })
 })
+
+/**
+ * A FIELD NOBODY CAN REACH IS NOT EDITABLE, WHATEVER THE SCHEMA SAYS.
+ *
+ * sectionCopy was added, the renderer read it, the build prompt described it, and the next edit
+ * still did nothing. The edit step sends the model the CURRENT PLAN and nothing else, and
+ * Callum's plan was written before the field existed, so the field simply was not in what the
+ * model could see. It changed faq, stats, whyUs and gallery instead, which is a reasonable thing
+ * to do when asked to change a label you cannot find.
+ *
+ * Two things had to be true and only one was: the model has to know the field exists, and the
+ * route has to keep it when the model sends it back.
+ */
+describe('the editor can reach everything the page renders', () => {
+  it('the edit prompt names the fields a plan may not contain yet', async () => {
+    const { editPlanUserMessage } = await import('../server/prompts/edit')
+    const msg = editPlanUserMessage({
+      plan: fixture.plan,
+      facts: fixture.facts,
+      request: 'change the text above the headline to white',
+      previousRequests: [],
+    })
+    expect(msg).toContain('FIELDS THAT MAY BE MISSING FROM THE PLAN ABOVE')
+    expect(msg).toContain('sectionCopy')
+    expect(msg).toContain('tokens.eyebrow')
+    // The point it has to land: absence is not unavailability.
+    expect(msg).toContain('does not mean it is unavailable')
+  })
+
+  it('the route keeps sectionCopy instead of dropping it as undeclared', async () => {
+    const { keyIsDeclared } = await import('../server/lib/edit')
+    // A label change on the services section declares 'services'.
+    expect(keyIsDeclared('sectionCopy', new Set(['services']))).toBe(true)
+    expect(keyIsDeclared('sectionCopy', new Set(['hero']))).toBe(true)
+    expect(keyIsDeclared('sectionCopy', new Set(['global']))).toBe(true)
+    // And it is still refused when the edit declared nothing that owns it.
+    expect(keyIsDeclared('sectionCopy', new Set([]))).toBe(false)
+  })
+
+  it('every section the renderer reads a label for is declarable', async () => {
+    const { keyIsDeclared } = await import('../server/lib/edit')
+    for (const section of [
+      'hero',
+      'about',
+      'services',
+      'gallery',
+      'why_us',
+      'process',
+      'service_areas',
+      'testimonials',
+      'faq',
+      'cta_band',
+      'contact',
+    ]) {
+      expect(keyIsDeclared('sectionCopy', new Set([section])), section).toBe(true)
+    }
+  })
+})
