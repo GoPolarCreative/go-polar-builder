@@ -1428,6 +1428,94 @@ app.post('/admin/jobs/:jobId/rerender', requireAdmin, async (c) => {
   })
 })
 
+/**
+ * Give back rounds a customer was charged for a change we could not make.
+ *
+ *   POST /api/admin/jobs/:jobId/refund-edits   { "rounds": 4, "dryRun": true }
+ *
+ * WHY THIS EXISTS. A failed edit already costs nothing, because the row and the counter both
+ * sit in the success branch. This is the other case, and the worse one: an edit that SUCCEEDED
+ * and did not do what was asked. Twenty section labels were hardcoded in the renderer, so a
+ * customer asking to change the words above a heading got a clean run, a new version, and the
+ * same label. The model had changed something, so nothing anywhere thought it had failed.
+ *
+ * BOTH ALLOWANCES, BECAUSE THEY ARE COUNTED DIFFERENTLY. The pre-launch ten is stored on
+ * jobs.editsUsed. The live ten is not stored at all, it is counted off edits rows where
+ * phase = live and counted = true. Refunding one and not the other would leave a customer
+ * looking at two different numbers, so this moves both: the counter comes down and the most
+ * recent counted rows are marked counted = false, which is what a rollback already does.
+ */
+app.post('/admin/jobs/:jobId/refund-edits', requireAdmin, async (c) => {
+  const jobId = c.req.param('jobId') ?? ''
+  const job = await getJob(jobId)
+  if (!job) return c.json({ error: 'not_found' }, 404)
+
+  const body = await c.req
+    .json<{ rounds?: number; dryRun?: boolean }>()
+    .catch(() => ({}) as { rounds?: number; dryRun?: boolean })
+  const rounds = Number(body.rounds)
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > job.editsUsed) {
+    return c.json(
+      {
+        error: 'bad_request',
+        detail: 'rounds must be a whole number between 1 and ' + job.editsUsed + ', which is what they have used.',
+        editsUsed: job.editsUsed,
+      },
+      400,
+    )
+  }
+
+  const db = await getDb()
+  // Newest first, because the rounds being given back are the ones just spent.
+  const recent = await db
+    .select({ id: schema.edits.id, prompt: schema.edits.prompt, createdAt: schema.edits.createdAt })
+    .from(schema.edits)
+    .where(and(eq(schema.edits.jobId, jobId), eq(schema.edits.counted, true)))
+    .orderBy(desc(schema.edits.createdAt))
+    .limit(rounds)
+
+  if (body.dryRun !== false) {
+    return c.json({
+      ok: true,
+      dryRun: true,
+      jobId,
+      businessName: job.businessName,
+      editsUsedNow: job.editsUsed,
+      editsUsedAfter: Math.max(0, job.editsUsed - rounds),
+      wouldUncount: recent.map((r) => ({ id: r.id, prompt: (r.prompt ?? "").slice(0, 80) })),
+      detail: 'Nothing was changed. Send { "dryRun": false } to apply it.',
+    })
+  }
+
+  const now = new Date()
+  await db
+    .update(schema.jobs)
+    .set({ editsUsed: Math.max(0, job.editsUsed - rounds), updatedAt: now })
+    .where(eq(schema.jobs.id, jobId))
+
+  for (const row of recent) {
+    await db.update(schema.edits).set({ counted: false }).where(eq(schema.edits.id, row.id))
+  }
+
+  await recordEvent(jobId, 'edits.refunded', {
+    rounds,
+    from: job.editsUsed,
+    to: Math.max(0, job.editsUsed - rounds),
+    uncounted: recent.map((r) => r.id),
+    notify: 'chris',
+  })
+
+  return c.json({
+    ok: true,
+    jobId,
+    rounds,
+    editsUsedBefore: job.editsUsed,
+    editsUsedAfter: Math.max(0, job.editsUsed - rounds),
+    uncounted: recent.length,
+    detail: 'Rounds given back on both allowances. Their website is untouched.',
+  })
+})
+
 app.post('/admin/wipe-jobs', async (c) => {
   const body = await c.req
     .json<{ jobIds?: string[]; confirm?: string; dryRun?: boolean }>()
