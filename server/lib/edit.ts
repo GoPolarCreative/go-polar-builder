@@ -51,21 +51,6 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
     'cta_band',
     'contact',
   ],
-  layout: ['gallery'],
-  /* labels reach every section, so any declaration lets a wording change through. */
-  labels: [
-    'hero',
-    'about',
-    'services',
-    'gallery',
-    'why_us',
-    'process',
-    'service_areas',
-    'testimonials',
-    'faq',
-    'cta_band',
-    'contact',
-  ],
 }
 
 /**
@@ -75,7 +60,33 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
  * stylesheet, so it only travels under a "global" declaration. Everything else needs at least one
  * of its sections named.
  */
+/**
+ * Keys that are not sections, and never needed a section named to justify them.
+ *
+ * MEASURED, NOT GUESSED. Driving fourteen ordinary requests through the real chain, six failed
+ * and four of those failed here: "put the photo gallery in 3 columns" declared nothing at all,
+ * "remove the image behind ready to get started" declared cta_band while layout was mapped to
+ * gallery, and two wording changes declared footer, which was not in the list labels was
+ * mapped to. Every one of them was thrown away after the model had done the work correctly.
+ *
+ * The declaration exists to stop the model rewriting sections nobody asked about. None of
+ * these IS a section: labels and layout and tokens apply across the page, so asking which
+ * section they belong to has no answer, and making the customer lose because the model picked
+ * the wrong one is a rule protecting nothing.
+ */
+const NOT_SECTIONS = new Set([
+  'labels',
+  'layout',
+  'sectionCopy',
+  'tokens',
+  'meta',
+  'schema',
+  'style',
+  'brand',
+])
+
 export function keyIsDeclared(key: string, declared: Set<string>): boolean {
+  if (NOT_SECTIONS.has(key)) return true
   if (declared.has('global')) return true
   /*
    * THE MODEL SOMETIMES NAMES THE PLAN KEY RATHER THAN THE SECTION.
@@ -235,6 +246,54 @@ export async function generateEditedPlan(args: {
 
     const declared = new Set((envelope.sections as unknown[]).map((v) => String(v)))
     const proposed = envelope.changes as Record<string, unknown>
+
+    /*
+     * CHANGES WITH NOTHING DECLARED IS A RETRY, NOT A SILENT NO-OP.
+     *
+     * The model sometimes returns the right change and an empty sections array. Every key then
+     * fails the declaration test and the edit becomes a no-op that reports success, which is the
+     * worst outcome available: the work was done correctly and thrown away. Three of fourteen
+     * ordinary requests did this, including "change the main headline".
+     *
+     * Asking again costs one call and usually fixes it, and the alternative is charging somebody
+     * a round for nothing.
+     */
+    /*
+     * AN EMPTY CHANGE SET IS NOT AN ANSWER.
+     *
+     * Two of fourteen ordinary requests came back with changes: {} and sections: []. "Put the
+     * photo gallery in 3 columns" and "change the main headline to ..." are about as concrete as
+     * a request gets, and the model simply returned nothing. Downstream that is a no-op: the
+     * customer is told nothing changed and has to type it again, which is better than being
+     * charged for it and far worse than asking the model once more.
+     */
+    /*
+     * ...BUT A REFUSAL IS AN ANSWER, AND ON THE LAST ATTEMPT IT HAS TO BE ALLOWED THROUGH.
+     *
+     * Asking a Chermside plumber's site to say it does fencing on the Sunshine Coast is a
+     * request the house rules require the model to decline, and it declines by changing nothing.
+     * Retrying that forever turned a correct refusal into "the revised plan did not validate",
+     * which tells the customer their editor is broken when it has just protected them from a
+     * claim about their business that is not true.
+     *
+     * Nudge once, in case it was simply lazy. Then accept it: downstream an empty diff is the
+     * no-op path, which tells them nothing changed and costs them nothing.
+     */
+    if (Object.keys(proposed).length === 0 && attempt < 2) {
+      lastError =
+        'You returned no changes at all. The request names something on the page: work out which ' +
+        'part of the plan holds it and change that. If it genuinely cannot be done, change nothing ' +
+        'and say so in assumptions.'
+      continue
+    }
+
+    const sectionKeys = Object.keys(proposed).filter((k) => !NOT_SECTIONS.has(k))
+    if (declared.size === 0 && sectionKeys.length > 0) {
+      lastError =
+        'You changed ' + sectionKeys.join(', ') + ' but "sections" was empty. ' +
+        'List the section ids you touched, or the edit cannot be applied.'
+      continue
+    }
 
     /*
      * AGAINST THE SCHEMA, NOT AGAINST THIS ONE PLAN.

@@ -45,3 +45,7 @@ compare/
 
 # Customer photos pulled from the old Google Form intake. Large, private, and not source.
 intake-assets/
+
+# Editor proof output
+editor-proof.txt
+editor-proof.log

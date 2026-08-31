@@ -9,6 +9,27 @@ import { config, modelFor, type AppConfig } from '../config.js'
  */
 
 const DEFAULT_API_URL = 'https://api.anthropic.com/v1/messages'
+
+/**
+ * The endpoint, from a base URL that may or may not carry the path.
+ *
+ * ANTHROPIC_BASE_URL exists so a gateway or a proxy can be put in front, and the obvious thing
+ * to put in it is the host: "https://api.anthropic.com". Posting to a host with no path returns
+ * a 404 WITH AN EMPTY BODY, which surfaces as "Anthropic API returned 404:" and says nothing
+ * about the cause. It cost an hour of looking at the key and the model, both of which were
+ * fine. If the override has no path of its own, it gets the one the API actually lives at.
+ */
+export function endpointFor(baseUrl: string | undefined): string {
+  if (!baseUrl) return DEFAULT_API_URL
+  const trimmed = baseUrl.replace(/\/+$/, '')
+  try {
+    const path = new URL(trimmed).pathname
+    if (path === '' || path === '/') return trimmed + '/v1/messages'
+  } catch {
+    // Not a URL we can parse. Hand it back untouched rather than guessing at it.
+  }
+  return trimmed
+}
 const API_VERSION = '2023-06-01'
 
 /*
@@ -131,7 +152,7 @@ async function post(opts: CallOptions, stream: boolean): Promise<Response> {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const res = await fetch(cfg.anthropicBaseUrl ?? DEFAULT_API_URL, {
+      const res = await fetch(endpointFor(cfg.anthropicBaseUrl), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

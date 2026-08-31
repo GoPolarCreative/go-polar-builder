@@ -427,8 +427,21 @@ describe('the editor can reach everything the page renders', () => {
     expect(keyIsDeclared('sectionCopy', new Set(['services']))).toBe(true)
     expect(keyIsDeclared('sectionCopy', new Set(['hero']))).toBe(true)
     expect(keyIsDeclared('sectionCopy', new Set(['global']))).toBe(true)
-    // And it is still refused when the edit declared nothing that owns it.
-    expect(keyIsDeclared('sectionCopy', new Set([]))).toBe(false)
+    /*
+     * And with no declaration at all, because it is not a section.
+     *
+     * This asserted false until fourteen real requests were driven through the chain and four
+     * failed here: a gallery column count declared nothing, a footer heading declared 'footer'
+     * when labels was mapped to a list that did not include it. The declaration exists to stop
+     * the model rewriting sections nobody asked about, and none of these IS a section, so asking
+     * which one they belong to has no answer worth losing a customer's edit over.
+     */
+    expect(keyIsDeclared('sectionCopy', new Set([]))).toBe(true)
+    expect(keyIsDeclared('labels', new Set([]))).toBe(true)
+    expect(keyIsDeclared('layout', new Set([]))).toBe(true)
+    // A real section still has to be named.
+    expect(keyIsDeclared('hero', new Set([]))).toBe(false)
+    expect(keyIsDeclared('faq', new Set(['hero']))).toBe(false)
   })
 
   it('every section the renderer reads a label for is declarable', async () => {
