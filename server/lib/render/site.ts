@@ -863,8 +863,16 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.faq-item button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:1rem;text-align:left;background:none;border:0;padding:1.15rem 0;font:inherit;font-weight:700;color:var(--page-fg);cursor:pointer;}',
     '.faq-item button .icon{color:var(--accent);transition:transform .25s ease;}',
     '.faq-item[data-open="true"] button .icon{transform:rotate(180deg);}',
-    '.faq-answer{display:none;padding-bottom:1.15rem;color:var(--page-muted);max-width:var(--measure);}',
-    '.faq-item[data-open="true"] .faq-answer{display:block;}',
+    /*
+     * THE HIDING HANGS OFF AN ATTRIBUTE ONLY THE SCRIPT SETS.
+     *
+     * Same rule as the scroll reveals. If the stylesheet hides the answers on its own, then a
+     * page whose script did not load is a page with the answers to nine of ten questions
+     * missing. Closed is a nicety; readable is the job.
+     */
+    '.faq-answer{padding-bottom:1.15rem;color:var(--page-muted);max-width:var(--measure);}',
+    '[data-faq-js] .faq-answer{display:none;}',
+    '[data-faq-js] .faq-item[data-open="true"] .faq-answer{display:block;}',
   ].join('\n')
 
   const cta = [
@@ -2083,6 +2091,26 @@ ${orderedBody}
         button.disabled=false;
         button.textContent=original;
       });
+    });
+  });
+
+  /*
+   * THE FAQ. Every answer but the first was unreachable on the home page.
+   *
+   * The markup carries data-faq and data-open and the stylesheet shows an answer only when
+   * data-open is true, and nothing ever flipped it. The service pages have had this handler
+   * all along; the home page lost it when renderSite replaced the model-written build, so on
+   * every site the first question was open and the rest did not respond to a tap.
+   */
+  var faqItems=Array.prototype.slice.call(document.querySelectorAll('[data-faq]'));
+  if(faqItems.length){document.documentElement.setAttribute('data-faq-js','');}
+  faqItems.forEach(function(item){
+    var faqButton=item.querySelector('button');
+    if(!faqButton){return;}
+    faqButton.addEventListener('click',function(){
+      var open=item.getAttribute('data-open')==='true';
+      item.setAttribute('data-open',open?'false':'true');
+      faqButton.setAttribute('aria-expanded',open?'false':'true');
     });
   });
 

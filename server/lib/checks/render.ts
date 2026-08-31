@@ -137,7 +137,19 @@ export const PROBE_SCRIPT = `async () => {
       : src + ' (alt: ' + img.alt + ') only loaded once lazy loading was bypassed, so it never appears to a real visitor'
   })
 
+  /*
+   * ACCORDIONS, INCLUDING THE ONES THIS SITE ACTUALLY BUILDS.
+   *
+   * This looked only for <details>, and the FAQ is a div with data-faq and a button. So the
+   * count was zero, the check reported "0 accordion(s), n/a" and passed, while on every home
+   * page the toggle script was missing entirely: the first question was open, the rest did not
+   * respond to a tap, and every answer but one was unreachable. It shipped to a customer.
+   *
+   * A check that only knows a pattern the renderer does not use is not a check, it is a
+   * reassuring line in a report. Both shapes are exercised now, and clicked for real.
+   */
   const details = Array.from(document.querySelectorAll('details'))
+  const faqs = Array.from(document.querySelectorAll('[data-faq]'))
   let accordionOpened = false
   if (details.length > 0) {
     const first = details[0]
@@ -146,6 +158,18 @@ export const PROBE_SCRIPT = `async () => {
     await new Promise((r) => setTimeout(r, 250))
     accordionOpened = first.open
     if (accordionOpened && summary) summary.click()
+  } else if (faqs.length > 0) {
+    /*
+     * The SECOND one, deliberately. The first is rendered open, so clicking it and watching it
+     * close would pass on a page where nothing is wired up at all.
+     */
+    const target = faqs[1] ?? faqs[0]
+    const button = target.querySelector('button')
+    const before = target.getAttribute('data-open')
+    if (button) button.click()
+    await new Promise((r) => setTimeout(r, 250))
+    accordionOpened = target.getAttribute('data-open') !== before
+    if (accordionOpened && button) button.click()
   }
 
   const counterEls = Array.from(document.querySelectorAll('[data-count], [data-target], [class*="counter"]'))
@@ -376,13 +400,13 @@ export const PROBE_SCRIPT = `async () => {
     squeeze: { thin, wrappedHeadings },
     headerOverhang,
     interactions: {
-      accordions: details.length,
+      accordions: details.length + faqs.length,
       accordionOpened,
       counters: counterEls.length,
       countersRan,
       detail:
-        details.length + ' accordion(s), first one ' +
-        (details.length ? (accordionOpened ? 'opened' : 'did NOT open') : 'n/a') + '. ' +
+        details.length + faqs.length + ' accordion(s), first one ' +
+        (details.length + faqs.length ? (accordionOpened ? 'opened' : 'did NOT open') : 'n/a') + '. ' +
         counterEls.length + ' counter(s), ' +
         (countersRan ? 'showing values' : 'still showing zero or empty'),
     },

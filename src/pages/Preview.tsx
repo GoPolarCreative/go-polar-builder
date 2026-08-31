@@ -755,7 +755,8 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="mb-2 rounded-lg border border-ice-200">
+    <>
+      <div className="mb-2 rounded-lg border border-ice-200">
       {/* Closed by default, like the checklist. On a phone this sits directly above the chat box,
           so anything it renders open is height taken from the thing it is meant to help with. */}
       <button
@@ -798,7 +799,36 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
           ))}
         </div>
       ) : null}
-    </div>
+      </div>
+
+      {/*
+        * NOT AN ACCORDION, AND NOT BURIED.
+        *
+        * The point of this is to be read BEFORE somebody spends a change asking for something
+        * that cannot be done. Hidden behind a tap it would be found by the people who already
+        * know, which is nobody. It is five lines and it sits above the box they type into.
+        *
+        * Everything listed here is genuinely fixed, and the list is short because it is the
+        * whole of it: every word, every colour, the photos and the services are all editable.
+        */}
+      <div className="mb-2 rounded-lg border border-ice-200 bg-white px-3 py-2.5">
+        <p className="text-sm font-medium text-ice-700">What you cannot change</p>
+        <ul className="mt-1.5 space-y-1">
+          <li className="field-hint">Which sections are on the page, and the order they come in</li>
+          <li className="field-hint">The fonts, and the layout of the big photo at the top</li>
+          <li className="field-hint">The spacing between sections</li>
+          <li className="field-hint">
+            The <span className="whitespace-nowrap">&ldquo;Website by Go Polar Creative&rdquo;</span> line in the footer
+          </li>
+        </ul>
+        <p className="field-hint mt-2">
+          The fonts and that top layout come as a set with the design style your website was
+          built in, so you cannot change one on its own. You <strong>can</strong> ask to switch
+          to a different style, which changes them together. Everything else is yours: every
+          word, every colour, your photos and your services.
+        </p>
+      </div>
+    </>
   )
 }
 

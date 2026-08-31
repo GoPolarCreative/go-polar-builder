@@ -489,7 +489,9 @@ ${
       toggle.setAttribute('aria-expanded',open?'false':'true');
     });
   }
-  Array.prototype.slice.call(document.querySelectorAll('[data-faq]')).forEach(function(item){
+  var faqItems=Array.prototype.slice.call(document.querySelectorAll('[data-faq]'));
+  if(faqItems.length){document.documentElement.setAttribute('data-faq-js','');}
+  faqItems.forEach(function(item){
     var button=item.querySelector('button');
     if(!button){return;}
     button.addEventListener('click',function(){
