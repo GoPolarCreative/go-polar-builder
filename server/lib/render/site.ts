@@ -181,6 +181,7 @@ export function twoTone(text: string, enabled: boolean): string {
  */
 export const DEFAULT_LABELS: Record<string, string> = {
   'form.name': 'Your name',
+  'form.email': 'Email',
   'form.message': 'What do you need done?',
   'form.note': 'We will get back to you as soon as we can. If it is urgent, ring us instead.',
   'about.servicesLink': 'Our services',
@@ -202,6 +203,33 @@ export const DEFAULT_LABELS: Record<string, string> = {
   'footer.allServices': 'All services',
   'mobileBar.call': 'Call now',
   'servicePage.allServices': 'All our services',
+  /*
+   * THE NAV, WHICH THE FIRST AUDIT SWORE WAS FINE.
+   *
+   * That audit compared visible text against JSON.stringify(plan), which includes the KEY
+   * NAMES. "About", "Services", "Gallery", "FAQ" and "Contact" are all plan keys, so five of
+   * the six nav labels looked traceable while being literals in the markup. Only "Areas" and
+   * "FAQ" fell through, and only once the audit was changed to walk the plan VALUES.
+   *
+   * A test that answers the question you meant to ask is worth more than a test that passes.
+   */
+  'nav.home': 'Home',
+  'nav.about': 'About',
+  'nav.services': 'Services',
+  'nav.work': 'Our work',
+  'nav.areas': 'Areas',
+  'nav.faq': 'FAQ',
+  'nav.contact': 'Contact',
+  'contact.email': 'Email',
+  'contact.basedIn': 'Based in',
+  /*
+   * Composed lines. {place} and {abn} are substituted, and a customer who writes wording with
+   * no placeholder in it simply gets that wording, which is the point: "ABSOLUTELY everything
+   * is editable" has to include the sentences the template assembles, not just the ones it
+   * copies out whole.
+   */
+  'contact.area': '{place} and surrounding suburbs',
+  'footer.abn': 'ABN {abn}.',
 }
 
 /**
@@ -357,6 +385,10 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     // Both fall back to the accent, which is what they always were.
     '--eyebrow-color:' + (t.eyebrow ?? t.accent) + ';',
     '--btn-bg:' + (t.button ?? t.accent) + ';',
+    '--hero-tick:' + (t.heroTick ?? t.accent) + ';',
+    // One number drives both logos, so "make the logo bigger" moves the header and the footer.
+    '--logo-h:' + (plan.layout?.logoHeight ?? 60) + 'px;',
+    '--logo-h-footer:' + Math.round((plan.layout?.logoHeight ?? 60) * 0.93) + 'px;',
     '--eyebrow-size:' + spec.eyebrowSize + ';',
     '--h1:' + spec.scale.h1 + ';',
     '--h2:' + spec.scale.h2 + ';',
@@ -510,7 +542,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;}',
     '.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}',
     '.brand__mark{width:40px;height:40px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.15rem;}',
-    '.brand__logo{max-height:60px;max-width:300px;width:auto;height:auto;object-fit:contain;}',
+    '.brand__logo{max-height:var(--logo-h);max-width:300px;width:auto;height:auto;object-fit:contain;}',
     /*
      * The services dropdown. display:none at rest rather than opacity or visibility, so there
      * is nothing to catch a stray hover and nothing for check 23 to find hanging open.
@@ -565,7 +597,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.hero__ctas{display:flex;flex-wrap:wrap;gap:14px;margin:1.75rem 0 1.5rem;}',
     '.hero__points{display:flex;flex-wrap:wrap;gap:10px 22px;list-style:none;padding:0;margin:0;}',
     '.hero__points li{display:flex;align-items:center;gap:8px;font-size:0.82rem;font-weight:500;color:var(--on-dark-66);}',
-    '.hero__points .icon{width:16px;height:16px;color:var(--accent);}',
+    '.hero__points .icon{width:16px;height:16px;color:var(--hero-tick);}',
     '@media (min-width:1000px){.hero__inner{grid-template-columns:1fr 440px;gap:3.75rem;}}',
 
     // ---- hero variants ----------------------------------------------------------------
@@ -882,7 +914,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.site-footer ul{list-style:none;padding:0;margin:0;display:grid;gap:9px;font-size:0.88rem;}',
     '.site-footer a{text-decoration:none;}',
     '.site-footer a:hover{color:var(--accent);}',
-    '.site-footer__logo{max-height:56px;max-width:min(280px,60vw);width:auto;height:auto;object-fit:contain;margin-bottom:1rem;}',
+    '.site-footer__logo{max-height:var(--logo-h-footer);max-width:min(280px,60vw);width:auto;height:auto;object-fit:contain;margin-bottom:1rem;}',
     '.site-footer__blurb{font-size:0.88rem;max-width:34ch;}',
     '.footer-bottom{border-top:1px solid var(--veil-12);padding:1.25rem 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;font-size:0.79rem;}',
     '.footer-bottom a{color:var(--accent);}',
@@ -1169,7 +1201,9 @@ export function navMarkup(items: NavLink[], services: NavLink[], mobile = false)
 
   return items
     .map((n) => {
-      const isServices = n.label === 'Services' && services.length > 0
+      // By href, not by label: a customer who renames Services to Our trade still gets the
+      // dropdown, which matching on the word would have quietly taken away from them.
+      const isServices = n.href.includes('#services') && services.length > 0
       if (!isServices) return link(n)
 
       if (mobile) {
@@ -1198,13 +1232,16 @@ export function galleryColumns(count: number): number {
 
 export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
   const name = esc(plan.brand.wordmarkText)
+  // Matches --logo-h, because check 13 compares these attributes against the real artwork and
+  // the browser uses them to reserve the space before the image arrives.
+  const h = plan.layout?.logoHeight ?? 60
 
 
   if (plan.brand.logoTreatment === 'image' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 60, 300).width}" height="${logoBox(facts.logo, 60, 300).height}"></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"></a>`
   }
   if (plan.brand.logoTreatment === 'cropped-mark' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 60, 300).width}" height="${logoBox(facts.logo, 60, 300).height}"><span class="brand__name">${name}</span></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"><span class="brand__name">${name}</span></a>`
   }
 
   const initials = plan.brand.wordmarkText
@@ -1239,7 +1276,7 @@ export function formMarkup(args: {
         <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
         <label class="field"><span>${esc(label(args.plan, 'form.name'))}</span><input type="text" name="name" required autocomplete="name"></label>
         <label class="field"><span>Phone</span><input type="tel" name="phone" required autocomplete="tel"></label>
-        <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email"></label>
+        <label class="field"><span>${esc(label(args.plan, 'form.email'))}</span><input type="email" name="email" required autocomplete="email"></label>
         <label class="field"><span>${esc(label(args.plan, 'form.message'))}</span><textarea name="message" required></textarea></label>
         <button class="btn btn--primary btn--block" type="submit">${esc(clean(args.button))}</button>
         <p class="form-status" role="status"></p>
@@ -1351,12 +1388,12 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
     label: sp.service,
   }))
   const navItems = [
-    { href: '#about', label: 'About' },
-    { href: '#services', label: 'Services' },
-    ...(plan.gallery.enabled ? [{ href: '#work', label: 'Our work' }] : []),
-    { href: '#areas', label: 'Areas' },
-    { href: '#faq', label: 'FAQ' },
-    { href: '#contact', label: 'Contact' },
+    { href: '#about', label: label(plan, 'nav.about') },
+    { href: '#services', label: label(plan, 'nav.services') },
+    ...(plan.gallery.enabled ? [{ href: '#work', label: label(plan, 'nav.work') }] : []),
+    { href: '#areas', label: label(plan, 'nav.areas') },
+    { href: '#faq', label: label(plan, 'nav.faq') },
+    { href: '#contact', label: label(plan, 'nav.contact') },
   ]
 
   const aboutPhoto = facts.photos[1] ?? null
@@ -1806,11 +1843,11 @@ ${
       <p>${esc(clean(plan.contact.blurb))}</p>
       <ul class="contact-list">
         <li>${icon(ICON_PHONE)}<div><b>Phone</b><a href="tel:${esc(facts.phoneE164)}">${esc(facts.phoneDisplay)}</a></div></li>
-        <li>${icon(ICON_MAIL)}<div><b>Email</b><a href="mailto:${esc(facts.email)}">${esc(facts.email)}</a></div></li>
+        <li>${icon(ICON_MAIL)}<div><b>${esc(label(plan, 'contact.email'))}</b><a href="mailto:${esc(facts.email)}">${esc(facts.email)}</a></div></li>
         <li>${icon(ICON_PIN)}<div><b>Based in</b><span>${
           facts.address && facts.address.line1
             ? esc(`${facts.address.line1}, ${facts.address.suburb} ${facts.address.state} ${facts.address.postcode}`)
-            : esc(`${plan.meta.geoPlacename} and surrounding suburbs`)
+            : esc(label(plan, 'contact.area').replace('{place}', plan.meta.geoPlacename))
         }</span></div></li>
       </ul>
       <h3>${esc(label(plan, 'contact.hours'))}</h3>
@@ -1910,7 +1947,7 @@ ${orderedBody}
       <div>
         ${
           plan.brand.logoTreatment !== 'css-logotype' && facts.logo
-            ? `<img class="site-footer__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 56, 280).width}" height="${logoBox(facts.logo, 56, 280).height}">`
+            ? `<img class="site-footer__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, Math.round((plan.layout?.logoHeight ?? 60) * 0.93), 280).width}" height="${logoBox(facts.logo, Math.round((plan.layout?.logoHeight ?? 60) * 0.93), 280).height}">`
             : `<p class="brand__name">${esc(plan.brand.wordmarkText)}</p>`
         }
         <p class="site-footer__blurb">${esc(clean(plan.brand.tagline))}</p>
@@ -1940,7 +1977,7 @@ ${orderedBody}
       </div>
     </div>
     <div class="footer-bottom">
-      <span>&copy; ${new Date().getUTCFullYear()} ${esc(plan.brand.businessName)}.${facts.abn ? ` ABN ${esc(facts.abn)}.` : ''}</span>
+      <span>&copy; ${new Date().getUTCFullYear()} ${esc(plan.brand.businessName)}.${facts.abn ? ' ' + esc(label(plan, 'footer.abn').replace('{abn}', facts.abn)) : ''}</span>
       <span><a href="https://www.itscold.com.au" target="_blank" rel="noopener">Website by Go Polar Creative</a></span>
     </div>
   </div>

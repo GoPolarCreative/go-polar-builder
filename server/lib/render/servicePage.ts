@@ -95,9 +95,9 @@ export function renderServicePage(args: {
    */
   const serviceLinks = pages.slice(1).map((p) => ({ href: linkTo(p), label: p.service ?? 'Service' }))
   const navItems = [
-    { href: linkTo(home), label: 'Home' },
-    { href: `${linkTo(home)}#services`, label: 'Services' },
-    { href: `${linkTo(home)}#contact`, label: 'Contact' },
+    { href: linkTo(home), label: label(plan, 'nav.home') },
+    { href: `${linkTo(home)}#services`, label: label(plan, 'nav.services') },
+    { href: `${linkTo(home)}#contact`, label: label(plan, 'nav.contact') },
   ]
 
   const graph = [
@@ -375,7 +375,15 @@ ${
 <section class="section cta-band">
   <div class="wrap">
     <span class="eyebrow">${esc(sectionCopy(plan, 'cta_band', 'eyebrow', 'Get started'))}</span>
-    <h2>${twoTone(`Need ${content.service.toLowerCase()}? Give us a call.`, spec.twoTone)}</h2>
+    <h2>${twoTone(
+      sectionCopy(
+        plan,
+        'cta_band',
+        'heading',
+        `Need ${content.service.toLowerCase()}? Give us a call.`,
+      ),
+      spec.twoTone,
+    )}</h2>
     <p>${esc(clean(plan.ctaBand.body))}</p>
     <div class="cta-band__actions">
       <a class="btn btn--primary" href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(facts.phoneDisplay)}</a>
@@ -392,8 +400,10 @@ ${
       <p>${esc(clean(plan.contact.blurb))}</p>
       <ul class="contact-list">
         <li>${icon(ICON_PHONE)}<div><b>Phone</b><a href="tel:${esc(facts.phoneE164)}">${esc(facts.phoneDisplay)}</a></div></li>
-        <li>${icon(ICON_MAIL)}<div><b>Email</b><a href="mailto:${esc(facts.email)}">${esc(facts.email)}</a></div></li>
-        <li>${icon(ICON_PIN)}<div><b>Based in</b><span>${esc(`${plan.meta.geoPlacename} and surrounding suburbs`)}</span></div></li>
+        <li>${icon(ICON_MAIL)}<div><b>${esc(label(plan, 'contact.email'))}</b><a href="mailto:${esc(facts.email)}">${esc(facts.email)}</a></div></li>
+        <li>${icon(ICON_PIN)}<div><b>${esc(label(plan, 'contact.basedIn'))}</b><span>${esc(
+          label(plan, 'contact.area').replace('{place}', plan.meta.geoPlacename),
+        )}</span></div></li>
       </ul>
       <h3>${esc(label(plan, 'contact.hours'))}</h3>
       <ul class="hours">
@@ -435,7 +445,7 @@ ${
         <ul>
           <li><a href="${esc(linkTo(home))}">Home</a></li>
           <li><a href="${esc(linkTo(home))}#about">About</a></li>
-          <li><a href="${esc(linkTo(home))}#areas">Areas</a></li>
+          <li><a href="${esc(linkTo(home))}#areas">${esc(label(plan, 'nav.areas'))}</a></li>
         </ul>
       </div>
       <div>
@@ -448,7 +458,7 @@ ${
       </div>
     </div>
     <div class="footer-bottom">
-      <span>&copy; ${new Date().getUTCFullYear()} ${esc(plan.brand.businessName)}.${facts.abn ? ` ABN ${esc(facts.abn)}.` : ''}</span>
+      <span>&copy; ${new Date().getUTCFullYear()} ${esc(plan.brand.businessName)}.${facts.abn ? ' ' + esc(label(plan, 'footer.abn').replace('{abn}', facts.abn)) : ''}</span>
       <span><a href="https://www.itscold.com.au" target="_blank" rel="noopener">Website by Go Polar Creative</a></span>
     </div>
   </div>

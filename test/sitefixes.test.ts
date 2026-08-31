@@ -178,8 +178,23 @@ describe('the hero', () => {
     expect(render()).toContain('.hero--centred .hero__sub{margin-inline:auto;}')
   })
 
-  it('gives the logo room to be a logo', () => {
-    expect(render()).toContain('max-height:60px')
+  it('gives the logo room to be a logo, and lets them ask for more', () => {
+    // 60 was hardcoded in the stylesheet, so "make the logo bigger" had nowhere to land.
+    expect(render()).toContain('--logo-h:60px;')
+    const big = render({ ...fixture.plan, layout: { logoHeight: 96 } })
+    expect(big).toContain('--logo-h:96px;')
+    // The footer follows, so one request moves both.
+    expect(big).toContain('--logo-h-footer:89px;')
+  })
+
+  it('the hero ticks have a colour of their own', () => {
+    expect(render()).toContain('--hero-tick:' + fixture.plan.tokens.accent + ';')
+    const green = render({
+      ...fixture.plan,
+      tokens: { ...fixture.plan.tokens, heroTick: '#16A34A' },
+    })
+    expect(green).toContain('--hero-tick:#16A34A;')
+    expect(green).toContain('--accent:' + fixture.plan.tokens.accent + ';')
   })
 })
 
@@ -591,18 +606,12 @@ describe('every word on the page can be reached from the editor', () => {
    * is assembled from the year and the business name. "and surrounding suburbs" is built from the
    * placename. The rest are composed from plan values at render time rather than written down.
    */
-  const ALLOWED = [
-    'Website by Go Polar Creative',
-    'and surrounding suburbs',
-    'ABN',
-    'Need',
-    'Give us a call.',
-    'rated on Google',
-    'Posted on Google',
-    'Read our reviews on Google',
-    'Leave a Google review',
-    'Thanks',
-  ]
+  /*
+   * ONE ENTRY. The footer credit is contractual and check 7 fails the build without it; it is
+   * the only text on the page a customer cannot change, and that is on purpose rather than an
+   * oversight. Everything else, including the composed lines, now comes from labels.
+   */
+  const ALLOWED = ['Website by Go Polar Creative']
 
   const visible = (html: string) =>
     html
@@ -616,7 +625,22 @@ describe('every word on the page can be reached from the editor', () => {
 
   it('leaves nothing hardcoded but the credit and the composed lines', () => {
     const plan = marked()
-    const haystack = (JSON.stringify(plan) + JSON.stringify(fixture.facts)).toLowerCase()
+    /*
+     * VALUES ONLY. This compared against JSON.stringify(plan), which includes the KEY NAMES, so
+     * "About", "Services", "Gallery", "FAQ" and "Contact" all looked traceable while being
+     * literals in the nav markup. The test passed and five of six nav labels were unreachable.
+     * A key name is not a word on the page.
+     */
+    const values: string[] = []
+    const walk = (v: unknown): void => {
+      if (typeof v === 'string') values.push(v.toLowerCase())
+      else if (typeof v === 'number') values.push(String(v))
+      else if (Array.isArray(v)) v.forEach(walk)
+      else if (v && typeof v === 'object') Object.values(v).forEach(walk)
+    }
+    walk(plan)
+    walk(fixture.facts)
+    const haystack = values.join('  ')
     const set = renderSiteSet(plan, fixture.facts)
 
     const orphans: string[] = []
@@ -640,7 +664,8 @@ describe('every word on the page can be reached from the editor', () => {
     const plain = renderSiteSet(fixture.plan, fixture.facts).pages.map((p) => p.html).join('')
     for (const [key, text] of Object.entries(DEFAULT_LABELS)) {
       // A placeholder is substituted at render time, so match the part either side of it.
-      const fixed = text.split('{service}')[0]!.trim()
+      // Any placeholder is substituted at render time, so match the longest literal run.
+      const fixed = text.split(/{[a-z]+}/i).map((p) => p.trim()).sort((x, y) => y.length - x.length)[0]!
       expect(plain, key).toContain(fixed)
     }
   })

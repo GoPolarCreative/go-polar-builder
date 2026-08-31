@@ -228,6 +228,15 @@ const planObject = z.object({
        * TO GET STARTED" had no way to be carried out.
        */
       ctaBandPhoto: z.boolean().optional(),
+      /*
+       * How tall the logo is allowed to be, in the header and in the footer.
+       *
+       * "Make the logo bigger" is one of the most common things anybody says about a website
+       * and there was no field for it: the height was a number in the stylesheet, so the model
+       * had nowhere to put the change and the customer was told it had been made. The footer
+       * follows at roughly the same proportion it always had.
+       */
+      logoHeight: z.number().int().min(32).max(140).optional(),
     })
     .optional(),
 
@@ -288,6 +297,12 @@ const planObject = z.object({
      * labels at once, and "make the Call Now button green" should not repaint all of them.
      */
     button: hex.optional(),
+    /*
+     * The tick icons beside the hero trust points. They follow the accent, which is right until
+     * somebody wants them green on a page whose accent is grey. Same shape as eyebrow and
+     * button: a token of its own that falls back to the accent.
+     */
+    heroTick: hex.optional(),
   }),
 
   hero: z.object({

@@ -1,5 +1,6 @@
 import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
 import { factsBlock } from './messages.js'
+import { DEFAULT_LABELS } from '../lib/render/site.js'
 
 /**
  * Edit prompts. See DECISIONS.md D3: an edit revises the plan first, then the HTML is rebuilt
@@ -130,15 +131,21 @@ labels
   Every other word the template supplies and the plan does not: form field labels, footer column
   headings, button and link text, the note under the enquiry form. A flat map of key to wording.
   The keys are:
-    form.name, form.message, form.note, about.servicesLink, services.cardCta,
-    services.cardPageCta, contact.hours, footer.company, footer.services, footer.allServices,
-    mobileBar.call, servicePage.allServices
+${Object.keys(DEFAULT_LABELS).map((k) => "    " + k).join("\n")}
+
   Use it when the request is about a word on the page that is not a heading and not their own
   copy, for example "change Request a quote to Get a price".
 
 sectionCopy[section].eyebrowColor
   A hex colour for the label above ONE section heading. tokens.eyebrow moves all of them at once;
   this moves one. Use it when the request names particular sections.
+
+layout.logoHeight
+  How tall the logo is allowed to be, 32 to 140 pixels. The footer follows. Use it for "make the
+  logo bigger".
+
+tokens.heroTick
+  A hex colour for the tick icons beside the hero trust points, separate from the accent.
 
 layout.ctaBandPhoto
   false removes the photograph behind the closing call to action band. On by default.
