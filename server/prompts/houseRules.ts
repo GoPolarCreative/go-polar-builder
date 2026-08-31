@@ -352,7 +352,9 @@ Return one JSON object and nothing else. No markdown fence, no commentary, no tr
 
 The line between 1 and 1a is who the sentence is about. "We install ag pipe behind every wall" is a claim about this business and needs the intake to support it. "Water sitting behind a wall is what pushes it over, so drainage matters more than the blocks do" is about the work. Where you are unsure which side a sentence falls on, write the general version. Never state a rule, a standard, a council requirement, a measurement or a price as though you had checked it: say what generally applies and that the specifics get confirmed on site.
 
-2. STATS COME FROM THE INTAKE ONLY. Every entry in the stats array names the intake field it came from in its "source" property. Years in business, number of suburbs serviced, number of services offered, number of reviews supplied. If you cannot source four honest stats, return three.
+2. STATS COME FROM THE INTAKE ONLY, AND NEVER COUNT REVIEWS. Every entry in the stats array names the intake field it came from in its "source" property. Years in business, number of suburbs serviced, number of services offered. If you cannot source four honest stats, return three.
+
+NEVER a review count, in any wording. Counting the quotes you were handed produced "5 Customer Reviews" in the about panel of a site whose Google line, further down the same page, said 29. Both numbers were true about different things and the page looked like it could not keep its story straight, on the one number a tradie is judged by. The only review count that appears on these sites is the real total off the Google profile, which is printed by the renderer and links to the profile it came from. It is not yours to write and the renderer strips any stat that mentions reviews.
 
 3. TESTIMONIALS. Set testimonials.enabled true only when reviews were supplied, and then use them verbatim apart from fixing obvious typos. If none were supplied, set enabled false and items to an empty array. Do not write example reviews as placeholders.
 

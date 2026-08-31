@@ -415,7 +415,20 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.site-header__inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;width:100%;}',
     '.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--white);}',
     '.brand__mark{width:40px;height:40px;border-radius:var(--radius-btn);background:var(--accent);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-head);font-size:1.15rem;}',
-    '.brand__logo{max-height:42px;max-width:260px;width:auto;height:auto;object-fit:contain;}',
+    '.brand__logo{max-height:60px;max-width:300px;width:auto;height:auto;object-fit:contain;}',
+    /*
+     * The services dropdown. display:none at rest rather than opacity or visibility, so there
+     * is nothing to catch a stray hover and nothing for check 23 to find hanging open.
+     */
+    '.nav__group{position:relative;display:inline-flex;align-items:center;}',
+    '.nav__sub{display:none;position:absolute;top:100%;left:0;min-width:230px;padding:8px;z-index:60;'
+      + 'background:var(--white);border:1px solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow-hover);}',
+    '.nav__group:hover .nav__sub,.nav__group:focus-within .nav__sub{display:block;}',
+    '.nav__sub a{display:block;padding:8px 12px;border-radius:calc(var(--radius) / 2);white-space:nowrap;color:var(--ink);}',
+    '.nav__sub a:hover,.nav__sub a:focus{background:var(--wash);color:var(--accent);}',
+    // A group of pages under Services, on a phone, where there is no hover to reveal anything.
+    '.mobile-panel__sub{display:flex;flex-direction:column;padding-left:14px;margin:2px 0 6px;border-left:2px solid var(--hairline);}',
+    '.mobile-panel__sub a{font-size:0.92rem;opacity:0.86;}',
     '.brand__name{font-family:var(--font-head);font-size:1.2rem;letter-spacing:var(--track-head);' +
       (spec.headingTransform === 'uppercase' ? 'text-transform:uppercase;' : '') +
       '}',
@@ -457,6 +470,12 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     // in the hero it sits below the CTAs at a readable width rather than beside them.
     '.hero--centred .hero__inner{justify-items:center;text-align:center;}',
     '.hero--centred .hero__copy{max-width:56rem;}',
+    /*
+     * hero__sub is capped at 52ch so the line length stays readable. On a centred hero that
+     * cap left the BOX against the left edge of a much wider column while the text inside it
+     * was centred, which reads as text that has slipped rather than text that is centred.
+     */
+    '.hero--centred .hero__sub{margin-inline:auto;}',
     '.hero--centred .hero__ctas{justify-content:center;}',
     '.hero--centred .hero__points{justify-content:center;}',
     '@media (min-width:1000px){.hero--centred .hero__inner{grid-template-columns:minmax(0,1fr);}',
@@ -541,7 +560,17 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       cardSkin +
       'transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}',
     '.card:hover{transform:translateY(-5px);box-shadow:var(--shadow-hover);border-color:var(--accent);}',
-    '.card h3{margin-bottom:0.55rem;}',
+    /*
+     * THE COLOUR IS SET HERE ON PURPOSE, AND REMOVING IT MAKES THE HEADING DISAPPEAR.
+     *
+     * .card sets color on itself and the h3 used to inherit it, which works everywhere except
+     * the one place it matters. Inside section--dark there is a rule ".section--dark h3" that
+     * paints headings white for the dark ground, and a rule beats inheritance however close
+     * the parent is. The why choose us cards are light cards sitting on a dark section, so
+     * every card heading rendered white on white and Callum's build shipped four invisible
+     * headings. .card p already carries its own colour for exactly this reason.
+     */
+    '.card h3{margin-bottom:0.55rem;color:var(--card-fg);}',
     '.card p{color:' + mutedOnCard + ';font-size:0.92rem;margin-bottom:1rem;}',
     '.card__icon{display:grid;place-items:center;width:46px;height:46px;border-radius:' +
       (spec.radius.card === '0px' ? '0' : '12px') +
@@ -579,17 +608,30 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '@media (min-width:900px){.about-grid{grid-template-columns:1fr 1fr;gap:3.5rem;}}',
   ].join('\n')
 
-  // Asymmetric gallery. Never a uniform grid of squares.
+  /*
+   * ONE SIZE, AND A COLUMN COUNT THAT LANDS ON TWO ROWS.
+   *
+   * This was an asymmetric mosaic: the first tile spanned two columns and two rows, the
+   * fourth spanned two columns, and the rest filled in around them. It photographs well in a
+   * design mock and it does not survive real content. Job photos arrive in whatever crop the
+   * phone took them in, so the big tile got a portrait shot squashed into a landscape hole
+   * while its neighbours were fine, and the wall of tiles read as a mistake rather than a
+   * layout.
+   *
+   * Every tile is now the same shape and the columns come from the count, set as --cols on the
+   * element itself: six photos give three across on two rows, eight give four across on two
+   * rows. One column on a phone, always, because two columns of job photos on a 390px screen
+   * are too small to show what the work looks like, which is the only reason the section is
+   * there.
+   */
   const gallery = [
-    '.gallery{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);}',
-    '.gallery figure{margin:0;overflow:hidden;border-radius:var(--radius);}',
+    '.gallery{display:grid;gap:12px;grid-template-columns:1fr;}',
+    '.gallery figure{margin:0;overflow:hidden;border-radius:var(--radius);aspect-ratio:4/3;}',
     '.gallery img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease;}',
     '.gallery figure:hover img{transform:scale(1.04);}',
-    '@media (min-width:900px){',
-    '.gallery{grid-template-columns:repeat(4,1fr);grid-auto-rows:200px;}',
-    '.gallery figure:nth-child(1){grid-column:span 2;grid-row:span 2;}',
-    '.gallery figure:nth-child(4){grid-column:span 2;}',
-    '}',
+    // Two across from tablet, then the count decides. --cols is set on the element.
+    '@media (min-width:640px){.gallery{grid-template-columns:repeat(2,1fr);}}',
+    '@media (min-width:900px){.gallery{grid-template-columns:repeat(var(--cols,3),1fr);}}',
   ].join('\n')
 
   const process = [
@@ -636,6 +678,40 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
     '.quote__source{display:flex;align-items:center;gap:7px;margin-top:0.9rem;' +
       'color:var(--page-muted);font-size:0.76rem;}',
+    /*
+     * ONE ROW, ALWAYS, AND IT MOVES.
+     *
+     * Reviews were a three column grid, so five reviews became a row of three and a row of two
+     * with a hole beside it, and the hole is the first thing the eye lands on. A single track
+     * cannot have a ragged second row because there is no second row.
+     *
+     * The animation is CSS, not JavaScript, so it runs on a page whose script never loaded and
+     * stops dead for anyone who has asked their machine to stop things moving. The list is
+     * rendered twice and the track travels exactly half its width, which is what makes the
+     * wrap invisible; the duplicate is aria-hidden so a screen reader hears each review once.
+     * Hovering pauses it, because a review you are halfway through reading should not leave.
+     */
+    /*
+     * The soft edges are a MASK, not two gradients painted in the page colour.
+     *
+     * They were ::before and ::after filled with var(--page-bg), which is right only while the
+     * rail sits on the page background. The reviews section can be a dark block, and then the two
+     * fades were lighter rectangles sitting over a darker ground with a visible edge on each side.
+     * A mask fades the content itself, so it is correct on any background. Only the alpha of the
+     * gradient matters, and the colour stops are tokens because check 1 rejects a literal here.
+     */
+    '.reviews-rail{position:relative;overflow:hidden;'
+      + '-webkit-mask-image:linear-gradient(to right,transparent 0,var(--ink) 56px,var(--ink) calc(100% - 56px),transparent 100%);'
+      + 'mask-image:linear-gradient(to right,transparent 0,var(--ink) 56px,var(--ink) calc(100% - 56px),transparent 100%);}',
+    '.reviews-track{display:flex;gap:var(--gap);width:max-content;}',
+    '.reviews-track .quote{width:340px;flex:0 0 340px;}',
+    // The clone is a wrapper, so it has to pass the row layout straight through to its cards.
+    '.reviews-clone{display:contents;}',
+    // Only once the track is wide enough to need it. A short list just sits still.
+    '.reviews-track[data-marquee]{animation:reviews-scroll 46s linear infinite;}',
+    '.reviews-rail:hover .reviews-track[data-marquee]{animation-play-state:paused;}',
+    '@keyframes reviews-scroll{from{transform:translateX(0);}to{transform:translateX(calc(-50% - (var(--gap) / 2)));}}',
+    '@media (prefers-reduced-motion:reduce){.reviews-track[data-marquee]{animation:none;}}',
     '.reviews-cta{margin-top:2rem;display:flex;flex-wrap:wrap;gap:12px;align-items:center;}',
     // The mark sits on a button that may be dark, so it must not inherit a fill from the label.
     '.btn .g-mark{width:18px;height:18px;}',
@@ -947,15 +1023,80 @@ function logoBox(logo: { width: number; height: number }, maxH: number, maxW: nu
   return { width, height: Math.max(1, height) }
 }
 
+/**
+ * How many columns a gallery of n photos gets on desktop.
+ *
+ * Aim for two rows, because two rows of job photos is a body of work and four rows is a
+ * contact sheet. Six photos give three across, eight give four across, and the result is
+ * clamped to between two and four: one column of huge tiles looks broken and five across
+ * makes every photo too small to read at a glance.
+ *
+ * An odd count leaves a gap on the last row rather than restretching a tile to fill it. A
+ * tile that is a different size to its neighbours is the thing this replaced.
+ */
+export interface NavLink {
+  href: string
+  label: string
+}
+
+/**
+ * The header nav, with the service pages folded under Services.
+ *
+ * THE BAR THIS REPLACED. Every service page was a top level nav item, so Callum's ten page
+ * landscaping build put fourteen links across the header. They wrapped onto three lines, the
+ * logo was squeezed into a corner, and the first thing anybody saw was a wall of tiny text.
+ * A nav bar is a handful of destinations; a list of every page on the site is a sitemap, and
+ * it belongs in the footer, which already has one.
+ *
+ * DESKTOP is hover and focus-within, with no JavaScript. The panel is display:none at rest,
+ * which is what check 23 exists to enforce: a dropdown that is open when nobody has asked for
+ * it hangs over the hero and was shipped once already.
+ *
+ * MOBILE has no hover, so there is nothing to reveal. The panel lists Services and then the
+ * pages under it as an indented group, which is the same information without a gesture that
+ * does not exist on a phone.
+ */
+export function navMarkup(items: NavLink[], services: NavLink[], mobile = false): string {
+  const link = (n: NavLink) => `<a href="${esc(n.href)}">${esc(n.label)}</a>`
+
+  return items
+    .map((n) => {
+      const isServices = n.label === 'Services' && services.length > 0
+      if (!isServices) return link(n)
+
+      if (mobile) {
+        return (
+          link(n) +
+          '\n  <div class="mobile-panel__sub">' +
+          services.map(link).join('\n    ') +
+          '</div>'
+        )
+      }
+
+      return (
+        '<span class="nav__group">' +
+        link(n) +
+        '<span class="nav__sub">' +
+        services.map(link).join('') +
+        '</span></span>'
+      )
+    })
+    .join(mobile ? '\n  ' : '\n      ')
+}
+
+export function galleryColumns(count: number): number {
+  return Math.min(4, Math.max(2, Math.ceil(count / 2)))
+}
+
 export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
   const name = esc(plan.brand.wordmarkText)
 
 
   if (plan.brand.logoTreatment === 'image' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 42, 260).width}" height="${logoBox(facts.logo, 42, 260).height}"></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 60, 300).width}" height="${logoBox(facts.logo, 60, 300).height}"></a>`
   }
   if (plan.brand.logoTreatment === 'cropped-mark' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 42, 260).width}" height="${logoBox(facts.logo, 42, 260).height}"><span class="brand__name">${name}</span></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, 60, 300).width}" height="${logoBox(facts.logo, 60, 300).height}"><span class="brand__name">${name}</span></a>`
   }
 
   const initials = plan.brand.wordmarkText
@@ -1089,13 +1230,13 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
   // Service pages sit in the nav between Services and Areas, on desktop and in the mobile panel,
   // because a page nobody can navigate to is a page nobody reads. Relative links, so the same
   // markup works served and opened from disk out of a discharge zip.
+  const serviceLinks = plan.servicePages.map((sp) => ({
+    href: `services/${sp.slug}/index.html`,
+    label: sp.service,
+  }))
   const navItems = [
     { href: '#about', label: 'About' },
     { href: '#services', label: 'Services' },
-    ...plan.servicePages.map((sp) => ({
-      href: `services/${sp.slug}/index.html`,
-      label: sp.service,
-    })),
     ...(plan.gallery.enabled ? [{ href: '#work', label: 'Our work' }] : []),
     { href: '#areas', label: 'Areas' },
     { href: '#faq', label: 'FAQ' },
@@ -1109,6 +1250,15 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
    * business with one job. Falls back rather than going empty, and the band stays flat colour when
    * there are no photos at all.
    */
+  /*
+   * Stats, minus anything that counts reviews. See the note beside about__figures: the only
+   * review count worth printing is the one on the Google profile, which is checkable and links
+   * to itself. Matching on both source and label because the model names the source freely.
+   */
+  const visibleStats = plan.stats.filter(
+    (st) => !/review/i.test(st.source) && !/review/i.test(st.label),
+  )
+
   const bandPhoto = facts.photos[2] ?? facts.photos[0] ?? null
   const jsonLd = buildJsonLd(plan, facts)
 
@@ -1200,9 +1350,23 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
          * about the business. They are supporting evidence for the paragraph above them, not a
          * chapter, so they read as one quiet row at the end of it.
          */
-        plan.stats.length > 0
+        /*
+         * NEVER A REVIEW COUNT HERE.
+         *
+         * The about panel said "5 Customer Reviews" while the Google line further down the same
+         * page said 29. Both were honest about what they counted, and neither said so: one was
+         * the number of quotes the customer typed into the intake, the other the real total on
+         * their Google profile. A reader does not see two definitions, they see a site that
+         * cannot keep its story straight, on the one number a tradie is judged by.
+         *
+         * Only the Google figure is a review count worth printing, because it is theirs, it is
+         * checkable, and it links to the profile it came from. Counting the testimonials we were
+         * handed and calling that a review count is a number we made up. Filtered here rather
+         * than only asked for in the prompt, because a house rule is a hope.
+         */
+        visibleStats.length > 0
           ? `<dl class="about__figures">
-        ${plan.stats
+        ${visibleStats
           .map(
             (st) =>
               `<div><dt>${st.value}${esc(st.suffix)}</dt><dd>${esc(clean(st.label))}</dd></div>`,
@@ -1271,7 +1435,7 @@ ${
       blurb: 'Real jobs, photographed on site. No stock photography.',
       spec,
     })}
-    <div class="gallery">
+    <div class="gallery" style="--cols:${galleryColumns(plan.gallery.items.length)}">
       ${plan.gallery.items
         .map((item) => {
           const photo = facts.photos.find((p) => p.assetId === item.assetId)
@@ -1391,10 +1555,22 @@ ${
     </div>`
         : ''
     }
-    <div class="grid grid--3">
-      ${plan.testimonials.items
-        .map(
-          (q) => `<blockquote class="quote">
+    ${(() => {
+      /*
+       * ONE ROW THAT SCROLLS, RATHER THAN A GRID THAT WRAPS.
+       *
+       * Five reviews in a three column grid is a row of three and a row of two with a hole
+       * beside it, and the hole is the first thing anyone looks at. A rail has no second row.
+       *
+       * The list is rendered twice and the CSS travels the track exactly half its width, which
+       * is what makes the wrap seamless. The second copy is aria-hidden and its links are taken
+       * out of the tab order, so a keyboard and a screen reader each meet every review once.
+       *
+       * Only marquee when there is enough to be worth moving. Three short reviews that fit on
+       * screen should sit still; a rail sliding a card and a half back and forth looks broken.
+       */
+      const card = (q: { quote: string; name: string; suburb: string }) =>
+        `<blockquote class="quote">
         <div class="stars" aria-label="5 out of 5">${icon(ICON_STAR).repeat(5)}</div>
         <p>${esc(clean(q.quote))}</p>
         <footer class="quote__who">${esc(clean(q.name))}<span>${esc(clean(q.suburb))}</span></footer>
@@ -1403,10 +1579,19 @@ ${
             ? `<div class="quote__source"><svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg><span>Posted on Google</span></div>`
             : ''
         }
-      </blockquote>`,
-        )
-        .join('\n      ')}
-    </div>
+      </blockquote>`
+
+      const items = plan.testimonials.items
+      const moves = items.length >= 4
+      const once = items.map(card).join('\n      ')
+
+      return `<div class="reviews-rail">
+      <div class="reviews-track"${moves ? ' data-marquee' : ''}>
+      ${once}
+      ${moves ? `<div class="reviews-clone" aria-hidden="true">${once}</div>` : ''}
+      </div>
+    </div>`
+    })()}
     ${
       // Somewhere to go and check, and somewhere to add one. Both point at the same profile.
       facts.googleReviewLink
@@ -1563,14 +1748,14 @@ ${styleComments}
   <div class="wrap site-header__inner">
     ${brandMarkup(plan, facts)}
     <nav class="nav" aria-label="Main">
-      ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n      ')}
+      ${navMarkup(navItems, serviceLinks)}
     </nav>
     <a class="btn btn--primary header__cta" href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(facts.phoneDisplay)}</a>
     <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="mobilePanel" aria-label="Open menu">${icon(ICON_MENU)}</button>
   </div>
 </header>
 <div class="mobile-panel" id="mobilePanel" data-open="false">
-  ${navItems.map((n) => `<a href="${n.href}">${esc(n.label)}</a>`).join('\n  ')}
+  ${navMarkup(navItems, serviceLinks, true)}
   <a class="btn btn--solid btn--block" href="tel:${esc(facts.phoneE164)}">${esc(clean(plan.hero.ctaPrimary.label))}</a>
 </div>
 

@@ -228,6 +228,15 @@ export interface StyleSpec {
   /** The full-width stat band under the dark section. */
   statBand: 'accent' | 'dark'
   /** Alpha stops for the hero photo overlay, left to right. Darker on the copy side. */
+  /**
+   * The three stops of the dark gradient over the hero photo, left to right.
+   *
+   * LOWERED ACROSS ALL FOUR STYLES. They were tuned for guaranteed contrast against a photo
+   * we had never seen, and the result was a hero where the photograph the customer supplied
+   * was barely visible under it. The first stop still sits at or above 0.64, which is where
+   * white body text stays comfortably readable over a mid tone photo, and the last stop drops
+   * far enough that the right hand side of the image reads as a photograph.
+   */
   heroOverlay: [number, number, number]
   /** Which surface the alternating sections use. */
   altSurface: SurfaceMode
@@ -285,7 +294,7 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     cardNumber: 'none',
     twoTone: false,
     statBand: 'dark',
-    heroOverlay: [0.88, 0.72, 0.45],
+    heroOverlay: [0.7, 0.54, 0.3],
     altSurface: 'dark',
     heroSurface: 'dark',
     buttonTransform: 'uppercase',
@@ -341,7 +350,7 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     cardNumber: 'none',
     twoTone: true,
     statBand: 'accent',
-    heroOverlay: [0.82, 0.74, 0.6],
+    heroOverlay: [0.66, 0.56, 0.4],
     altSurface: 'dark',
     heroSurface: 'dark',
     buttonTransform: 'uppercase',
@@ -396,7 +405,7 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     cardNumber: 'large-faint',
     twoTone: true,
     statBand: 'accent',
-    heroOverlay: [0.82, 0.6, 0.4],
+    heroOverlay: [0.64, 0.44, 0.26],
     altSurface: 'warm',
     heroSurface: 'dark',
     buttonTransform: 'none',
@@ -453,7 +462,7 @@ export const STYLE_SPECS: Record<NamedStyleId, StyleSpec> = {
     cardNumber: 'corner-small',
     twoTone: true,
     statBand: 'accent',
-    heroOverlay: [0.86, 0.7, 0.52],
+    heroOverlay: [0.68, 0.52, 0.34],
     altSurface: 'pale',
     heroSurface: 'dark',
     buttonTransform: 'none',

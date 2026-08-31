@@ -302,11 +302,11 @@ describe('checks that must not produce false positives', () => {
   })
 })
 
-describe('render checks 13 to 16, and 22 and 23', () => {
+describe('render checks 13 to 16, and 22, 23 and 25', () => {
   it('report skipped, never pass, when no browser driver is available', async () => {
     testConfig({ renderDriver: 'none' })
     const report = await verify(fixture.html, fixture.facts)
-    expect(report.render).toHaveLength(6)
+    expect(report.render).toHaveLength(7)
     expect(report.render.map((r) => r.id)).toEqual([
       'renders_clean',
       'no_horizontal_overflow',
@@ -314,6 +314,7 @@ describe('render checks 13 to 16, and 22 and 23', () => {
       'interactions_work',
       'text_not_squeezed',
       'header_closed_at_rest',
+      'text_is_visible',
     ])
     for (const check of report.render) {
       expect(check.status).toBe('skipped')

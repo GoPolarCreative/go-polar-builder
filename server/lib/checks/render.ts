@@ -53,6 +53,8 @@ export interface PageFindings {
    * beside it and sitting on the hero. See check 23.
    */
   headerOverhang: string[]
+  /** Text whose colour is within a whisker of the colour behind it. */
+  invisible: string[]
 }
 
 export interface RenderDriver {
@@ -78,6 +80,7 @@ export function renderChecksSkipped(reason: string): CheckResult[] {
     skipped('interactions_work', 'Accordions open and counters run', reason),
     skipped('text_not_squeezed', 'No text squeezed into a column too narrow to read at 390px', reason),
     skipped('header_closed_at_rest', 'Nothing in the header hangs open before it is asked for', reason),
+    skipped('text_is_visible', 'No text the same colour as what is behind it', reason),
   ]
 }
 
@@ -271,7 +274,92 @@ export const PROBE_SCRIPT = `async () => {
     }
   }
 
+  /*
+   * TEXT THE SAME COLOUR AS WHAT IS BEHIND IT.
+   *
+   * Callum's build shipped four headings in the why choose us section that nobody could read:
+   * white h3 on a white card. The cause was a cascade collision, ".section--dark h3" painting
+   * headings white for the dark ground and reaching inside the light cards sitting on it. Every
+   * other check passed, because the markup was valid, the copy was right and the contrast was
+   * the only thing wrong.
+   *
+   * The ratio is WCAG, but the threshold deliberately is not. AA is 4.5 and would fail muted
+   * body copy that is perfectly legible and chosen on purpose. This is not a readability grade,
+   * it is an invisibility alarm: below 1.5 the text has all but vanished, and white on white is
+   * exactly 1.
+   *
+   * 1.5 RATHER THAN 2, AND THE DIFFERENCE WAS MEASURED. At 2 the check fired on every eyebrow
+   * label and every accent word in a heading: the brand accent on the pale section wash comes out
+   * at 1.90:1 across all four styles. That is genuinely low contrast and worth its own decision,
+   * but it is a deliberate palette rather than a mistake, and a check that fails every build on a
+   * choice somebody made on purpose gets switched off. 1.5 leaves the accent alone and still
+   * catches the failure this exists for by a wide margin.
+   *
+   * Background is resolved by walking up until something is actually painted, because a card
+   * heading has no background of its own. Anything sitting over an image is skipped rather than
+   * guessed at: the hero scrim is a gradient over a photograph and no single colour describes
+   * it, so a number here would be fiction.
+   */
+  const lum = (c) => {
+    const f = c.map((v) => {
+      const s = v / 255
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+    })
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
+  }
+  const rgb = (v) => {
+    const m = /rgba?\\(([^)]+)\\)/.exec(v || '')
+    if (!m) return null
+    const parts = m[1].split(',').map((x) => parseFloat(x))
+    if (parts.length >= 4 && parts[3] === 0) return null
+    return [parts[0], parts[1], parts[2]]
+  }
+
+  const invisible = []
+  const TEXT_TAGS = 'h1,h2,h3,h4,h5,h6,p,li,a,span,strong,em,dt,dd,blockquote,figcaption,label,button'
+  for (const el of Array.from(document.querySelectorAll(TEXT_TAGS))) {
+    const own = Array.from(el.childNodes).some(
+      (n) => n.nodeType === 3 && (n.textContent || '').trim().length > 1,
+    )
+    if (!own) continue
+    const cs = getComputedStyle(el)
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 || r.height === 0) continue
+
+    const fg = rgb(cs.color)
+    if (!fg) continue
+
+    let bg = null
+    let over = el
+    while (over && over !== document.documentElement) {
+      const s2 = getComputedStyle(over)
+      // A photo or a gradient behind the text: no single colour describes it, so do not judge.
+      if (s2.backgroundImage && s2.backgroundImage !== 'none') { bg = 'image'; break }
+      const c = rgb(s2.backgroundColor)
+      if (c) { bg = c; break }
+      over = over.parentElement
+    }
+    if (!bg || bg === 'image') continue
+
+    const a = lum(fg)
+    const b = lum(bg)
+    const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    if (ratio < 1.5) {
+      const cls = typeof el.className === 'string' && el.className.trim()
+        ? '.' + el.className.trim().split(/\\s+/)[0]
+        : ''
+      invisible.push(
+        el.tagName.toLowerCase() + cls + ' contrast ' + ratio.toFixed(2) + ':1 (' + cs.color +
+          ' on rgb(' + bg.join(',') + ')): "' +
+          (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40) + '"',
+      )
+    }
+    if (invisible.length >= 8) break
+  }
+
   return {
+    invisible,
     overflow: { overflows: scrollWidth > innerWidth + 1, scrollWidth, innerWidth, offenders },
     images: { total: imgs.length, broken },
     squeeze: { thin, wrappedHeadings },
@@ -607,6 +695,43 @@ export async function runRenderChecks(html: string, driver = createRenderDriver(
               `with visibility:hidden and pointer-events:none, shown on :hover and :focus-within of the nav item that ` +
               `owns it. As it stands the menu covers the link beside it and sits on the hero.`,
             evidence: desktop.headerOverhang.slice(0, 6),
+          },
+    )
+
+    /*
+     * CHECK 25. Text you cannot read is text that is not there.
+     *
+     * Callum's build shipped the why choose us section with four invisible headings: white h3
+     * on a white card, because ".section--dark h3" painted them for the dark ground and reached
+     * inside the light cards standing on it. A rule beats inheritance, so .card's own colour
+     * lost. Twenty four checks passed. The markup was valid, the copy was right, the layout was
+     * correct, and a quarter of the section was blank to a reader.
+     *
+     * Both viewports, because a colour can change at a breakpoint and usually the phone is the
+     * one nobody looked at.
+     */
+    const unreadable = [
+      ...desktop.invisible.map((e) => `1440px: ${e}`),
+      ...mobile.invisible.map((e) => `390px: ${e}`),
+    ]
+    results.push(
+      unreadable.length === 0
+        ? {
+            id: 'text_is_visible',
+            label: 'No text the same colour as what is behind it',
+            status: 'pass',
+          }
+        : {
+            id: 'text_is_visible',
+            label: 'No text the same colour as what is behind it',
+            status: 'fail',
+            detail:
+              `${unreadable.length} block(s) of text are within a contrast ratio of 2:1 of the colour behind ` +
+              `them, which means they are close to invisible. White on white is 1:1. This is almost always a ` +
+              `cascade collision rather than a chosen colour: a rule further up painting for one background ` +
+              `and reaching into an element that sits on a different one. Set the colour on the component ` +
+              `itself rather than relying on what it inherits.`,
+            evidence: unreadable.slice(0, 8),
           },
     )
 

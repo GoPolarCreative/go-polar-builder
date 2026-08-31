@@ -15,6 +15,7 @@ import {
   esc,
   formMarkup,
   icon,
+  navMarkup,
   picture,
   resolveSurfaces,
   sectionHead,
@@ -86,9 +87,14 @@ export function renderServicePage(args: {
   // Relative, so the same file works served and opened from a discharge zip on someone's desktop.
   const linkTo = (target: SitePage) => relativeLink(page, target)
 
+  /*
+   * The same shape as the home page header. A nav that lists every sibling page across the
+   * top on one page and folds them under Services on another is two different websites.
+   */
+  const serviceLinks = pages.slice(1).map((p) => ({ href: linkTo(p), label: p.service ?? 'Service' }))
   const navItems = [
     { href: linkTo(home), label: 'Home' },
-    ...pages.slice(1).map((p) => ({ href: linkTo(p), label: p.service ?? 'Service' })),
+    { href: `${linkTo(home)}#services`, label: 'Services' },
     { href: `${linkTo(home)}#contact`, label: 'Contact' },
   ]
 
@@ -153,14 +159,14 @@ ${stylesheet(plan, spec, surfaces)}
   <div class="wrap site-header__inner">
     ${brandMarkup(plan, facts).replace(/href="#top"/, `href="${linkTo(home)}"`)}
     <nav class="nav" aria-label="Main">
-      ${navItems.map((n) => `<a href="${esc(n.href)}">${esc(n.label)}</a>`).join('\n      ')}
+      ${navMarkup(navItems, serviceLinks)}
     </nav>
     <a class="btn btn--primary header__cta" href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(facts.phoneDisplay)}</a>
     <button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="mobilePanel" aria-label="Open menu">${icon(ICON_MENU)}</button>
   </div>
 </header>
 <div class="mobile-panel" id="mobilePanel" data-open="false">
-  ${navItems.map((n) => `<a href="${esc(n.href)}">${esc(n.label)}</a>`).join('\n  ')}
+  ${navMarkup(navItems, serviceLinks, true)}
   <a class="btn btn--primary btn--block" href="tel:${esc(facts.phoneE164)}">${esc(clean(plan.hero.ctaPrimary.label))}</a>
 </div>
 

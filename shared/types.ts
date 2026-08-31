@@ -162,6 +162,7 @@ export type CheckId =
   | 'page_weight'
   | 'pages_delivered'
   | 'service_page_substance'
+  | 'text_is_visible'
 
 export type CheckStatus = 'pass' | 'fail' | 'skipped' | 'warn'
 

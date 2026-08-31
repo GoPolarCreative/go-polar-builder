@@ -1,0 +1,206 @@
+import { describe, expect, it } from 'vitest'
+import { galleryColumns, navMarkup, renderSite } from '../server/lib/render/site'
+import { makeFixture } from './fixtures/site'
+import type { ContentPlan } from '../shared/plan'
+
+/**
+ * The nine things Callum's first full build got wrong.
+ *
+ * It was the first run with every page turned on, and it surfaced a set of faults that only appear
+ * at that size: fourteen links across the nav, a gallery of mismatched tiles, reviews wrapping onto
+ * a ragged second row, four invisible headings, and two different review counts on the one page.
+ *
+ * These are structural assertions on the rendered document. The measurements that needed a real
+ * browser, the column counts, the tile geometry and the contrast, were taken with Playwright and
+ * are pinned by check 25 and by the numbers recorded in each comment below.
+ */
+
+const fixture = makeFixture({
+  ownPageServices: ['Blocked drains', 'Hot water systems', 'Gas fitting', 'Leak detection'],
+})
+
+const render = (plan: ContentPlan = fixture.plan) => renderSite(plan, fixture.facts)
+
+describe('the nav is a nav, not a sitemap', () => {
+  /*
+   * Callum's ten page build put fourteen links across the header. They wrapped onto three lines
+   * and the logo was squeezed into the corner.
+   */
+  it('folds the service pages under Services instead of listing them across the top', () => {
+    const html = render()
+    expect(html).toContain('class="nav__group"')
+    expect(html).toContain('class="nav__sub"')
+
+    // Every service page is reachable, just not at the top level.
+    for (const sp of fixture.plan.servicePages) {
+      expect(html).toContain(`services/${sp.slug}/index.html`)
+    }
+  })
+
+  it('keeps the top level to a handful of destinations', () => {
+    // About, Services, Our work, Areas, FAQ, Contact. The service pages are inside the group.
+    const nav = /<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/.exec(render())![1]!
+    const topLevel = nav.replace(/<span class="nav__sub">[\s\S]*?<\/span>/g, '')
+    expect((topLevel.match(/<a /g) ?? []).length).toBeLessThanOrEqual(7)
+  })
+
+  /*
+   * A dropdown that is open when nobody asked shipped once already and is what check 23 exists to
+   * catch. display:none at rest, not opacity, so there is nothing to hover by accident.
+   */
+  it('the dropdown is genuinely closed at rest', () => {
+    expect(render()).toContain('.nav__sub{display:none;')
+  })
+
+  it('a phone gets an indented group, because there is no hover on a phone', () => {
+    expect(render()).toContain('class="mobile-panel__sub"')
+  })
+
+  it('leaves the nav alone when the site is one page', () => {
+    const onePage = makeFixture()
+    const html = renderSite(onePage.plan, onePage.facts)
+    // The markup, not the stylesheet: the dropdown rules ship either way, unused when there is
+    // nothing to put in them.
+    const nav = /<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/.exec(html)![1]!
+    expect(nav).not.toContain('nav__group')
+  })
+})
+
+describe('the gallery is one size, on two rows', () => {
+  /*
+   * Measured in Chrome at 1440px: six photos give 2 rows of 3 at 379x284 each, eight give 2 rows
+   * of 4 at 281x211, and every tile in a gallery is the same size. At 390px both stack to one
+   * column. The mosaic this replaced gave the first tile a different shape to all the others.
+   */
+  it('picks a column count that lands on two rows', () => {
+    expect(galleryColumns(6)).toBe(3)
+    expect(galleryColumns(8)).toBe(4)
+    expect(galleryColumns(4)).toBe(2)
+    expect(galleryColumns(7)).toBe(4)
+  })
+
+  it('never goes below two or above four columns', () => {
+    expect(galleryColumns(1)).toBe(2)
+    expect(galleryColumns(3)).toBe(2)
+    expect(galleryColumns(20)).toBe(4)
+  })
+
+  it('every tile is the same shape, and one column on a phone', () => {
+    const html = render()
+    expect(html).toContain('aspect-ratio:4/3')
+    expect(html).toContain('.gallery{display:grid;gap:12px;grid-template-columns:1fr;}')
+    // No tile is singled out any more.
+    expect(html).not.toContain('.gallery figure:nth-child(1){grid-column:span 2;grid-row:span 2;}')
+  })
+
+  it('passes the count to the CSS rather than hardcoding it', () => {
+    expect(render()).toMatch(/<div class="gallery" style="--cols:\d"/)
+  })
+})
+
+describe('the reviews sit on one row', () => {
+  const withReviews = (n: number): ContentPlan => ({
+    ...fixture.plan,
+    testimonials: {
+      ...fixture.plan.testimonials,
+      enabled: true,
+      items: Array.from({ length: n }, (_, i) => ({
+        ...fixture.plan.testimonials.items[0]!,
+        name: `Client ${i + 1}`,
+      })),
+    },
+  })
+
+  it('is a rail, not a grid that wraps onto a ragged second row', () => {
+    const html = render(withReviews(5))
+    expect(html).toContain('class="reviews-rail"')
+    expect(html).toContain('class="reviews-track"')
+  })
+
+  /*
+   * The clone is what makes the loop seamless: the track travels exactly half its width. It is
+   * aria-hidden so the same five reviews are not read out twice.
+   */
+  it('scrolls, and only once there is enough to be worth moving', () => {
+    expect(render(withReviews(5))).toContain('<div class="reviews-track" data-marquee>')
+    expect(render(withReviews(5))).toContain('class="reviews-clone" aria-hidden="true"')
+    // Three reviews fit on screen. A rail sliding half a card back and forth looks broken.
+    expect(render(withReviews(3))).toContain('<div class="reviews-track">')
+    // The markup again, not the one line of CSS that lays the clone out.
+    expect(render(withReviews(3))).not.toContain('class="reviews-clone"')
+  })
+
+  it('stops for anyone who has asked their machine to stop things moving', () => {
+    expect(render()).toContain('@media (prefers-reduced-motion:reduce){.reviews-track[data-marquee]{animation:none;}}')
+  })
+})
+
+describe('text is never the colour of what is behind it', () => {
+  /*
+   * The four why-choose-us headings shipped white on white. ".section--dark h3" painted them for
+   * the dark ground and reached inside the light cards standing on it, and a rule beats
+   * inheritance. Measured at 1.00:1 by check 25 with this line removed.
+   */
+  it('the card heading carries its own colour rather than inheriting it', () => {
+    expect(render()).toContain('.card h3{margin-bottom:0.55rem;color:var(--card-fg);}')
+  })
+})
+
+describe('the page does not print two different review counts', () => {
+  it('never puts a review count in the about figures', () => {
+    const plan: ContentPlan = {
+      ...fixture.plan,
+      stats: [
+        { value: 12, suffix: '', label: 'Years in business', source: 'yearsInBusiness' },
+        { value: 5, suffix: '', label: 'Customer Reviews', source: 'reviews supplied' },
+        { value: 9, suffix: '', label: 'Suburbs serviced', source: 'suburbsServiced' },
+      ],
+    }
+    const figures = /<dl class="about__figures">([\s\S]*?)<\/dl>/.exec(render(plan))![1]!
+    expect(figures).not.toMatch(/review/i)
+    // The honest ones are untouched.
+    expect(figures).toContain('Years in business')
+    expect(figures).toContain('Suburbs serviced')
+  })
+
+  it('the house rules stop it being written in the first place', async () => {
+    // Rule 2 lives in the plan prompt: the stats are written there, not at build time.
+    const { PLAN_SYSTEM } = await import('../server/prompts/houseRules')
+    expect(PLAN_SYSTEM).toContain('NEVER a review count')
+  })
+})
+
+describe('the hero', () => {
+  it('centres the subheading box, not just the words inside it', () => {
+    // Measured in Chrome: the box was 78px left of centre on a centred hero before this.
+    expect(render()).toContain('.hero--centred .hero__sub{margin-inline:auto;}')
+  })
+
+  it('gives the logo room to be a logo', () => {
+    expect(render()).toContain('max-height:60px')
+  })
+})
+
+describe('navMarkup', () => {
+  const items = [
+    { href: '#about', label: 'About' },
+    { href: '#services', label: 'Services' },
+    { href: '#contact', label: 'Contact' },
+  ]
+  const services = [{ href: 'services/decks/index.html', label: 'Decks' }]
+
+  it('leaves every other item exactly as it was', () => {
+    const out = navMarkup(items, services)
+    expect(out).toContain('<a href="#about">About</a>')
+    expect(out).toContain('<a href="#contact">Contact</a>')
+  })
+
+  it('is a plain list when there are no service pages', () => {
+    expect(navMarkup(items, [])).not.toContain('nav__group')
+  })
+
+  it('escapes what it is given', () => {
+    const out = navMarkup(items, [{ href: 'services/x/index.html', label: 'Decks & Patios' }])
+    expect(out).toContain('Decks &amp; Patios')
+  })
+})
