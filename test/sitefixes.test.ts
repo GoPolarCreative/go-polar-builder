@@ -259,3 +259,32 @@ describe('the edit path renders rather than rewriting', () => {
     expect('PATCH_SYSTEM' in prompts).toBe(false)
   })
 })
+
+/**
+ * THE DROPDOWN THAT OPENED AS AN EMPTY WHITE BOX.
+ *
+ * The panel rules sat above ".nav a", which paints header links near-white for the dark header
+ * and has exactly the same specificity, so it won on source order and every link in the dropdown
+ * rendered white on white. It shipped, in the code written an hour earlier to fix invisible card
+ * headings, which says plenty about relying on where a rule sits in the sheet.
+ *
+ * Check 25 reported a pass, because a closed dropdown is display:none and the probe skipped
+ * anything with a zero box. A closed dropdown is exactly where invisible text hides: nobody sees
+ * it until they hover, and by then it is on a customer's site. The probe now reads computed
+ * colours whether or not the element is laid out, and fails at 1.00:1 with this reverted.
+ */
+describe('the services dropdown is readable when it opens', () => {
+  it('wins on specificity rather than on source order', () => {
+    const html = render()
+    expect(html).toContain('.nav .nav__sub a{')
+    expect(html).not.toContain("'.nav__sub a{")
+  })
+
+  it('the probe no longer skips text that is hidden at rest', async () => {
+    const probe = readFileSync(new URL('../server/lib/checks/render.ts', import.meta.url), 'utf8')
+    const contrast = probe.slice(probe.indexOf('const invisible = []'))
+    // The element's own choice to hide is respected; a zero box no longer excludes it.
+    expect(contrast).toContain("if (cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue")
+    expect(contrast).not.toContain('if (r.width === 0 || r.height === 0) continue')
+  })
+})

@@ -424,8 +424,19 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.nav__sub{display:none;position:absolute;top:100%;left:0;min-width:230px;padding:8px;z-index:60;'
       + 'background:var(--white);border:1px solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow-hover);}',
     '.nav__group:hover .nav__sub,.nav__group:focus-within .nav__sub{display:block;}',
-    '.nav__sub a{display:block;padding:8px 12px;border-radius:calc(var(--radius) / 2);white-space:nowrap;color:var(--ink);}',
-    '.nav__sub a:hover,.nav__sub a:focus{background:var(--wash);color:var(--accent);}',
+    /*
+     * .nav .nav__sub, NOT .nav__sub, AND THE EXTRA CLASS IS THE WHOLE POINT.
+     *
+     * These rules sit above ".nav a", which paints the header links near-white for the dark
+     * header and has exactly the same specificity, so it won and every link in the dropdown
+     * rendered white on a white panel. It shipped: the menu opened as an empty white box.
+     *
+     * That is the same fault as the invisible card headings an hour earlier, in the code
+     * written to fix them, which says something about relying on source order. One extra class
+     * makes these win wherever they sit in the sheet.
+     */
+    '.nav .nav__sub a{display:block;padding:8px 12px;border-radius:calc(var(--radius) / 2);white-space:nowrap;color:var(--ink);}',
+    '.nav .nav__sub a:hover,.nav .nav__sub a:focus{background:var(--wash);color:var(--accent);}',
     // A group of pages under Services, on a phone, where there is no hover to reveal anything.
     '.mobile-panel__sub{display:flex;flex-direction:column;padding-left:14px;margin:2px 0 6px;border-left:2px solid var(--hairline);}',
     '.mobile-panel__sub a{font-size:0.92rem;opacity:0.86;}',

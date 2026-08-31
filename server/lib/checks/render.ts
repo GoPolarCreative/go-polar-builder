@@ -323,9 +323,20 @@ export const PROBE_SCRIPT = `async () => {
     )
     if (!own) continue
     const cs = getComputedStyle(el)
-    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue
-    const r = el.getBoundingClientRect()
-    if (r.width === 0 || r.height === 0) continue
+    /*
+     * ONLY WHAT THIS ELEMENT ITSELF HIDES, AND DELIBERATELY NOT ITS BOX SIZE.
+     *
+     * The first version skipped anything with a zero box, which quietly excluded everything
+     * inside a closed dropdown, and a closed dropdown is precisely where invisible text hides:
+     * nobody sees it until they hover, and by then it is on a customer\u2019s site. The nav
+     * dropdown shipped with white links on a white panel and this check reported a pass.
+     *
+     * Computed colours are available whether or not the element is laid out, so a panel that is
+     * display:none still tells us exactly what it would look like when opened. What is skipped
+     * is only what the element hides about ITSELF, because that is a deliberate choice about
+     * this element rather than an accident of where it sits.
+     */
+    if (cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue
 
     const fg = rgb(cs.color)
     if (!fg) continue
