@@ -10,6 +10,7 @@ import { ShopifyAuthError, ensureStorefrontToken } from '../lib/shopifyAuth.js'
 import { attachDomain } from '../lib/publish.js'
 import { liveHostnameFor, normaliseHostname, previousPublishedVersion, publishJob } from '../lib/publishJob.js'
 import { loadPageSet, persistPageSet } from '../lib/buildSet.js'
+import { renderSite } from '../lib/render/site.js'
 import { enforcePlanInvariants } from '../lib/generate.js'
 import { verify } from '../lib/verify.js'
 import { id } from '../lib/ids.js'
@@ -1279,6 +1280,150 @@ app.post('/admin/jobs/:jobId/repair-pages', requireAdmin, async (c) => {
     editCharged: false,
     detail: set.passed
       ? 'Repaired. The customer keeps every edit they had made and has not been charged a round.'
+      : 'Pages were written but the set did not pass. Look at failures before telling the customer anything.',
+  })
+})
+
+/**
+ * Redraw an existing site with the current renderer.
+ *
+ *   POST /api/admin/jobs/:jobId/rerender   { "dryRun": true }
+ *
+ * WHY THIS IS SAFE NOW AND WAS NOT BEFORE. repair-pages carries the home page across byte for
+ * byte and says so loudly, because when the model wrote the markup, regenerating threw away
+ * every edit round the customer had spent on it. That is no longer true: the home page is
+ * renderSite(plan, facts), a pure function of the plan, and every word the customer has changed
+ * lives in the plan. Redrawing it loses nothing.
+ *
+ * WHAT IT IS FOR. A fix to the renderer reaches new builds immediately and existing customers
+ * never, which is backwards: the sites already out there are the ones somebody is looking at.
+ * Callum's build shipped with the services mashed across the nav, four invisible headings and a
+ * gallery of mismatched tiles, all fixed in the renderer within the hour, and there was no way
+ * to give him the fixed version short of asking him to spend an edit round on it.
+ *
+ * IT NEVER COSTS A ROUND. No row in `edits`, `jobs.editsUsed` untouched. Our fix, our cost.
+ *
+ * IT DOES NOT PUBLISH. A new version is written and the job points at it. If the site is live,
+ * publishing stays a separate, deliberate act, because this changes how the page looks and
+ * nobody should find that out from a customer.
+ */
+app.post('/admin/jobs/:jobId/rerender', requireAdmin, async (c) => {
+  const jobId = c.req.param('jobId') ?? ''
+  const job = await getJob(jobId)
+  if (!job) return c.json({ error: 'not_found' }, 404)
+
+  const body = await c.req
+    .json<{ dryRun?: boolean }>()
+    .catch(() => ({}) as { dryRun?: boolean })
+
+  const fromVersion = job.currentVersion
+  if (fromVersion < 1) {
+    return c.json({ error: 'not_ready', detail: 'There is no build to redraw.' }, 409)
+  }
+
+  const db = await getDb()
+  const [planRow] = await db
+    .select({ plan: schema.plans.plan })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.jobId, jobId), eq(schema.plans.version, fromVersion)))
+    .limit(1)
+  if (!planRow) {
+    return c.json({ error: 'not_found', detail: 'The current plan could not be loaded.' }, 404)
+  }
+
+  const stored = await getIntake(jobId)
+  const parsedIntake = intakeSchema.safeParse(stored?.payload)
+  if (!parsedIntake.success) {
+    return c.json({ error: 'invalid_intake', detail: 'Stored intake does not validate' }, 422)
+  }
+  const intake = parsedIntake.data as IntakePayload
+  const assets = await listAssets(jobId)
+  const facts = buildFacts(intake, assets)
+  const plan = planRow.plan as ContentPlan
+
+  const html = renderSite(plan, facts)
+  const report = await verify(html, facts, { runRender: false })
+
+  /*
+   * Read-only by default. The operator sees what would change, and whether the redraw passes,
+   * before anything is written. A redraw that fails its checks is a renderer bug and must not
+   * be quietly handed to a customer in place of a page that worked.
+   */
+  if (body.dryRun !== false) {
+    return c.json({
+      ok: true,
+      dryRun: true,
+      jobId,
+      businessName: job.businessName,
+      currentVersion: fromVersion,
+      wouldPass: report.passed,
+      failures: report.static.filter((r) => r.status === 'fail').map((r) => r.id),
+      warnings: report.static.filter((r) => r.status === 'warn').map((r) => r.id),
+      detail:
+        'Nothing was changed. Send { "dryRun": false } to write it as a new version. This does not publish and does not cost the customer a round.',
+    })
+  }
+
+  if (!report.passed) {
+    return c.json(
+      {
+        error: 'redraw_failed',
+        detail:
+          'The redrawn page does not pass its own checks, so it has not been written. This is a bug in the renderer, not in their site.',
+        failures: report.static.filter((r) => r.status === 'fail'),
+      },
+      409,
+    )
+  }
+
+  const toVersion = await nextVersion(jobId)
+  const now = new Date()
+
+  await db
+    .insert(schema.plans)
+    .values({ id: id('pln'), jobId, version: toVersion, plan })
+    .onConflictDoUpdate({
+      target: [schema.plans.jobId, schema.plans.version],
+      set: { plan },
+    })
+
+  const set = await persistPageSet({
+    jobId,
+    version: toVersion,
+    plan,
+    facts,
+    homeHtml: html,
+    homeReport: report,
+    paidPageServices: (intake.ownPageServices ?? []).filter((n) => intake.services.includes(n)),
+    pagesAllowed: job.pagesAllowed,
+  })
+
+  await db
+    .update(schema.jobs)
+    .set({ currentVersion: toVersion, updatedAt: now })
+    .where(eq(schema.jobs.id, jobId))
+
+  await recordEvent(jobId, 'site.rerendered', {
+    fromVersion,
+    toVersion,
+    pagesBuilt: set.pages.length,
+    passed: set.passed,
+    editCharged: false,
+    notify: 'chris',
+  })
+
+  return c.json({
+    ok: true,
+    jobId,
+    fromVersion,
+    toVersion,
+    pages: set.pages.map((p) => p.path),
+    passed: set.passed,
+    failures: set.failures,
+    editCharged: false,
+    published: false,
+    detail: set.passed
+      ? 'Redrawn with the current renderer. Nothing they wrote is lost, no round has been used, and the site has NOT been published.'
       : 'Pages were written but the set did not pass. Look at failures before telling the customer anything.',
   })
 })
