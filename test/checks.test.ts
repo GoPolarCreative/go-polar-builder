@@ -488,12 +488,26 @@ describe('reviews are attributed to Google when there is a profile', () => {
   const withGoogle = (extra: Record<string, unknown>) =>
     makeFixture({ googleReviewLink: 'https://g.page/r/CdTest/review', ...extra })
 
-  it('renders the rating, the count and the mark when all three are supplied', () => {
+  /*
+   * THE COUNT IS GONE, THE SCORE AND THE MARK STAY.
+   *
+   * The about panel counted the testimonials supplied and this badge counted the Google profile,
+   * so one page carried two different review numbers. Both were honest about different things
+   * and neither said so. The score, the mark and the link to the profile are the checkable part.
+   */
+  it('renders the rating and the mark, and no count', () => {
     const f = withGoogle({ googleRating: 4.9, googleReviewCount: 87 })
     expect(f.html).toContain('<div class="rating-badge">')
     expect(f.html).toContain('>4.9<')
-    expect(f.html).toMatch(/from 87 reviews on Google/)
     expect(f.html).toContain('g-mark')
+    expect(f.html).not.toMatch(/d+ reviews/)
+  })
+
+  it('still shows the badge when only a score and a link were supplied', () => {
+    // The count is no longer printed, so it is no longer a reason to withhold the badge.
+    const f = withGoogle({ googleRating: 4.8, googleReviewCount: null })
+    expect(f.html).toContain('<div class="rating-badge">')
+    expect(f.html).toContain('>4.8<')
   })
 
   it('links to the profile to read and to leave a review', () => {

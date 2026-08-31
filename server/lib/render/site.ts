@@ -1682,13 +1682,16 @@ ${
        * link, so this block is either fully checkable or absent. There is deliberately no partial
        * version showing a score with nothing to verify it against.
        */
-      facts.googleRating && facts.googleReviewCount
+      facts.googleRating
         ? `<div class="rating-badge">
       <svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg>
       <span class="rating-badge__score">${facts.googleRating.toFixed(1)}</span>
       <span class="rating-badge__meta">
         <span class="stars" aria-hidden="true">${icon(ICON_STAR).repeat(Math.round(facts.googleRating))}</span>
-        <small>from ${facts.googleReviewCount} review${facts.googleReviewCount === 1 ? '' : 's'} on Google</small>
+        <!-- No count here either. The hero rating line lost it and this one was missed, so the
+             page still carried a review number after it was reported gone. The reachability test
+             could not see it: the number comes from the facts, so it looks traceable. -->
+        <small>on Google</small>
       </span>
     </div>`
         : ''
