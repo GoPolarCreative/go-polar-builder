@@ -1,6 +1,6 @@
 import type { AssetRecord } from '../../shared/types.js'
 import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
-import { planSchema } from '../../shared/plan.js'
+import { PLAN_KEYS, planSchema } from '../../shared/plan.js'
 import type { IntakePayload } from '../../shared/intake.js'
 import { MAX_TOKENS_PLAN, callMessage, extractJson } from './anthropic.js'
 import { PLAN_SYSTEM } from '../prompts/houseRules.js'
@@ -52,6 +52,20 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
     'contact',
   ],
   layout: ['gallery'],
+  /* labels reach every section, so any declaration lets a wording change through. */
+  labels: [
+    'hero',
+    'about',
+    'services',
+    'gallery',
+    'why_us',
+    'process',
+    'service_areas',
+    'testimonials',
+    'faq',
+    'cta_band',
+    'contact',
+  ],
 }
 
 /**
@@ -222,7 +236,15 @@ export async function generateEditedPlan(args: {
     const declared = new Set((envelope.sections as unknown[]).map((v) => String(v)))
     const proposed = envelope.changes as Record<string, unknown>
 
-    const unknownKeys = Object.keys(proposed).filter((k) => !(k in args.plan))
+    /*
+     * AGAINST THE SCHEMA, NOT AGAINST THIS ONE PLAN.
+     *
+     * This read `!(k in args.plan)`, so a key the schema allows but this customer does not yet
+     * have was rejected as unknown. Every plan is written by the version that built it, which
+     * made each new optional field permanently unreachable for anybody who already had a site.
+     * It killed an edit outright on "These are not top-level keys of the plan: layout".
+     */
+    const unknownKeys = Object.keys(proposed).filter((k) => !PLAN_KEYS.has(k))
     if (unknownKeys.length > 0) {
       lastError = `These are not top-level keys of the plan: ${unknownKeys.join(', ')}`
       continue

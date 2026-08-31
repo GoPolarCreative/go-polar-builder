@@ -152,7 +152,7 @@ function coercePairs(
   }
 }
 
-export const planSchema = z.preprocess(stripDeep, z.object({
+const planObject = z.object({
   meta: z.object({
     title: z.string().min(10).max(70),
     metaDescription: z.string().min(70).max(165),
@@ -223,6 +223,20 @@ export const planSchema = z.preprocess(stripDeep, z.object({
       galleryColumns: z.number().int().min(2).max(4).optional(),
     })
     .optional(),
+
+  /*
+   * EVERY OTHER WORD THE TEMPLATE SUPPLIES.
+   *
+   * sectionCopy covers the labels above headings. This covers the rest: form field labels,
+   * footer column headings, button and link text, the note under the enquiry form. They were
+   * literals in the renderer, which meant a customer could read them on their own website and
+   * no edit could touch them.
+   *
+   * Flat and free-keyed on purpose. The renderer asks for a key and supplies the wording that
+   * ships if nobody has changed it, so adding a label later is one call and not a schema
+   * change, and test/sitefixes.test.ts fails if a visible string appears that no key covers.
+   */
+  labels: z.record(z.string(), z.string().max(120)).optional(),
 
   sectionCopy: z
     .record(
@@ -521,7 +535,24 @@ export const planSchema = z.preprocess(stripDeep, z.object({
    * Each becomes a <!-- CLIENT TO SUPPLY: ... --> comment.
    */
   clientToSupply: z.array(z.string().min(5)).default([]),
-}))
+})
+
+export const planSchema = z.preprocess(stripDeep, planObject)
+
+/**
+ * Every top-level key a plan MAY have, including the optional ones a given plan does not.
+ *
+ * THE BUG THIS ENDS. The edit step checked each returned key against the customer’s CURRENT
+ * plan object, so any optional field their plan did not already contain came back as "not a
+ * top-level key of the plan" and the whole edit died. Every plan is written by the version of
+ * the app that built it, so that rule made each new optional field permanently unreachable for
+ * everybody who already had a website. sectionCopy hit it, layout hit it and killed an edit
+ * outright, and anything added later would have hit it too.
+ *
+ * Derived from the schema rather than typed out, so a field cannot be added without also being
+ * editable. A hand-written list is the same bug waiting to be put back.
+ */
+export const PLAN_KEYS: ReadonlySet<string> = new Set(Object.keys(planObject.shape))
 
 export type ContentPlan = z.infer<typeof planSchema>
 

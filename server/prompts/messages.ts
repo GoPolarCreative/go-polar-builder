@@ -70,6 +70,11 @@ const PLAN_SHAPE = `{
   // Optional layout choices. galleryColumns is 2 to 4; leave it out and it is derived from the
   // photo count. tokens.button and tokens.eyebrow are optional hex colours that default to accent.
   "layout": { "galleryColumns": 3 },
+  // Any word the template supplies that is not in the plan. Optional; leave a key out and the
+  // built-in wording is used. Keys: form.name, form.message, form.note, about.servicesLink,
+  // services.cardCta, services.cardPageCta, contact.hours, footer.company, footer.services,
+  // footer.allServices, mobileBar.call, servicePage.allServices.
+  "labels": { "services.cardCta": "Get a price" },
   "sectionCopy": { "services": { "eyebrow": "up to 40 chars", "heading": "up to 90", "blurb": "up to 220" } },
   "servicePages": [ {
     "slug": "kebab-case-of-the-service-name",

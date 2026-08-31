@@ -168,6 +168,43 @@ export function twoTone(text: string, enabled: boolean): string {
  * The fallback is still the wording that ships on a fresh build, so nothing moves until
  * somebody asks for it to.
  */
+/**
+ * Every word the template supplies that is not in the plan, and what it says by default.
+ *
+ * A LIST, NOT A HABIT. These were literals spread through the markup, and the only way to know
+ * whether one was reachable from the editor was to read the renderer and hope. Collected here,
+ * a test can walk every key, render with all of them replaced, and fail if any default word
+ * survives onto the page: that is the difference between believing they are editable and
+ * knowing it.
+ *
+ * Adding a literal to the markup instead of a key here is the bug this exists to stop.
+ */
+export const DEFAULT_LABELS: Record<string, string> = {
+  'form.name': 'Your name',
+  'form.message': 'What do you need done?',
+  'form.note': 'We will get back to you as soon as we can. If it is urgent, ring us instead.',
+  'about.servicesLink': 'Our services',
+  'services.cardCta': 'Request a quote',
+  'services.cardPageCta': 'More on',
+  'contact.hours': 'Opening hours',
+  'footer.company': 'Company',
+  'footer.services': 'Services',
+  'footer.allServices': 'All services',
+  'mobileBar.call': 'Call now',
+  'servicePage.allServices': 'All our services',
+}
+
+/**
+ * A word the template supplies, which the customer can replace.
+ *
+ * The fallback is what ships on a fresh build, so nothing moves until somebody asks. Use this
+ * for ANY string that reaches the page and does not come from the plan or the facts: a literal
+ * in the markup is a word on a customer's website that no edit can reach.
+ */
+export function label(plan: ContentPlan, key: keyof typeof DEFAULT_LABELS | string): string {
+  return plan.labels?.[key] ?? DEFAULT_LABELS[key] ?? key
+}
+
 export function sectionCopy(
   plan: ContentPlan,
   section: string,
@@ -1147,6 +1184,8 @@ export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
 }
 
 export function formMarkup(args: {
+  /** The plan, so the field labels and the note under the form are the customer’s to change. */
+  plan: ContentPlan
   id: string
   heading: string
   button: string
@@ -1163,13 +1202,13 @@ export function formMarkup(args: {
         <input type="hidden" name="access_key" value="${esc(args.key)}">
         <input type="hidden" name="subject" value="${esc(args.subject)}">
         <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
-        <label class="field"><span>Your name</span><input type="text" name="name" required autocomplete="name"></label>
+        <label class="field"><span>${esc(label(args.plan, 'form.name'))}</span><input type="text" name="name" required autocomplete="name"></label>
         <label class="field"><span>Phone</span><input type="tel" name="phone" required autocomplete="tel"></label>
         <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email"></label>
-        <label class="field"><span>What do you need done?</span><textarea name="message" required></textarea></label>
+        <label class="field"><span>${esc(label(args.plan, 'form.message'))}</span><textarea name="message" required></textarea></label>
         <button class="btn btn--primary btn--block" type="submit">${esc(clean(args.button))}</button>
         <p class="form-status" role="status"></p>
-        <p class="form-note">We will get back to you as soon as we can. If it is urgent, ring us instead.</p>
+        <p class="form-note">${esc(label(args.plan, 'form.note'))}</p>
       </form>
     </div>`
 }
@@ -1205,6 +1244,7 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
   // is rendered by the standalone quote section instead, so the page still has two forms.
   const heroFormCard = L.heroForm
     ? formMarkup({
+      plan,
         id: 'heroForm',
         heading: plan.hero.formHeading,
         button: plan.hero.formButtonLabel,
@@ -1340,6 +1380,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
       <p>${esc(clean(plan.hero.sub))}</p>
     </div>
     ${formMarkup({
+      plan,
       id: 'heroForm',
       heading: plan.hero.formHeading,
       button: plan.hero.formButtonLabel,
@@ -1418,7 +1459,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
       }
       <div class="about__actions">
         <a class="btn btn--primary" href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
-        <a class="btn btn--outline" href="#services">Our services</a>
+        <a class="btn btn--outline" href="#services">${esc(label(plan, 'about.servicesLink'))}</a>
       </div>
     </div>
     <div class="about__media">
@@ -1472,8 +1513,8 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
            */
           const page = plan.servicePages.find((sp) => sp.service === s.name)
           return page
-            ? `<a class="link-arrow" href="services/${page.slug}/index.html">More on ${esc(clean(s.name.toLowerCase()))}${icon(ICON_ARROW)}</a>`
-            : `<a class="link-arrow" href="#contact">Request a quote${icon(ICON_ARROW)}</a>`
+            ? `<a class="link-arrow" href="services/${page.slug}/index.html">${esc(label(plan, 'services.cardPageCta'))} ${esc(clean(s.name.toLowerCase()))}${icon(ICON_ARROW)}</a>`
+            : `<a class="link-arrow" href="#contact">${esc(label(plan, 'services.cardCta'))}${icon(ICON_ARROW)}</a>`
         })()}
       </article>`,
         )
@@ -1731,7 +1772,7 @@ ${
             : esc(`${plan.meta.geoPlacename} and surrounding suburbs`)
         }</span></div></li>
       </ul>
-      <h3>Opening hours</h3>
+      <h3>${esc(label(plan, 'contact.hours'))}</h3>
       ${plan.assumptions.some((a) => /hours/i.test(a)) ? '<!-- CONFIRM WITH CLIENT BEFORE LAUNCH: these are our default trade hours, the client did not set them. -->' : ''}
       <ul class="hours">
         ${facts.hoursLines.map((l) => `<li>${esc(l)}</li>`).join('\n        ')}
@@ -1745,6 +1786,7 @@ ${
       }
     </div>
     ${formMarkup({
+      plan,
       id: 'contactForm',
       heading: plan.contact.formHeading,
       button: plan.contact.formButtonLabel,
@@ -1833,7 +1875,7 @@ ${orderedBody}
         <p class="site-footer__blurb">${esc(clean(plan.brand.tagline))}</p>
       </div>
       <div>
-        <h4>Services</h4>
+        <h4>${esc(label(plan, 'footer.services'))}</h4>
         <ul>
           ${plan.services
             .slice(0, 5)
@@ -1842,7 +1884,7 @@ ${orderedBody}
         </ul>
       </div>
       <div>
-        <h4>Company</h4>
+        <h4>${esc(label(plan, 'footer.company'))}</h4>
         <ul>
           ${navItems.map((n) => `<li><a href="${n.href}">${esc(n.label)}</a></li>`).join('\n          ')}
         </ul>
@@ -1864,7 +1906,7 @@ ${orderedBody}
 </footer>
 
 <div class="mobile-bar">
-  <a href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}Call now</a>
+  <a href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(label(plan, 'mobileBar.call'))}</a>
   <a href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
 </div>
 <script>

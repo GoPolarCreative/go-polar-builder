@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { galleryColumns, navMarkup, renderSite } from '../server/lib/render/site'
+import { DEFAULT_LABELS, galleryColumns, navMarkup, renderSite } from '../server/lib/render/site'
+import { renderSiteSet } from '../server/lib/render/set'
 import { makeFixture } from './fixtures/site'
 import type { ContentPlan } from '../shared/plan'
 
@@ -529,5 +530,103 @@ describe('the rest of what a customer points at is reachable', () => {
     expect(keyIsDeclared('layout', new Set(['gallery']))).toBe(true)
     // And an unrelated declaration still does not let a key through.
     expect(keyIsDeclared('stats', new Set(['faq']))).toBe(false)
+  })
+})
+
+/**
+ * NOTHING ON THE PAGE IS BEYOND REACH.
+ *
+ * This is the check that stops the last three days repeating. Chris found four separate things a
+ * customer could see and no edit could change: the section labels, the button colour, the gallery
+ * shape, the review count. Each was found the same way, by him, one at a time, after a customer
+ * had spent a round asking for it.
+ *
+ * So: render a page with every label and every section label replaced by a marker, then read the
+ * words a visitor actually sees. Anything left that is not traceable to the plan or the facts is
+ * a literal in the renderer, which means nobody can change it. The allowlist below is the only
+ * text allowed to be beyond reach, and every entry has a reason.
+ */
+describe('every word on the page can be reached from the editor', () => {
+  const marked = (): ContentPlan => ({
+    ...fixture.plan,
+    labels: Object.fromEntries(Object.keys(DEFAULT_LABELS).map((k) => [k, 'ZZLABEL'])),
+    sectionCopy: Object.fromEntries(
+      [
+        'hero',
+        'hero_form',
+        'about',
+        'services',
+        'gallery',
+        'why_us',
+        'process',
+        'service_areas',
+        'testimonials',
+        'faq',
+        'cta_band',
+        'contact',
+        'included',
+        'detail',
+        'scope',
+      ].map((s) => [s, { eyebrow: 'ZZEYEBROW', heading: 'ZZHEADING', blurb: 'ZZBLURB' }]),
+    ),
+  })
+
+  /*
+   * Text that is allowed to be fixed, and why.
+   *
+   * The footer credit is contractual and check 7 fails the build without it. The copyright line
+   * is assembled from the year and the business name. "and surrounding suburbs" is built from the
+   * placename. The rest are composed from plan values at render time rather than written down.
+   */
+  const ALLOWED = [
+    'Website by Go Polar Creative',
+    'and surrounding suburbs',
+    'ABN',
+    'Need',
+    'Give us a call.',
+    'rated on Google',
+    'Posted on Google',
+    'Read our reviews on Google',
+    'Leave a Google review',
+    'Thanks',
+  ]
+
+  const visible = (html: string) =>
+    html
+      .replace(/<script[\s\S]*?<\/script>/g, ' ')
+      .replace(/<style[\s\S]*?<\/style>/g, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, '\n')
+      .split(/\n+/)
+      .map((s) => s.replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter((s) => s.length > 2)
+
+  it('leaves nothing hardcoded but the credit and the composed lines', () => {
+    const plan = marked()
+    const haystack = (JSON.stringify(plan) + JSON.stringify(fixture.facts)).toLowerCase()
+    const set = renderSiteSet(plan, fixture.facts)
+
+    const orphans: string[] = []
+    for (const page of set.pages) {
+      for (const text of new Set(visible(page.html))) {
+        if (haystack.includes(text.toLowerCase())) continue
+        if (ALLOWED.some((a) => text.includes(a))) continue
+        // A marker in the line means the words around it came from the plan.
+        if (text.includes('ZZ')) continue
+        // Numbers composed from a stat value and its suffix, e.g. "14+".
+        if (/^\d+\+?$/.test(text)) continue
+        orphans.push(page.path + ': ' + text)
+      }
+    }
+
+    expect(orphans, 'unreachable text:\n' + orphans.join('\n')).toEqual([])
+  })
+
+  it('every default label is actually wired to something', () => {
+    // A key nobody reads is a promise the editor cannot keep.
+    const plain = renderSiteSet(fixture.plan, fixture.facts).pages.map((p) => p.html).join('')
+    for (const [key, text] of Object.entries(DEFAULT_LABELS)) {
+      expect(plain, key).toContain(text)
+    }
   })
 })

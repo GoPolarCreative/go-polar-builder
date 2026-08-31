@@ -15,7 +15,9 @@ import {
   esc,
   formMarkup,
   icon,
+  label,
   navMarkup,
+  sectionCopy,
   picture,
   resolveSurfaces,
   sectionHead,
@@ -190,13 +192,14 @@ ${stylesheet(plan, spec, surfaces)}
       </ul>
     </div>
     ${formMarkup({
+      plan,
       id: 'servicePageForm',
       heading: plan.hero.formHeading,
       button: plan.hero.formButtonLabel,
       subject: `${content.service} enquiry from ${plan.brand.businessName}`,
       key: facts.web3formsKey,
       headingLevel: 2,
-      eyebrow: 'Start a conversation',
+      eyebrow: sectionCopy(plan, 'hero_form', 'eyebrow', 'Start a conversation'),
     })}
   </div>
 </section>
@@ -215,8 +218,8 @@ ${stylesheet(plan, spec, surfaces)}
 <section class="section" id="detail">
   <div class="wrap about-grid">
     <div class="about__copy">
-      <span class="eyebrow">What it involves</span>
-      <h2>${twoTone(`${content.service}, done properly`, spec.twoTone)}</h2>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'detail', 'eyebrow', 'What it involves'))}</span>
+      <h2>${twoTone(sectionCopy(plan, 'detail', 'heading', `${content.service}, done properly`), spec.twoTone)}</h2>
       ${
         /*
          * FROM THE SECOND PARAGRAPH. intro[0] is already the hero subtitle a screen above
@@ -230,7 +233,7 @@ ${stylesheet(plan, spec, surfaces)}
       }
       <div class="about__actions">
         <a class="btn btn--primary" href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
-        <a class="btn btn--outline" href="${esc(linkTo(home))}#services">All our services</a>
+        <a class="btn btn--outline" href="${esc(linkTo(home))}#services">${esc(label(plan, 'servicePage.allServices'))}</a>
       </div>
     </div>
     <div class="about__media">
@@ -253,8 +256,8 @@ ${stylesheet(plan, spec, surfaces)}
 <section class="section section--alt" id="included">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'What you get',
-      heading: `What is included, on every job`,
+      eyebrow: sectionCopy(plan, 'included', 'eyebrow', 'What you get'),
+      heading: sectionCopy(plan, 'included', 'heading', 'What is included, on every job'),
       blurb: null,
       spec,
     })}
@@ -276,8 +279,8 @@ ${
     ? `<section class="section" id="scope" data-gp="service_scope">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Before you book',
-      heading: `What shapes a ${content.service.toLowerCase()} job`,
+      eyebrow: sectionCopy(plan, 'scope', 'eyebrow', 'Before you book'),
+      heading: sectionCopy(plan, 'scope', 'heading', `What shapes a ${content.service.toLowerCase()} job`),
       blurb: null,
       spec,
     })}
@@ -299,7 +302,7 @@ ${
 <section class="section section--dark" id="areas">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Where we work',
+      eyebrow: sectionCopy(plan, 'service_areas', 'eyebrow', 'Where we work'),
       heading: `${content.service} across ${plan.meta.geoPlacename}`,
       blurb: clean(plan.serviceAreas.blurb),
       spec,
@@ -314,11 +317,17 @@ ${
 <section class="section" id="process" data-gp="${content.steps ? 'service_process' : 'process'}">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'How it works',
-      // The page's own steps when it has them, the home page's when it does not.
-      heading: content.steps
-        ? `How a ${content.service.toLowerCase()} job runs`
-        : 'A clear path, from first call to finished job',
+      eyebrow: sectionCopy(plan, 'process', 'eyebrow', 'How it works'),
+      // The page's own steps when it has them, the home page's when it does not, and either
+      // way the customer can replace the result.
+      heading: sectionCopy(
+        plan,
+        'process',
+        'heading',
+        content.steps
+          ? `How a ${content.service.toLowerCase()} job runs`
+          : 'A clear path, from first call to finished job',
+      ),
       blurb: null,
       spec,
     })}
@@ -339,10 +348,13 @@ ${
 <section class="section section--alt" id="faq" data-gp="${content.faqs ? 'service_faq' : 'faq'}">
   <div class="wrap">
     ${sectionHead({
-      eyebrow: 'Common questions',
-      heading: content.faqs
-        ? `${content.service}, answered`
-        : 'Questions, answered',
+      eyebrow: sectionCopy(plan, 'faq', 'eyebrow', 'Common questions'),
+      heading: sectionCopy(
+        plan,
+        'faq',
+        'heading',
+        content.faqs ? `${content.service}, answered` : 'Questions, answered',
+      ),
       blurb: null,
       spec,
     })}
@@ -362,7 +374,7 @@ ${
 
 <section class="section cta-band">
   <div class="wrap">
-    <span class="eyebrow">Get started</span>
+    <span class="eyebrow">${esc(sectionCopy(plan, 'cta_band', 'eyebrow', 'Get started'))}</span>
     <h2>${twoTone(`Need ${content.service.toLowerCase()}? Give us a call.`, spec.twoTone)}</h2>
     <p>${esc(clean(plan.ctaBand.body))}</p>
     <div class="cta-band__actions">
@@ -375,7 +387,7 @@ ${
 <section class="section" id="contact">
   <div class="wrap contact-grid">
     <div>
-      <span class="eyebrow">Get in touch</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'contact', 'eyebrow', 'Get in touch'))}</span>
       <h2>${twoTone(plan.contact.heading, spec.twoTone)}</h2>
       <p>${esc(clean(plan.contact.blurb))}</p>
       <ul class="contact-list">
@@ -383,19 +395,20 @@ ${
         <li>${icon(ICON_MAIL)}<div><b>Email</b><a href="mailto:${esc(facts.email)}">${esc(facts.email)}</a></div></li>
         <li>${icon(ICON_PIN)}<div><b>Based in</b><span>${esc(`${plan.meta.geoPlacename} and surrounding suburbs`)}</span></div></li>
       </ul>
-      <h3>Opening hours</h3>
+      <h3>${esc(label(plan, 'contact.hours'))}</h3>
       <ul class="hours">
         ${facts.hoursLines.map((l) => `<li>${esc(l)}</li>`).join('\n        ')}
       </ul>
     </div>
     ${formMarkup({
+      plan,
       id: 'contactForm',
       heading: plan.contact.formHeading,
       button: plan.contact.formButtonLabel,
       subject: `${content.service} enquiry from ${plan.brand.businessName}`,
       key: facts.web3formsKey,
       headingLevel: 3,
-      eyebrow: 'Send an enquiry',
+      eyebrow: sectionCopy(plan, 'contact', 'eyebrow', 'Send an enquiry'),
     })}
   </div>
 </section>
@@ -414,11 +427,11 @@ ${
             .slice(1)
             .map((sp) => `<li><a href="${esc(linkTo(sp))}">${esc(sp.service ?? '')}</a></li>`)
             .join('\n          ')}
-          <li><a href="${esc(linkTo(home))}#services">All services</a></li>
+          <li><a href="${esc(linkTo(home))}#services">${esc(label(plan, 'footer.allServices'))}</a></li>
         </ul>
       </div>
       <div>
-        <h4>Company</h4>
+        <h4>${esc(label(plan, 'footer.company'))}</h4>
         <ul>
           <li><a href="${esc(linkTo(home))}">Home</a></li>
           <li><a href="${esc(linkTo(home))}#about">About</a></li>
@@ -442,7 +455,7 @@ ${
 </footer>
 
 <div class="mobile-bar">
-  <a href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}Call now</a>
+  <a href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(label(plan, 'mobileBar.call'))}</a>
   <a href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
 </div>
 

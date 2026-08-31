@@ -125,6 +125,17 @@ layout.galleryColumns
   how many photos there are. Use it when somebody asks for a particular arrangement, for example
   three rows of three.
 
+
+labels
+  Every other word the template supplies and the plan does not: form field labels, footer column
+  headings, button and link text, the note under the enquiry form. A flat map of key to wording.
+  The keys are:
+    form.name, form.message, form.note, about.servicesLink, services.cardCta,
+    services.cardPageCta, contact.hours, footer.company, footer.services, footer.allServices,
+    mobileBar.call, servicePage.allServices
+  Use it when the request is about a word on the page that is not a heading and not their own
+  copy, for example "change Request a quote to Get a price".
+
 # WHAT THE CUSTOMER HAS ASKED FOR NOW
 
 """
