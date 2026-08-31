@@ -449,3 +449,85 @@ describe('the editor can reach everything the page renders', () => {
     }
   })
 })
+
+/**
+ * FOUR MORE THINGS ON THE PAGE THAT NOTHING COULD CHANGE.
+ *
+ * Asked to link the service cards to their pages, make the hero button green, set the gallery to
+ * three by three and drop the review counts, the editor changed faq, stats, whyUs and gallery
+ * items instead. Not one of the four was reachable: two were literals in the renderer, one was
+ * derived from the photo count, and the button followed the accent along with every label and
+ * link on the site.
+ */
+describe('the rest of what a customer points at is reachable', () => {
+  it('a service card links to the page they paid for', () => {
+    const html = render()
+    const page = fixture.plan.servicePages[0]!
+    expect(html).toContain(`href="services/${page.slug}/index.html"`)
+  })
+
+  it('and still points at the form for a service with no page', () => {
+    const onePage = makeFixture()
+    const html = renderSite(onePage.plan, onePage.facts)
+    expect(html).toContain('href="#contact">Request a quote')
+  })
+
+  /*
+   * The about panel counted the quotes supplied and the Google line counted the profile, so one
+   * page carried two different review numbers. The score and the link are the checkable part.
+   */
+  it('no review count is printed anywhere', () => {
+    expect(render()).not.toMatch(/from \d+ reviews/)
+    /*
+     * The rating line only renders for a business with a profile link AND a score, which this
+     * fixture has neither of, so the source is what says the count is gone rather than a page
+     * that was never going to show it.
+     */
+    const source = readFileSync(new URL('../server/lib/render/site.ts', import.meta.url), 'utf8')
+    expect(source).toContain('<span>rated on Google</span>')
+    expect(source).not.toMatch(/googleReviewCount \? `? ?from \$\{/)
+  })
+
+  it('the button has its own colour, falling back to the accent', () => {
+    expect(render()).toContain('--btn-bg:' + fixture.plan.tokens.accent + ';')
+    const green = render({
+      ...fixture.plan,
+      tokens: { ...fixture.plan.tokens, button: '#16A34A' },
+    })
+    expect(green).toContain('--btn-bg:#16A34A;')
+    // The accent has not moved, so labels and links stay where they were.
+    expect(green).toContain('--accent:' + fixture.plan.tokens.accent + ';')
+  })
+
+  it('the gallery shape can be asked for rather than only derived', () => {
+    // Nine photos derive four across. A customer wanting three rows of three had no way to say so.
+    expect(galleryColumns(9)).toBe(4)
+    const three = render({ ...fixture.plan, layout: { galleryColumns: 3 } })
+    expect(three).toMatch(/--cols:3"/)
+  })
+
+  it('the edit prompt names all of them', async () => {
+    const { editPlanUserMessage } = await import('../server/prompts/edit')
+    const msg = editPlanUserMessage({
+      plan: fixture.plan,
+      facts: fixture.facts,
+      request: 'make the call now button green',
+      previousRequests: [],
+    })
+    expect(msg).toContain('tokens.button')
+    expect(msg).toContain('layout.galleryColumns')
+  })
+
+  /*
+   * The declaration vocabulary is section ids, and an edit meaning to change the figures declared
+   * ['services', 'stats']. stats is a plan key, so it mapped to ['about'], nothing matched, and
+   * the change was dropped without anybody being told.
+   */
+  it('a declaration that names the plan key is accepted', async () => {
+    const { keyIsDeclared } = await import('../server/lib/edit')
+    expect(keyIsDeclared('stats', new Set(['services', 'stats']))).toBe(true)
+    expect(keyIsDeclared('layout', new Set(['gallery']))).toBe(true)
+    // And an unrelated declaration still does not let a key through.
+    expect(keyIsDeclared('stats', new Set(['faq']))).toBe(false)
+  })
+})

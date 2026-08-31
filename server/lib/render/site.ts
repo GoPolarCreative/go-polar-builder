@@ -284,8 +284,9 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--track-head:' + spec.headingTracking + ';',
     '--track-btn:' + spec.buttonTracking + ';',
     '--track-eyebrow:' + spec.eyebrowTracking + ';',
-    // Falls back to the accent, which is what the eyebrow always was.
+    // Both fall back to the accent, which is what they always were.
     '--eyebrow-color:' + (t.eyebrow ?? t.accent) + ';',
+    '--btn-bg:' + (t.button ?? t.accent) + ';',
     '--eyebrow-size:' + spec.eyebrowSize + ';',
     '--h1:' + spec.scale.h1 + ';',
     '--h2:' + spec.scale.h2 + ';',
@@ -410,7 +411,12 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:var(--border-hairline) solid transparent;border-radius:var(--radius-btn);padding:14px 26px;font-family:var(--font-body);font-size:0.95rem;font-weight:700;letter-spacing:var(--track-btn);' +
       (spec.buttonTransform === 'uppercase' ? 'text-transform:uppercase;' : '') +
       'text-decoration:none;cursor:pointer;transition:transform .2s ease,background-color .2s ease,box-shadow .2s ease,color .2s ease;}',
-    '.btn--primary{background:var(--accent);color:var(--on-primary);border-color:var(--accent);}',
+    /*
+     * The button follows --btn-bg, which falls back to the accent and always has. It is
+     * separate because the accent also paints eyebrows, links and icons, so a customer who
+     * wants a green Call Now button should not have to turn every small label green with it.
+     */
+    '.btn--primary{background:var(--btn-bg);color:var(--on-primary);border-color:var(--btn-bg);}',
     '.btn--primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-raised);}',
     '.btn--dark{background:var(--dark-block);color:var(--on-dark);border-color:var(--dark-block);}',
     '.btn--dark:hover{transform:translateY(-2px);}',
@@ -1240,7 +1246,12 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
         <svg class="g-mark" viewBox="0 0 24 24" aria-hidden="true">${ICON_GOOGLE_G}</svg>
         <strong>${facts.googleRating.toFixed(1)}</strong>
         <span class="stars" aria-hidden="true">${icon(ICON_STAR).repeat(Math.round(facts.googleRating))}</span>
-        <span>rated on Google${facts.googleReviewCount ? ` from ${facts.googleReviewCount} reviews` : ''}</span>
+        <!-- The count is deliberately absent. The about panel counted the quotes supplied and
+             this line counted the Google profile, so one page carried two different review
+             numbers. Both were honest about different things and neither said so. The score
+             and the link to the profile are the checkable part; the count added nothing but a
+             second number to disagree with. -->
+        <span>rated on Google</span>
       </a>`
           : ''
       }
@@ -1450,7 +1461,20 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
         <span class="card__icon">${icon([ICON_TOOL, ICON_SHIELD, ICON_CLOCK, ICON_TICK, ICON_PIN, ICON_PHONE][i % 6]!)}</span>
         <h3>${esc(clean(s.name))}</h3>
         <p>${esc(clean(s.blurb))}</p>
-        <a class="link-arrow" href="#contact">Request a quote${icon(ICON_ARROW)}</a>
+        ${(() => {
+          /*
+           * TO THE PAGE THEY PAID FOR, WHEN THERE IS ONE.
+           *
+           * Every card pointed at #contact. A customer who bought ten service pages had ten
+           * cards on the home page describing those services and not one of them went to the
+           * page. The only way in was the nav dropdown, which is the second place anybody
+           * looks, and the pages are the thing they actually paid for.
+           */
+          const page = plan.servicePages.find((sp) => sp.service === s.name)
+          return page
+            ? `<a class="link-arrow" href="services/${page.slug}/index.html">More on ${esc(clean(s.name.toLowerCase()))}${icon(ICON_ARROW)}</a>`
+            : `<a class="link-arrow" href="#contact">Request a quote${icon(ICON_ARROW)}</a>`
+        })()}
       </article>`,
         )
         .join('\n      ')}
@@ -1470,7 +1494,7 @@ ${
       blurb: sectionCopy(plan, 'gallery', 'blurb', 'Real jobs, photographed on site. No stock photography.'),
       spec,
     })}
-    <div class="gallery" style="--cols:${galleryColumns(plan.gallery.items.length)}">
+    <div class="gallery" style="--cols:${plan.layout?.galleryColumns ?? galleryColumns(plan.gallery.items.length)}">
       ${plan.gallery.items
         .map((item) => {
           const photo = facts.photos.find((p) => p.assetId === item.assetId)

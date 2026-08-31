@@ -211,6 +211,19 @@ export const planSchema = z.preprocess(stripDeep, z.object({
    * Optional and keyed by section id, so an older plan renders exactly as it does today and
    * anything the model leaves out falls back to the built-in wording.
    */
+  /*
+   * The handful of layout choices a customer reasonably asks about by name.
+   *
+   * galleryColumns is derived from the photo count, which is right until somebody wants
+   * something else: nine photos give four across, and a customer asking for three rows of
+   * three had no way to say so. Optional, so the derived answer stands unless asked.
+   */
+  layout: z
+    .object({
+      galleryColumns: z.number().int().min(2).max(4).optional(),
+    })
+    .optional(),
+
   sectionCopy: z
     .record(
       z.string(),
@@ -242,6 +255,12 @@ export const planSchema = z.preprocess(stripDeep, z.object({
      * band where a customer may simply want it white.
      */
     eyebrow: hex.optional(),
+    /*
+     * The filled button. Optional, falling back to the accent, which is what it always was.
+     * Separate for the same reason the eyebrow is: the accent paints buttons, links, icons and
+     * labels at once, and "make the Call Now button green" should not repaint all of them.
+     */
+    button: hex.optional(),
   }),
 
   hero: z.object({

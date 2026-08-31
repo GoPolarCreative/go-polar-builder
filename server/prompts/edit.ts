@@ -115,6 +115,16 @@ tokens.eyebrow
   request is about the colour of the text above a heading, so their buttons and links do not
   move with it.
 
+tokens.button
+  A hex colour for the filled buttons on their own, separate from the accent. Use it when the
+  request is about the colour of a button, for example "make the call now button green", so the
+  small labels and links do not change with it.
+
+layout.galleryColumns
+  How many photos sit across a row on a desktop screen, 2 to 4. Left out, it is worked out from
+  how many photos there are. Use it when somebody asks for a particular arrangement, for example
+  three rows of three.
+
 # WHAT THE CUSTOMER HAS ASKED FOR NOW
 
 """

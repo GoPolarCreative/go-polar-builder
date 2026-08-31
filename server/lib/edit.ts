@@ -51,6 +51,7 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
     'cta_band',
     'contact',
   ],
+  layout: ['gallery'],
 }
 
 /**
@@ -62,6 +63,16 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
  */
 export function keyIsDeclared(key: string, declared: Set<string>): boolean {
   if (declared.has('global')) return true
+  /*
+   * THE MODEL SOMETIMES NAMES THE PLAN KEY RATHER THAN THE SECTION.
+   *
+   * The vocabulary here is section ids, and an edit that meant to change the figures declared
+   * ['services', 'stats']. stats is a plan key, not a section, so it mapped to ['about'],
+   * nothing matched, and the change was dropped without the customer being told. Refusing a
+   * change because it was announced in the wrong vocabulary is pedantry with a cost: the model
+   * said which key it was touching, which is more specific than a section, not less.
+   */
+  if (declared.has(key)) return true
   const sections = PLAN_KEY_SECTIONS[key]
   if (!sections) return false
   return sections.some((s) => declared.has(s))

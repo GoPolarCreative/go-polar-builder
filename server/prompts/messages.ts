@@ -67,6 +67,9 @@ const PLAN_SHAPE = `{
   // the customer can change these words later, because they are words on their website.
   // Section ids: hero, hero_form, about, services, gallery, why_us, process, service_areas,
   // testimonials, faq, cta_band, contact.
+  // Optional layout choices. galleryColumns is 2 to 4; leave it out and it is derived from the
+  // photo count. tokens.button and tokens.eyebrow are optional hex colours that default to accent.
+  "layout": { "galleryColumns": 3 },
   "sectionCopy": { "services": { "eyebrow": "up to 40 chars", "heading": "up to 90", "blurb": "up to 220" } },
   "servicePages": [ {
     "slug": "kebab-case-of-the-service-name",
