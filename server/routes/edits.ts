@@ -10,8 +10,8 @@ import { editCapability } from '../config.js'
 import { getIntake, getJob, holdJob, listAssets, nextVersion, recordEvent, setJobStatus } from '../lib/db.js'
 import { id } from '../lib/ids.js'
 import { buildFacts } from '../lib/facts.js'
-import { diffPlans, generateEditedPlan, patchSections, rebuildFromPlan, summariseDiff } from '../lib/edit.js'
-import { planEdit } from '../lib/sections.js'
+import { diffPlans, generateEditedPlan, summariseDiff } from '../lib/edit.js'
+import { renderSite } from '../lib/render/site.js'
 import { storage } from '../lib/storage.js'
 import { summarise, verifyAndRepair } from '../lib/verify.js'
 import { persistPageSet } from '../lib/buildSet.js'
@@ -335,63 +335,38 @@ app.post('/jobs/:jobId/edits', async (c) => {
           })
 
         /*
-         * PATCH THE SECTIONS THE CHANGE REACHES, OR REBUILD THE PAGE. See server/lib/sections.ts.
+         * THE PAGE IS RENDERED FROM THE REVISED PLAN. THE MODEL DOES NOT TOUCH THE MARKUP.
          *
-         * Rebuilding is still the honest answer for a colour change, a font change, anything in
-         * the head, and anything whose blast radius is not confidently known. The fast path is
-         * only taken when the plan diff points at a specific, self-contained set of sections.
+         * This was two model-driven paths: patch the sections the change reached, or hand the
+         * whole document back to the model to rewrite. Both were right when the model had
+         * written the document in the first place. renderSite replaced that for first builds and
+         * this path was left behind, which made an edit the one operation that could throw the
+         * template away and return something else.
+         *
+         * IT ALSO FAILED. Callum asked for nine changes at once and the rebuild came back
+         * truncated: "The rebuild came back incomplete", after several minutes of streaming, on
+         * a request that never needed a model to write markup at all. A renderer cannot
+         * truncate, so that failure mode is gone rather than made less likely.
+         *
+         * What an edit changes now is the PLAN: the words, the colours, the fonts, the style,
+         * which sections are on. The page is redrawn from it. Everything the template decides
+         * stays decided, which is the point of having one, and it also means a fix to the
+         * renderer reaches every customer on their next edit rather than only on a fresh build.
          */
-        const decision = planEdit({ changes, request, html: currentHtml })
-        const rebuild = () =>
-          rebuildFromPlan({ plan: revisedPlan, facts, previousHtml: currentHtml, changes, request, emit })
+        const html = renderSite(revisedPlan, facts)
 
-        let html: string
-        let editMode: string = decision.mode
-
-        if (decision.mode === 'patch') {
-          try {
-            html = await patchSections({
-              plan: revisedPlan,
-              facts,
-              previousHtml: currentHtml,
-              targets: decision.targets,
-              request,
-              emit,
-            })
-          } catch (err) {
-            /*
-             * A PATCH THAT CANNOT BE APPLIED CLEANLY IS ABANDONED WHOLE.
-             *
-             * Never half. spliceInto is all-or-nothing and patchSections throws before returning
-             * anything if any single section came back truncated, empty or without its marker, so
-             * there is no partially edited document to salvage. Falling back costs the customer
-             * time they would have spent anyway before this existed, and costs them no allowance,
-             * because the round is only counted further down on success.
-             */
-            editMode = 'rebuild_after_patch_failed'
-            await recordEvent(jobId, 'edit.patch_fallback', {
-              targets: decision.targets,
-              reason: String(err).slice(0, 600),
-              request: request.slice(0, 200),
-              editCharged: false,
-            })
-            html = await rebuild()
-          }
-        } else {
-          html = await rebuild()
-        }
-
-        await recordEvent(jobId, 'edit.mode', {
-          mode: editMode,
-          reason: decision.reason,
-          targets: decision.mode === 'patch' ? decision.targets : [],
-          fromVersion,
-        })
+        await recordEvent(jobId, 'edit.mode', { mode: 'render', fromVersion })
 
         await emit({ type: 'status', stage: 'verifying', message: 'Checking every line of it' })
         const outcome = await verifyAndRepair({
           html,
           facts,
+          /*
+           * Same reason as the build route: against a document the model did not author,
+           * repair rewrites the template rather than fixing it. A failing check here is a bug
+           * in the renderer, to be fixed once for everybody.
+           */
+          allowRepair: false,
           onEvent: async (e) => {
             if (e.type === 'repair') {
               await emit({ type: 'status', stage: 'repairing', message: 'Fixing what did not pass' })
@@ -427,7 +402,9 @@ app.post('/jobs/:jobId/edits', async (c) => {
             type: 'error',
             message: 'Nothing changed',
             detail:
-              'We could not work out what to change from that, so your website has been left exactly as it was and this has not used up one of your changes. Try naming the section and what you want done to it, for example "make the text on the blue buttons white".',
+              'We could not work out what to change from that, so your website has been left exactly as it was and this has not used up one of your changes. ' +
+              'Editing changes your words, your photos, your colours and your fonts. The layout itself is fixed: things like the size of the logo, how the menu is arranged, how many photos sit in a row and how the sections are spaced are the same on every site we build, and asking for those here will not change anything. ' +
+              'For anything else, name the section and what you want done to it, for example "change the heading on the about section to ...".',
           })
           // Back to where they were: something is built and they can still change it.
           await setJobStatus(jobId, 'preview')

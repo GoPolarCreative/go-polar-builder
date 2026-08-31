@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { galleryColumns, navMarkup, renderSite } from '../server/lib/render/site'
 import { makeFixture } from './fixtures/site'
@@ -202,5 +203,59 @@ describe('navMarkup', () => {
   it('escapes what it is given', () => {
     const out = navMarkup(items, [{ href: 'services/x/index.html', label: 'Decks & Patios' }])
     expect(out).toContain('Decks &amp; Patios')
+  })
+})
+
+/**
+ * AN EDIT REDRAWS THE PAGE. IT DOES NOT ASK A MODEL TO REWRITE IT.
+ *
+ * Callum sent nine changes at once and got "The rebuild came back incomplete", after minutes of
+ * streaming, on a request that never needed a model to write markup. renderSite replaced the
+ * model's build call and this path was left behind, so an edit was the one operation that could
+ * throw the template away and hand back something else.
+ *
+ * These read the source. The behaviour is a route that streams, spends real money on a model call
+ * and writes to storage, and the property worth pinning is structural: which functions the edit
+ * path is allowed to reach for.
+ */
+describe('the edit path renders rather than rewriting', () => {
+  const route = readFileSync(new URL('../server/routes/edits.ts', import.meta.url), 'utf8')
+
+  it('builds the page with the renderer', () => {
+    expect(route).toContain('const html = renderSite(revisedPlan, facts)')
+  })
+
+  it('no longer reaches for the model to write markup', () => {
+    expect(route).not.toContain('rebuildFromPlan')
+    expect(route).not.toContain('patchSections')
+    expect(route).not.toContain('planEdit')
+  })
+
+  /*
+   * Same reason as the build route: repair rewrites a template rather than fixing it, so a failing
+   * check is a renderer bug to fix once rather than something to patch over on one customer.
+   */
+  it('does not let repair loose on template output', () => {
+    expect(route).toContain('allowRepair: false')
+  })
+
+  /*
+   * The old message told a customer to name a section and say what to do to it, which is now a
+   * promise the editor cannot keep for anything the template decides. Nine of Callum's requests
+   * were layout, not content.
+   */
+  it('tells the customer what an edit can and cannot change', () => {
+    expect(route).toContain('The layout itself is fixed')
+    expect(route).toContain('your words, your photos, your colours and your fonts')
+  })
+
+  it('the machinery that wrote markup is gone rather than left lying around', async () => {
+    const edit = await import('../server/lib/edit')
+    expect('patchSections' in edit).toBe(false)
+    expect('rebuildFromPlan' in edit).toBe(false)
+
+    const prompts = await import('../server/prompts/edit')
+    expect('editBuildUserMessage' in prompts).toBe(false)
+    expect('PATCH_SYSTEM' in prompts).toBe(false)
   })
 })
