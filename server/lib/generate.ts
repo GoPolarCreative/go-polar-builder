@@ -168,6 +168,14 @@ export function enforcePlanInvariants(
      * when the name moves away from it that is written into assumptions rather than hidden.
      */
     allowLocationChange?: boolean
+    /**
+     * Whether the plan may switch a section off.
+     *
+     * The invariants force the reviews and the gallery ON whenever the material exists, which
+     * is right on a build and wrong on an edit: "turn off the photo gallery" was accepted and
+     * silently undone. Off is always allowed to win; on still requires the material.
+     */
+    allowSectionToggle?: boolean
   } = {},
 ): ContentPlan {
   const out: ContentPlan = structuredClone(plan)
@@ -266,11 +274,18 @@ export function enforcePlanInvariants(
     out.style = fromIntake
   }
 
-  // Testimonials exist only if real reviews were supplied, and only as supplied.
+  /*
+   * TESTIMONIALS EXIST ONLY IF REAL REVIEWS WERE SUPPLIED, AND ONLY AS SUPPLIED.
+   *
+   * The forcing runs one way now. No reviews still means no section, because the alternative
+   * is inventing them. But "turn off the reviews section" was a request the editor accepted,
+   * reported as done, and then undid on the way past: enabled was set back to true because the
+   * intake had reviews in it. Having supplied a review is not the same as wanting the section.
+   */
   if (intake.reviews.length === 0) {
     out.testimonials = { enabled: false, heading: out.testimonials.heading, items: [] }
   } else {
-    out.testimonials.enabled = true
+    if (!opts.allowSectionToggle) out.testimonials.enabled = true
     out.testimonials.items = intake.reviews.map((r) => ({
       quote: r.quote,
       name: r.firstName,
@@ -289,7 +304,13 @@ export function enforcePlanInvariants(
     }
   } else {
     out.gallery.items = out.gallery.items.filter((i) => validAssetIds.has(i.assetId))
-    out.gallery.enabled = out.gallery.items.length >= 3
+    /*
+     * Same one-way rule as the reviews. Too few photos still switches it off, because a gallery
+     * of two is worse than none. Enough photos no longer switches it back ON over a customer
+     * who has asked for it gone.
+     */
+    const enough = out.gallery.items.length >= 3
+    out.gallery.enabled = opts.allowSectionToggle ? out.gallery.enabled && enough : enough
   }
 
   /*

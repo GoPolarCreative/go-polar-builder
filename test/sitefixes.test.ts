@@ -1157,3 +1157,68 @@ describe('the placename is the owner’s to correct', () => {
     expect(msg).toContain('layout.logoHeight')
   })
 })
+
+/**
+ * A SECTION IS OFF WHEN THE CUSTOMER SAYS OFF.
+ *
+ * "Turn off the photo gallery" and "turn off the reviews section" were both accepted, reported as
+ * done, and undone on the way past: the invariants set enabled back to true because the material
+ * existed. Having supplied a review is not the same as wanting the section.
+ *
+ * The forcing runs one way now. Too few photos still switches the gallery off, because a gallery
+ * of two is worse than none, and no reviews still means no reviews section. Enough material no
+ * longer switches a section back ON over somebody who asked for it gone.
+ */
+describe('sections can be switched off', () => {
+  const off = (plan: ContentPlan): ContentPlan => ({
+    ...plan,
+    gallery: { ...plan.gallery, enabled: false },
+    testimonials: { ...plan.testimonials, enabled: false },
+  })
+
+  it('a build turns them back on when the material is there', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const out = enforcePlanInvariants(off(fixture.plan), makeIntake({}), fixture.facts, makeAssets(), {})
+    expect(out.gallery.enabled, 'gallery').toBe(true)
+    expect(out.testimonials.enabled, 'reviews').toBe(true)
+  })
+
+  it('an edit leaves them off', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const out = enforcePlanInvariants(
+      off(fixture.plan),
+      makeIntake({}),
+      fixture.facts,
+      makeAssets(),
+      { allowSectionToggle: true },
+    )
+    expect(out.gallery.enabled, 'gallery').toBe(false)
+    expect(out.testimonials.enabled, 'reviews').toBe(false)
+  })
+
+  /*
+   * The half that must not become customer-controlled: a gallery cannot be switched on when there
+   * are not enough photos to fill it, however the plan came back.
+   */
+  it('cannot be switched on without the material', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake } = await import('./fixtures/site')
+    const on = { ...fixture.plan, gallery: { ...fixture.plan.gallery, enabled: true } }
+    const out = enforcePlanInvariants(on, makeIntake({}), fixture.facts, [], {
+      allowSectionToggle: true,
+    })
+    expect(out.gallery.enabled).toBe(false)
+  })
+
+  /*
+   * servicePages was not in the section map at all, so an edit naming a service page was dropped
+   * before it reached the renderer.
+   */
+  it('a service page edit survives the declared-keys filter', async () => {
+    const { keyIsDeclared } = await import('../server/lib/edit')
+    expect(keyIsDeclared('servicePages', new Set(['services']))).toBe(true)
+    expect(keyIsDeclared('servicePages', new Set(['faq']))).toBe(false)
+  })
+})

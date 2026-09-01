@@ -33,6 +33,12 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
   faq: ['faq'],
   contact: ['contact'],
   /*
+   * The service pages belong to the services section, which is what a customer names when they
+   * say "on the decking page". Without this the key was not declarable at all, so an edit to a
+   * service page was dropped before it reached the renderer.
+   */
+  servicePages: ['services'],
+  /*
    * sectionCopy is keyed by section itself, so it belongs to whichever sections the edit
    * declared. Listing every id here means a declaration of any one of them lets it through,
    * which is right: a request to change the label above the services heading declares
@@ -350,6 +356,8 @@ export async function generateEditedPlan(args: {
         // The customer is the one asking, so where they are and where they work is theirs
         // to state. Coordinates are still taken from the suburb they picked at intake.
         allowLocationChange: true,
+        // And whether a section is on. Off is theirs to choose; on still needs the material.
+        allowSectionToggle: true,
       }),
       declaredSections,
       droppedKeys,

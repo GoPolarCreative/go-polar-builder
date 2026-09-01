@@ -140,6 +140,11 @@ key beside it and nothing else.
   how many photos sit in a row                        layout.galleryColumns
   the photo behind the closing call to action         layout.ctaBandPhoto
   how big the logo is                                 layout.logoHeight
+  anything on ONE service page                        the matching entry in servicePages:
+                                                      title, metaDescription, h1, intro,
+                                                      included, steps, scopeFactors, faqs
+  whether the photo gallery is shown at all           gallery.enabled
+  whether the reviews section is shown at all         testimonials.enabled
 
 # FIELDS THAT MAY BE MISSING FROM THE PLAN ABOVE
 
