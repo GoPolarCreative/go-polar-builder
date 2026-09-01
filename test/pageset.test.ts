@@ -462,3 +462,34 @@ describe('the label on the enquiry card is readable', () => {
     expect(Boolean(onCard) && (onCard === onLight || onCard === onDark)).toBe(true)
   })
 })
+
+/**
+ * A ghost button takes the colour of the ground it is standing on.
+ *
+ * `.btn--ghost` was `color: var(--white)` unconditionally, because four of its five uses sit on
+ * something dark: the hero over its photo, and the closing band. The fifth is "Leave a Google
+ * review" beneath the reviews, on the ordinary light page. That button was white on white on
+ * every build this template has produced — a real, correctly linked control that nobody could
+ * see. Screenshotting the element returned a blank white rectangle.
+ */
+describe('ghost buttons are readable on a light section', () => {
+  const { plan, facts } = makeFixture({})
+  const withReviews = { ...facts, googleReviewLink: 'https://g.page/r/example/review' }
+  const html = renderSiteSet(plan, withReviews).pages[0]!.html
+
+  it('defaults to the page colour rather than white', () => {
+    expect(html).toContain('.btn--ghost{background:transparent;color:var(--page-fg);')
+  })
+
+  it('still goes white inside the hero, the closing band and any dark section', () => {
+    expect(html).toContain('.hero .btn--ghost,.cta-band .btn--ghost,.section--dark .btn--ghost')
+    expect(html).toMatch(/\.section--dark \.btn--ghost\{color:var\(--white\);/)
+  })
+
+  it('the review button, which is the one that was invisible, is on the light page', () => {
+    expect(html).toContain('Leave a Google review')
+    // Not inside the hero or the closing band, so it takes the default above.
+    const band = html.slice(html.indexOf('Leave a Google review') - 2000, html.indexOf('Leave a Google review'))
+    expect(band).not.toContain('class="cta-band')
+  })
+})

@@ -577,8 +577,25 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.btn--primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-raised);}',
     '.btn--dark{background:var(--dark-block);color:var(--on-dark);border-color:var(--dark-block);}',
     '.btn--dark:hover{transform:translateY(-2px);}',
-    '.btn--ghost{background:transparent;color:var(--white);border-color:var(--on-dark-50);}',
-    '.btn--ghost:hover{background:var(--veil-10);border-color:var(--white);transform:translateY(-2px);}',
+    /*
+     * A GHOST BUTTON DEFAULTS TO THE PAGE, AND GOES WHITE ONLY WHERE THE GROUND IS DARK.
+     *
+     * It used to be white everywhere, because four of its five uses are on a dark ground: the
+     * hero, over the photo, and the closing band. The fifth is "Leave a Google review" under
+     * the reviews, which sits on the ordinary light page. That button was white on white on
+     * every build this template has ever produced - a real control, correctly linked, that
+     * nobody could see. An element screenshot of it is a blank white rectangle.
+     *
+     * Written as a default plus a dark-context override rather than fixed at that one call
+     * site, so the next ghost button someone adds to a light section is readable without
+     * anybody having to remember this.
+     */
+    '.btn--ghost{background:transparent;color:var(--page-fg);border-color:var(--hairline);}',
+    '.btn--ghost:hover{background:var(--veil-10);border-color:var(--page-fg);transform:translateY(-2px);}',
+    '.hero .btn--ghost,.cta-band .btn--ghost,.section--dark .btn--ghost'
+      + '{color:var(--white);border-color:var(--on-dark-50);}',
+    '.hero .btn--ghost:hover,.cta-band .btn--ghost:hover,.section--dark .btn--ghost:hover'
+      + '{border-color:var(--white);}',
     '.btn--outline{background:transparent;color:var(--page-fg);border-color:var(--page-fg);}',
     '.btn--outline:hover{background:var(--page-fg);color:var(--page-bg);}',
     '.btn--block{width:100%;}',
