@@ -328,6 +328,34 @@ export default function Preview() {
               </div>
             ) : null}
 
+            {/*
+              THE WHOLE PAGE, IN A REAL TAB.
+              
+              The preview is an iframe inside a column beside a chat box, so it is never the
+              width the site will actually be looked at, and a phone preview inside a phone is
+              a 356px window pretending to be a 390px one. Opening it properly is the only way
+              to see what a customer sees, and every person who has looked at one of these has
+              asked for it.
+              
+              The path follows whichever page is being previewed, so opening it from a service
+              page opens that service page rather than the home page.
+            */}
+            {versions?.currentVersion ? (
+              <a
+                className="chip-off"
+                href={previewUrl(
+                  jobId,
+                  versions.currentVersion,
+                  // activePage is a site path like "/services/decks/"; the preview wants the file.
+                  activePage === '/' ? undefined : activePage.slice(1) + 'index.html',
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in a new tab
+              </a>
+            ) : null}
+
             <div className="text-xs text-ice-500">
               Version {versions?.currentVersion} of {versions?.builds.length}
             </div>

@@ -237,6 +237,12 @@ const planObject = z.object({
        * follows at roughly the same proportion it always had.
        */
       logoHeight: z.number().int().min(32).max(140).optional(),
+      /*
+       * Whether a gallery photo opens full size when it is tapped. On by default: the photos
+       * are the work, and a thumbnail in a three column grid on a phone is too small to show
+       * anything. Off is here because somebody will want it off.
+       */
+      lightbox: z.boolean().optional(),
     })
     .optional(),
 
@@ -253,6 +259,36 @@ const planObject = z.object({
    * change, and test/sitefixes.test.ts fails if a visible string appears that no key covers.
    */
   labels: z.record(z.string(), z.string().max(120)).optional(),
+
+  /*
+   * THE ENQUIRY FORM, AS A LIST RATHER THAN FOUR LINES OF MARKUP.
+   *
+   * Name, phone, email and message were written into the renderer, so "add a suburb field to
+   * the contact form" had nowhere to go. It is a reasonable thing for a tradie to want: which
+   * suburb the job is in decides whether they take it.
+   *
+   * Optional, and absent means the four that always shipped. Web3Forms forwards whatever it is
+   * sent, so a new field arrives in the inbox without anything else being configured.
+   *
+   * name is the key the enquiry arrives under and has to be a plain identifier: it goes into a
+   * form post, and a stray quote or bracket there breaks the submission rather than the page.
+   */
+  formFields: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(40).regex(/^[a-z][a-z0-9_]*$/i),
+        label: z.string().min(1).max(60),
+        type: z.enum(['text', 'tel', 'email', 'textarea', 'select']).default('text'),
+        required: z.boolean().default(false),
+        /** Only for select. Ignored otherwise. */
+        options: z.array(z.string().min(1).max(60)).max(30).optional(),
+        /** Passed to the browser so it can offer what it already knows. */
+        autocomplete: z.string().max(40).optional(),
+      }),
+    )
+    .min(1)
+    .max(12)
+    .optional(),
 
   sectionCopy: z
     .record(

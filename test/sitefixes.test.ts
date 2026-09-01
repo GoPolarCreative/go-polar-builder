@@ -595,6 +595,7 @@ describe('every word on the page can be reached from the editor', () => {
     sectionCopy: Object.fromEntries(
       [
         'hero',
+        'quote',
         'hero_form',
         'about',
         'services',

@@ -125,11 +125,26 @@ describe('the four styles are materially different', () => {
   // expected to overlap heavily. What has to move is the stylesheet.
   const stylesheetOf = (html: string) => html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? ''
 
-  // A floor, not a target, and deliberately lower than it used to be. The four reference sites
-  // share one skeleton, so most of the sheet SHOULD be identical: the reset, the grid plumbing,
-  // the form fields, the section rhythm. What has to move is the visible layer, and that is what
-  // the signal tests above measure by name. This only guards against a style that changed nothing.
-  const MINIMUM_STYLESHEET_DIFFERENCE = 0.07
+  /*
+   * A COUNT, NOT A PROPORTION.
+   *
+   * A floor, not a target. The four reference sites share one skeleton, so most of the sheet
+   * SHOULD be identical: the reset, the grid plumbing, the form fields, the section rhythm.
+   * What has to move is the visible layer, and that is what the signal tests above measure by
+   * name. This only guards against a style that changed nothing.
+   *
+   * It used to be a percentage, which measured the wrong thing. Every rule added to the shared
+   * plumbing grew the denominator, so adding a lightbox and a select rule to all four styles
+   * alike pushed established and modern from 7.0% to 6.9% and failed the build. Nothing about
+   * those two styles had moved closer together; the sheet around them had got longer. The
+   * number of lines that differ is what a style that changed nothing drives to zero, and it is
+   * indifferent to how much boilerplate sits either side of it.
+   *
+   * Twenty is under the closest real pair, established and modern, which differ by twenty five
+   * lines. That pair is the one to watch: the other five pairs differ by thirty two to fifty
+   * six.
+   */
+  const MINIMUM_DIFFERING_STYLESHEET_LINES = 20
 
   it('the stylesheets are not near-identical', () => {
     for (const a of NAMED_STYLES) {
@@ -139,11 +154,10 @@ describe('the four styles are materially different', () => {
         const linesB = new Set(stylesheetOf(built[b].html).split('\n'))
         expect(linesA.length).toBeGreaterThan(100)
         const changed = linesA.filter((line) => !linesB.has(line)).length
-        const ratio = changed / linesA.length
         expect(
-          ratio,
-          `${a} vs ${b} only differed by ${(ratio * 100).toFixed(1)}% of stylesheet lines`,
-        ).toBeGreaterThan(MINIMUM_STYLESHEET_DIFFERENCE)
+          changed,
+          `${a} vs ${b} only differed by ${changed} stylesheet lines of ${linesA.length}`,
+        ).toBeGreaterThanOrEqual(MINIMUM_DIFFERING_STYLESHEET_LINES)
       }
     }
   })

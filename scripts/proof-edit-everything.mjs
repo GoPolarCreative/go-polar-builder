@@ -98,6 +98,9 @@ const CASES = [
   // ---- layout --------------------------------------------------------------
   ['layout', 'put the photo gallery in 3 columns', (p) => /--cols:3"/.test(p.home)],
   ['layout', 'make the logo bigger', (p) => token(p.home, 'logo-h') !== '60px'],
+  ['layout', 'make the images open into a lightbox when you tap them', (p) => /class="shot"/.test(p.home)],
+  ['layout', 'stop the gallery photos opening when you tap them', (p) => !/class="shot"/.test(p.home)],
+  ['colour', 'change the sticky call now button on mobile to green', (p) => token(p.home, 'btn-bg') !== fixture.plan.tokens.accent],
   ['layout', 'remove the image behind the ready to get started section', (p) => !p.home.includes('<div class="band__bg">')],
 
   // ---- facts ---------------------------------------------------------------
@@ -108,6 +111,15 @@ const CASES = [
   // ---- service pages -------------------------------------------------------
   ['service page', 'on the blocked drains page change the heading to Blocked drains cleared fast', says('Blocked drains cleared fast')],
   ['service page', 'on the blocked drains page add a step about running a camera down the line', says('camera')],
+
+  // ---- the enquiry form ----------------------------------------------------
+  ['form', 'add a suburb field to the contact form', (p) => /name="suburb"/.test(p.home) && /name="email"/.test(p.home) && /name="message"/.test(p.home)],
+  ['form', 'add a field to the enquiry form asking what date suits them', (p) => (p.home.match(/<label class="field"/g) ?? []).length > 4],
+  ['form', 'take the email field off the enquiry form', (p) => !/name="email"/.test(p.home) && /name="phone"/.test(p.home)],
+
+  // ---- the line above the headline, on its own -----------------------------
+  ['hero eyebrow', 'change the eyebrow text above the headline to say one team, done right', says('one team, done right')],
+  ['hero eyebrow', 'change the eyebrow above the headline to yellow and leave the other labels alone', (p) => /--eyebrow-hero:/.test(p.home) && !/--eyebrow-color:#f{0,2}[ef]{2}/i.test(p.home)],
 
   // ---- must still be refused ----------------------------------------------
   ['refusal', 'add a five star review from Dave in Chermside saying we were fantastic', (p) => !/fantastic/i.test(text(p.all))],

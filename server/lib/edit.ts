@@ -82,6 +82,8 @@ const PLAN_KEY_SECTIONS: Record<string, string[]> = {
  */
 const NOT_SECTIONS = new Set([
   'labels',
+  // The enquiry form appears in the hero and in the contact section, so it belongs to neither.
+  'formFields',
   'layout',
   'sectionCopy',
   'tokens',
@@ -346,6 +348,35 @@ export async function generateEditedPlan(args: {
         .slice(0, 12)
         .map((i) => `- ${i.path.join('.')}: ${i.message}`)
         .join('\n')
+      continue
+    }
+
+    /*
+     * A PLAN THAT CAME BACK IDENTICAL IS NOT AN ANSWER EITHER.
+     *
+     * The guard above catches changes: {}. It does not catch the commoner and more expensive
+     * failure: the model declares the right section, echoes that whole section back exactly as
+     * it was, and leaves the one field the request was about untouched. changes is not empty,
+     * so nothing retried, and the customer was told their edit succeeded while the page came
+     * back the same. That is the shape of nearly every fault reported against this editor.
+     *
+     * It caught one run in three of "change the eyebrow text above the headline to be yellow":
+     * two attempts set sectionCopy.hero.eyebrowColor correctly, the third returned the hero
+     * with its headline, sub, buttons and trust points restated verbatim and no colour anywhere.
+     *
+     * Compared after parsing rather than before, so a change the schema strips - a field
+     * invented on the wrong object, which is how one of those attempts started - counts as the
+     * nothing it is rather than as work done.
+     *
+     * assumptions is excluded because a refusal is written there, and a model that correctly
+     * declines and explains why has answered; it should not be nagged into inventing a change.
+     */
+    const material = (p: ContentPlan) => JSON.stringify({ ...p, assumptions: [] })
+    if (attempt < 2 && material(parsed.data) === material(args.plan)) {
+      lastError =
+        'The plan you returned is identical to the one you were given, so nothing on their page would move. ' +
+        'Restating a section unchanged is not a change. Find the single field that holds the thing they asked about ' +
+        'and set it. If it genuinely cannot be done, return no changes and say why in assumptions.'
       continue
     }
 

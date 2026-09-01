@@ -409,7 +409,15 @@ function checkFormAction(s: Structure): CheckResult {
 function checkImgAlt(s: Structure): CheckResult {
   const id = 'img_alt' as const
   const label = 'Every image has alt text'
-  const bad = s.imgs.filter((i) => !i.alt || i.alt.trim().length === 0)
+  /*
+   * AN <img> WITH NO src IS NOT A PICTURE YET.
+   *
+   * The lightbox overlay ships empty and is filled in when a photo is tapped, src and alt
+   * together, so at rest there is nothing on the page to describe. Screen readers announce
+   * nothing for it either. Demanding alt text for an image that does not exist was failing
+   * every build for a fault nobody could see or fix.
+   */
+  const bad = s.imgs.filter((i) => i.src && (!i.alt || i.alt.trim().length === 0))
   return bad.length === 0
     ? pass(id, label)
     : fail(

@@ -183,6 +183,7 @@ export function twoTone(text: string, enabled: boolean): string {
 export const DEFAULT_LABELS: Record<string, string> = {
   'form.name': 'Your name',
   'form.email': 'Email',
+  'form.phone': 'Phone',
   'form.message': 'What do you need done?',
   'form.note': 'We will get back to you as soon as we can. If it is urgent, ring us instead.',
   'about.servicesLink': 'Our services',
@@ -695,6 +696,8 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       (outlined ? 'var(--border-hairline) solid var(--accent)' : '0') +
       ';border-radius:var(--radius);padding:1.75rem;box-shadow:var(--shadow-raised);}',
     '.card-form h2,.card-form h3{margin-bottom:1.25rem;color:' + cardFormFg + ';}',
+    // A select has to look like the inputs beside it, or the form reads as two form controls.
+    '.card-form select{width:100%;font:inherit;}',
     '.field{display:block;margin-bottom:0.9rem;}',
     '.field span{display:block;font-weight:600;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;color:' +
       (outlined ? 'var(--on-dark-70)' : 'var(--ink-muted)') +
@@ -819,6 +822,18 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.gallery figure{margin:0;overflow:hidden;border-radius:var(--radius);aspect-ratio:4/3;}',
     '.gallery img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease;}',
     '.gallery figure:hover img{transform:scale(1.04);}',
+    // The button fills the tile and adds nothing of its own, so the grid is unchanged.
+    '.gallery .shot{display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in;}',
+    /*
+     * The overlay. Hidden with the hidden attribute rather than a class, so a page whose
+     * script never ran cannot show an empty black screen over the site.
+     */
+    '.lightbox{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;'
+      + 'background:var(--scrim-1);}',
+    '.lightbox[hidden]{display:none;}',
+    '.lightbox img{max-width:100%;max-height:100%;border-radius:var(--radius);}',
+    '.lightbox__close{position:absolute;top:16px;right:16px;width:44px;height:44px;border:0;'
+      + 'border-radius:50%;background:var(--white);color:var(--ink);font-size:1.4rem;line-height:1;cursor:pointer;}',
     // Two across from tablet, then the count decides. --cols is set on the element.
     '@media (min-width:640px){.gallery{grid-template-columns:repeat(2,1fr);}}',
     '@media (min-width:900px){.gallery{grid-template-columns:repeat(var(--cols,3),1fr);}}',
@@ -1016,7 +1031,14 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       'min-height:56px;padding:14px 12px;font-family:var(--font-body);font-weight:700;' +
       'font-size:0.95rem;text-decoration:none;white-space:nowrap;background:var(--surface);' +
       'color:var(--ink);}',
-    '.mobile-bar a:first-child{background:var(--accent);color:var(--on-primary);}',
+    /*
+     * THE BUTTON COLOUR, NOT THE ACCENT.
+     *
+     * It is the Call now button, and it was the one button on the site that did not follow
+     * --btn-bg. "Make the sticky call button on mobile green" had nowhere to land: the accent
+     * paints eyebrows and links as well, so the only way to move it was to move all of those.
+     */
+    '.mobile-bar a:first-child{background:var(--btn-bg);color:var(--on-btn);}',
     // Above the breakpoint there is a header CTA doing this job, so the bar is not just hidden,
     // it is removed from the layout entirely.
     '@media (min-width:768px){.mobile-bar{display:none;}}',
@@ -1323,6 +1345,56 @@ export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
     <a class="brand" href="#top"><span class="brand__mark">${esc(initials)}</span><span class="brand__name">${name}</span></a>`
 }
 
+/** One enquiry field, exactly as the schema describes it. */
+type FormField = NonNullable<ContentPlan['formFields']>[number]
+
+/**
+ * The four fields that have always shipped, as data.
+ *
+ * They stay the default because they are the right default: a tradie needs a name, a way to
+ * ring back, an address to reply to and a description of the job. The labels still come from
+ * plan.labels, so a customer who only wants to reword one does not have to restate the list.
+ */
+function defaultFormFields(plan: ContentPlan): FormField[] {
+  return [
+    { name: 'name', label: label(plan, 'form.name'), type: 'text', required: true, autocomplete: 'name' },
+    { name: 'phone', label: label(plan, 'form.phone'), type: 'tel', required: true, autocomplete: 'tel' },
+    { name: 'email', label: label(plan, 'form.email'), type: 'email', required: true, autocomplete: 'email' },
+    { name: 'message', label: label(plan, 'form.message'), type: 'textarea', required: true },
+  ]
+}
+
+/**
+ * The fields, however many there are and whatever they are called.
+ *
+ * A select renders an empty first option so the browser cannot submit a choice nobody made,
+ * and every control keeps the name it was given, because that is the key the enquiry arrives
+ * under in the inbox.
+ */
+export function formFieldsMarkup(plan: ContentPlan): string {
+  const fields = plan.formFields ?? defaultFormFields(plan)
+  return fields
+    .map((f) => {
+      const req = f.required ? ' required' : ''
+      const auto = f.autocomplete ? ' autocomplete="' + esc(f.autocomplete) + '"' : ''
+      const name = ' name="' + esc(f.name) + '"'
+      let control
+      if (f.type === 'textarea') {
+        control = '<textarea' + name + req + '></textarea>'
+      } else if (f.type === 'select') {
+        const options = (f.options ?? [])
+          .map((o) => '<option value="' + esc(o) + '">' + esc(clean(o)) + '</option>')
+          .join('')
+        control =
+          '<select' + name + req + '><option value="">Choose one</option>' + options + '</select>'
+      } else {
+        control = '<input type="' + esc(f.type) + '"' + name + req + auto + '>'
+      }
+      return '<label class="field"><span>' + esc(clean(f.label)) + '</span>' + control + '</label>'
+    })
+    .join('\n        ')
+}
+
 export function formMarkup(args: {
   /** The plan, so the field labels and the note under the form are the customer’s to change. */
   plan: ContentPlan
@@ -1342,10 +1414,7 @@ export function formMarkup(args: {
         <input type="hidden" name="access_key" value="${esc(args.key)}">
         <input type="hidden" name="subject" value="${esc(args.subject)}">
         <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
-        <label class="field"><span>${esc(label(args.plan, 'form.name'))}</span><input type="text" name="name" required autocomplete="name"></label>
-        <label class="field"><span>Phone</span><input type="tel" name="phone" required autocomplete="tel"></label>
-        <label class="field"><span>${esc(label(args.plan, 'form.email'))}</span><input type="email" name="email" required autocomplete="email"></label>
-        <label class="field"><span>${esc(label(args.plan, 'form.message'))}</span><textarea name="message" required></textarea></label>
+        ${formFieldsMarkup(args.plan)}
         <button class="btn btn--primary btn--block" type="submit">${esc(clean(args.button))}</button>
         <p class="form-status" role="status"></p>
         <p class="form-note">${esc(label(args.plan, 'form.note'))}</p>
@@ -1403,7 +1472,9 @@ function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): stri
   </div>
   <div class="wrap hero__inner">
     <div class="hero__copy">
-      <span class="eyebrow">${esc(clean(plan.brand.tagline))}</span>
+      <span class="eyebrow">${esc(
+        sectionCopy(plan, 'hero', 'eyebrow', clean(plan.brand.tagline)),
+      )}</span>
       <h1>${twoTone(plan.hero.h1, spec.twoTone)}</h1>
       <p class="hero__sub">${esc(clean(plan.hero.sub))}</p>
       <div class="hero__ctas">
@@ -1516,7 +1587,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
 <section class="section section--quote" id="quote">
   <div class="wrap quote-wrap">
     <div class="quote-intro">
-      <span class="eyebrow">${esc(sectionCopy(plan, 'hero', 'eyebrow', 'Start a conversation'))}</span>
+      <span class="eyebrow">${esc(sectionCopy(plan, 'quote', 'eyebrow', 'Start a conversation'))}</span>
       <h2>${twoTone(plan.hero.formHeading, spec.twoTone)}</h2>
       <p>${esc(clean(plan.hero.sub))}</p>
     </div>
@@ -1683,14 +1754,31 @@ ${
         .map((item) => {
           const photo = facts.photos.find((p) => p.assetId === item.assetId)
           if (!photo) return ''
-          return `<figure>${picture({
+          /*
+           * A BUTTON, NOT A DIV WITH A CLICK HANDLER.
+           *
+           * The grid shows thumbnails, and on a phone in three columns a thumbnail is too
+           * small to show the work, which is the only reason the section exists. Tapping one
+           * opens the full size file.
+           *
+           * With the script off the button does nothing and the thumbnail is still there, so
+           * nothing is lost. A button rather than a div because it has to be reachable by
+           * keyboard and announced as something that can be pressed, and data-full carries the
+           * large file so the markup stays the source of truth rather than an index into an
+           * array the script would have to keep in step.
+           */
+          const thumb = picture({
             webp: photo.thumbWebp,
             jpeg: photo.thumbJpeg,
             alt: clean(item.alt),
             width: photo.width,
             height: photo.height,
             sizes: '(min-width:900px) 33vw, 50vw',
-          })}</figure>`
+          })
+          if (plan.layout?.lightbox === false) return `<figure>${thumb}</figure>`
+          return `<figure><button type="button" class="shot" data-full="${esc(photo.webJpeg)}" aria-label="${esc(
+            clean(item.alt) + ' (open larger)',
+          )}">${thumb}</button></figure>`
         })
         .join('\n      ')}
     </div>
@@ -2051,6 +2139,14 @@ ${orderedBody}
   </div>
 </footer>
 
+<!--
+  Empty and hidden until something is opened. The image has no src, so a page whose script
+  never ran downloads nothing for a thing nobody can see.
+-->
+<div class="lightbox" id="lightbox" hidden>
+  <button type="button" class="lightbox__close" id="lightboxClose" aria-label="Close">&times;</button>
+  <img id="lightboxImg" alt="">
+</div>
 <div class="mobile-bar">
   <a href="tel:${esc(facts.phoneE164)}">${icon(ICON_PHONE)}${esc(label(plan, 'mobileBar.call'))}</a>
   <a href="#contact">${esc(clean(plan.hero.ctaSecondary.label))}</a>
@@ -2162,6 +2258,36 @@ ${orderedBody}
    * all along; the home page lost it when renderSite replaced the model-written build, so on
    * every site the first question was open and the rest did not respond to a tap.
    */
+  /*
+   * THE GALLERY OPENS, AND CLOSES EVERY WAY SOMEBODY WILL TRY.
+   *
+   * Escape, the close button, and clicking the backdrop, because a person who wants out of a
+   * full screen image tries all three. Focus moves to the close button so a keyboard is not
+   * left behind the overlay, and goes back to the photo that was opened, which is where they
+   * were. The page behind stops scrolling while it is open.
+   */
+  var box=document.getElementById('lightbox');
+  var boxImg=document.getElementById('lightboxImg');
+  var boxClose=document.getElementById('lightboxClose');
+  var lastShot=null;
+  if(box&&boxImg&&boxClose){
+    var closeBox=function(){
+      box.hidden=true;boxImg.removeAttribute('src');document.body.style.overflow='';
+      if(lastShot){lastShot.focus();lastShot=null;}
+    };
+    Array.prototype.slice.call(document.querySelectorAll('.shot')).forEach(function(shot){
+      shot.addEventListener('click',function(){
+        lastShot=shot;
+        boxImg.setAttribute('src',shot.getAttribute('data-full'));
+        boxImg.setAttribute('alt',shot.getAttribute('aria-label')||'');
+        box.hidden=false;document.body.style.overflow='hidden';boxClose.focus();
+      });
+    });
+    boxClose.addEventListener('click',closeBox);
+    box.addEventListener('click',function(e){if(e.target===box){closeBox();}});
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!box.hidden){closeBox();}});
+  }
+
   var faqItems=Array.prototype.slice.call(document.querySelectorAll('[data-faq]'));
   if(faqItems.length){document.documentElement.setAttribute('data-faq-js','');}
   faqItems.forEach(function(item){
