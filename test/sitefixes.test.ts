@@ -1019,3 +1019,78 @@ describe('service areas can be changed by the person who has them', () => {
     expect(source).toContain('allowServiceAreaChange: true')
   })
 })
+
+/**
+ * ONE RENDERER, FOUR STYLES, AND NO SECOND COPY OF ANY OF THIS.
+ *
+ * A style is a StyleSpec: fonts, a palette, a card skin, a hero shape, a section order. Every fix
+ * above lives in renderSite and applies to all four by construction, and the honest way to say
+ * that is to check it rather than to assert it.
+ *
+ * It matters because some of the renderer DOES branch on style. Cards are outlined on the dark
+ * page style and filled on the others, industrial is dark-on-dark so --card-fg flips to white, and
+ * the hero is split, centred or editorial depending. A fix that reads a token is safe across all
+ * four; a fix that assumes a ground is not, and the contrast work started out assuming --surface
+ * was the card background, which was wrong on exactly one of them.
+ *
+ * So the whole list runs against every style. Picking a different design does not start any of
+ * this again.
+ */
+describe('every fix holds on all four styles', () => {
+  const STYLES = ['industrial', 'direct', 'established', 'modern'] as const
+
+  const forStyle = (style: (typeof STYLES)[number]): ContentPlan =>
+    ({ ...fixture.plan, style: { ...fixture.plan.style, chosen: style, resolved: style } }) as ContentPlan
+
+  const navOf = (html: string) => {
+    const nav = /<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? ''
+    return [...nav.replace(/<span class="nav__sub">[\s\S]*?<\/span>/g, '').matchAll(/>([^<>]+)</g)]
+      .map((m) => m[1]!.trim())
+      .filter(Boolean)
+      .join('|')
+  }
+
+  it.each(STYLES)('%s carries every renderer fix', async (style) => {
+    const plan = forStyle(style)
+    const html = renderSite(plan, fixture.facts)
+
+    expect(html, 'nav dropdown').toContain('class="nav__group"')
+    expect(html, 'faq toggle').toContain("querySelectorAll('[data-faq]')")
+    expect(html, 'faq readable with no JS').toContain('[data-faq-js] .faq-answer{display:none;}')
+    expect(html, 'card heading colour').toContain('.card h3{margin-bottom:0.55rem;color:var(--card-fg);}')
+    expect(html, 'suburb pill colour').toContain('background:var(--alt-bg);color:var(--card-fg);')
+    expect(html, 'header follows the logo').toContain('--header-h:max(76px, calc(var(--logo-h) + 26px));')
+    expect(html, 'gallery tiles are one shape').toContain('aspect-ratio:4/3')
+    expect(html, 'reviews rail').toContain('class="reviews-rail"')
+    expect(html, 'service cards link to their pages').toContain('href="services/')
+    expect(html, 'no review count').not.toMatch(/from \d+ reviews/)
+  })
+
+  it.each(STYLES)('%s has one header across the site', async (style) => {
+    const { renderServicePage } = await import('../server/lib/render/servicePage')
+    const { pagesFor } = await import('../server/lib/pages')
+    const plan = forStyle(style)
+    const pages = pagesFor(plan)
+    const svc = renderServicePage({
+      plan,
+      facts: fixture.facts,
+      page: pages[1]!,
+      pages,
+      baseUrl: 'https://x.au',
+    })
+    expect(navOf(svc)).toBe(navOf(renderSite(plan, fixture.facts)))
+  })
+
+  /*
+   * The one that actually differs underneath: industrial is dark-on-dark, so its card background
+   * and its --card-fg are the opposite of the other three. The resolution has to hold anyway.
+   */
+  it.each(STYLES)('%s keeps a white label readable on both grounds', async (style) => {
+    const { checkColourPairs } = await import('../server/lib/checks/static')
+    const plan = forStyle(style)
+    expect(checkColourPairs(renderSite(plan, fixture.facts)).status, 'as shipped').toBe('pass')
+
+    const white = { ...plan, tokens: { ...plan.tokens, eyebrow: '#ffffff' } } as ContentPlan
+    expect(checkColourPairs(renderSite(white, fixture.facts)).status, 'white asked for').toBe('pass')
+  })
+})
