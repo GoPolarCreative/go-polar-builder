@@ -733,3 +733,32 @@ describe('the last three things on the page that could not be changed', () => {
     expect(render({ ...fixture.plan, layout: { ctaBandPhoto: false } })).not.toContain(marker)
   })
 })
+
+/**
+ * THE BAR FOLLOWS THE LOGO.
+ *
+ * The header was a flat 76px while the logo was capped at 60, which left eight pixels above and
+ * below it and read as squashed on any logo with artwork of its own. Worse, "make the logo
+ * bigger" made it tighter: the logo grew, the bar did not.
+ *
+ * Measured in Chrome: 60px logo gives an 86px bar with 13px clear above and below; 96px gives
+ * 122px with the same 13px. One request now does the whole job.
+ */
+describe('the header is sized by what is in it', () => {
+  it('derives its height from the logo, with a floor', () => {
+    expect(render()).toContain('--header-h:max(76px, calc(var(--logo-h) + 26px));')
+  })
+
+  it('a bigger logo means a bigger bar', () => {
+    const big = render({ ...fixture.plan, layout: { logoHeight: 96 } })
+    expect(big).toContain('--logo-h:96px;')
+    // The bar is derived, so the same declaration covers it.
+    expect(big).toContain('--header-h:max(76px, calc(var(--logo-h) + 26px));')
+  })
+
+  it('the mobile panel and the hero still read the same value', () => {
+    const html = render()
+    expect(html).toContain('inset:var(--header-h) 0 auto 0')
+    expect(html).toContain('padding:calc(var(--header-h) + 3rem) 0 3.5rem')
+  })
+})

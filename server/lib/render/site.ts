@@ -407,7 +407,19 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--shadow-hover:' + spec.shadow.hover + ';',
     '--border-hairline:' + spec.border.hairline + ';',
     '--border-strong:' + spec.border.strong + ';',
-    '--header-h:76px;',
+    /*
+     * THE BAR FOLLOWS THE LOGO, RATHER THAN THE LOGO FIGHTING THE BAR.
+     *
+     * This was a flat 76px while the logo was capped at 60, which left eight pixels above and
+     * below it. On a logo with any artwork of its own that reads as squashed into the bar, and
+     * "make the logo bigger" made it worse: the logo grew, the bar did not, and the only thing
+     * that changed was how tight it looked.
+     *
+     * Deriving it means one request does the whole job. The floor keeps a wordmark-only header
+     * from collapsing, and the mobile panel and the hero padding already read this value, so
+     * they follow without being told.
+     */
+    '--header-h:max(76px, calc(var(--logo-h) + 26px));',
     '--wrap:1200px;',
     /*
      * GOOGLE'S OWN FOUR COLOURS, AND THE STAR GOLD.
