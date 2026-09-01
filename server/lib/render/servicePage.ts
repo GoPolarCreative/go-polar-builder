@@ -97,8 +97,28 @@ export function renderServicePage(args: {
    */
   const order = Math.max(0, pages.findIndex((p) => p.slug === page.slug) - 1)
   const pool = facts.photos
-  const photo = pool.length > 0 ? (pool[(order * 2) % pool.length] ?? null) : null
-  const aboutPhoto = pool.length > 1 ? (pool[(order * 2 + 1) % pool.length] ?? photo) : photo
+
+  /*
+   * STRIDE ONE FOR THE HERO, HALF THE POOL AWAY FOR THE SECOND.
+   *
+   * The first attempt took photos in pairs, two per page, which wraps: with ten photos and ten
+   * pages, page six got the same pair as page one. Half a fix looks like a whole one until
+   * somebody opens the sixth page.
+   *
+   * Walking one at a time makes every hero distinct while there are at least as many photos as
+   * pages, which is the case that matters, because the hero is what somebody sees first. The
+   * second photo sits half the pool away so it is never the same as the hero above it and
+   * still varies page to page. Below that, they repeat as late as arithmetic allows.
+   */
+  const at = (i: number) => (pool.length > 0 ? (pool[i % pool.length] ?? null) : null)
+  const photo = at(order)
+  /*
+   * Half the pool away, and one further on each lap. With more photos than pages the half
+   * spreads the choice across the whole set; with fewer, the extra step stops the pairs from
+   * repeating in lockstep with the heroes, which turned five pages into two distinct pairs.
+   */
+  const offset = Math.max(1, Math.floor(pool.length / 2)) + Math.floor(order / Math.max(1, pool.length))
+  const aboutPhoto = pool.length > 1 ? at(order + offset) : photo
 
   // Relative, so the same file works served and opened from a discharge zip on someone's desktop.
   const linkTo = (target: SitePage) => relativeLink(page, target)
@@ -157,7 +177,11 @@ export function renderServicePage(args: {
    * than `../../assets/...` on purpose: og:image is built absolute from the canonical URL, and
    * the favicon links are rewritten at publish time along with everything else.
    */
-  const headMeta = headMetaTags(plan, facts, { esc })
+  const headMeta = headMetaTags(plan, facts, {
+    esc,
+    // The photo at the top of THIS page, so a shared link previews what it is about.
+    share: photo ? { path: photo.webJpeg, width: photo.width, height: photo.height } : null,
+  })
 
   return `<!DOCTYPE html>
 <html lang="en-AU">

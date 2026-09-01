@@ -99,7 +99,11 @@ export function shareImageFor(facts: BuildFacts): { path: string; width: number;
 export function headMetaTags(
   plan: ContentPlan,
   facts: BuildFacts,
-  opts: { esc: (s: string) => string },
+  /**
+   * share overrides the image a link preview uses. Every service page pointed at photo one, so
+   * pasting a link to the decking page showed somebody a drain. It is the page's own hero now.
+   */
+  opts: { esc: (s: string) => string; share?: { path: string; width: number; height: number } | null },
 ): { icons: string; social: string } {
   const { esc } = opts
   const icon = faviconHref(facts)
@@ -118,7 +122,7 @@ export function headMetaTags(
     `<meta name="apple-mobile-web-app-title" content="${esc(plan.brand.businessName)}">`,
   ].filter(Boolean)
 
-  const share = shareImageFor(facts)
+  const share = opts.share !== undefined ? opts.share : shareImageFor(facts)
   const socialLines = share
     ? [
         `<meta property="og:image" content="${esc(absolute(facts.canonicalUrl, share.path))}">`,

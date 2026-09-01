@@ -897,3 +897,56 @@ describe('the header is the same on every page', () => {
     expect(svc).toContain('../../index.html#faq')
   })
 })
+
+/**
+ * EVERY SERVICE PAGE LOOKS LIKE A DIFFERENT PAGE.
+ *
+ * All ten used photo one and photo two. Taking them in pairs fixed the obvious half and wrapped:
+ * with ten photos and ten pages, page six got the same pair as page one, which is the kind of half
+ * fix that looks whole until somebody opens the sixth page.
+ *
+ * Walking one at a time makes every hero distinct while there are at least as many photos as
+ * pages, which is the case that matters because the hero is what somebody sees first.
+ */
+describe('service pages do not share their photos', () => {
+  const heroOf = (html: string) =>
+    /class="hero"[\s\S]*?assets\/(photo-\d+)/.exec(html)?.[1] ?? 'none'
+
+  const build = async (services: string[]) => {
+    const { renderServicePage } = await import('../server/lib/render/servicePage')
+    const { pagesFor } = await import('../server/lib/pages')
+    const f = makeFixture({ ownPageServices: services })
+    const pages = pagesFor(f.plan)
+    return pages.slice(1).map((page) =>
+      renderServicePage({ plan: f.plan, facts: f.facts, page, pages, baseUrl: 'https://x.au' }),
+    )
+  }
+
+  it('gives each page its own hero photo', async () => {
+    const htmls = await build(['Blocked drains', 'Hot water systems', 'Gas fitting'])
+    const heroes = htmls.map(heroOf)
+    expect(new Set(heroes).size).toBe(heroes.length)
+  })
+
+  it('never puts the same photo twice on one page', async () => {
+    const htmls = await build(['Blocked drains', 'Hot water systems'])
+    for (const html of htmls) {
+      const used = [...html.matchAll(/assets\/(photo-\d+)\.(?:jpg|webp)"/g)].map((m) => m[1]!)
+      const inBody = new Set(used)
+      // The hero and the detail photo are two different pictures.
+      expect(inBody.size).toBeGreaterThan(1)
+    }
+  })
+
+  /*
+   * Pasting a link to the decking page showed somebody a drain, because every page's og:image was
+   * photo one.
+   */
+  it('a shared link previews the page it points at', async () => {
+    const htmls = await build(['Blocked drains', 'Hot water systems'])
+    const shares = htmls.map((h) => /og:image" content="[^"]*?(photo-\d+)/.exec(h)?.[1] ?? 'none')
+    expect(new Set(shares).size).toBe(shares.length)
+    // And each one is that page's own hero.
+    htmls.forEach((h, i) => expect(shares[i]).toBe(heroOf(h)))
+  })
+})
