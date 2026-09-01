@@ -391,13 +391,27 @@ describe('every label on the page can be changed', () => {
    * customer is most likely to want it plain white. It falls back to the accent, which is what it
    * always was.
    */
-  it('the eyebrow colour can be set without moving the whole accent', () => {
+  /*
+   * White is what Callum asked for, is right on the dark bands and is invisible on the white
+   * sections. The renderer keeps it where it reads and substitutes where it does not, rather than
+   * refusing the site or painting white on white.
+   */
+  it('the eyebrow colour is honoured on the ground where it reads', () => {
     expect(render()).toContain('--eyebrow-color:' + fixture.plan.tokens.accent + ';')
-    const white = render({ ...fixture.plan, tokens: { ...fixture.plan.tokens, eyebrow: '#FFFFFF' } })
-    expect(white).toContain('--eyebrow-color:#FFFFFF;')
-    // And the accent itself is untouched, so buttons and links do not follow it.
-    expect(white).toContain('--eyebrow-color:#FFFFFF;')
-    expect(white).toContain(fixture.plan.tokens.accent)
+    const white = render({ ...fixture.plan, tokens: { ...fixture.plan.tokens, eyebrow: '#ffffff' } })
+    // Kept on the dark bands, which is where the customer was looking when they asked.
+    expect(white).toContain('--eyebrow-on-dark:#ffffff;')
+    // Substituted on the light sections, where it would have vanished.
+    expect(white).not.toContain('--eyebrow-color:#ffffff;')
+    // The accent has not moved, so buttons and links stay where they were.
+    expect(white).toContain('--accent:' + fixture.plan.tokens.accent + ';')
+  })
+
+  it('a button label follows the button rather than assuming white', () => {
+    // A pale button with a white label would be unreadable, so the label goes dark instead.
+    const pale = render({ ...fixture.plan, tokens: { ...fixture.plan.tokens, button: '#FFE066' } })
+    expect(pale).toContain('--btn-bg:#FFE066;')
+    expect(pale).not.toContain('--on-btn:#ffffff;')
   })
 
   it('the model is told the field exists, in both places it reads', async () => {
@@ -794,15 +808,25 @@ describe('colours are checked without needing a browser', () => {
    * Callum set every section label white, which works on the green bands and is invisible on the
    * white sections between them. Measured at 1.00:1 on his live page.
    */
-  it('catches a label the customer made the colour of the page', async () => {
+  /*
+   * The renderer now prevents this pairing, so the check is tested against a document rather than
+   * a render: it exists to catch the day the resolution stops working, not to catch a customer.
+   */
+  it('catches a colour painted on itself', async () => {
+    const { checkColourPairs } = await import('../server/lib/checks/static')
+    const doc = '<style>:root{--page-fg:#ffffff;--page-bg:#ffffff;}</style>'
+    const r = checkColourPairs(doc)
+    expect(r.status).toBe('fail')
+    expect(r.evidence?.join(' ')).toContain('1.00:1')
+  })
+
+  it('passes the customer request that used to break the page', async () => {
     const { checkColourPairs } = await import('../server/lib/checks/static')
     const white = render({
       ...fixture.plan,
       tokens: { ...fixture.plan.tokens, eyebrow: '#ffffff' },
     })
-    const r = checkColourPairs(white)
-    expect(r.status).toBe('fail')
-    expect(r.evidence?.join(' ')).toContain('1.00:1')
+    expect(checkColourPairs(white).status).toBe('pass')
   })
 
   /*
@@ -826,5 +850,50 @@ describe('colours are checked without needing a browser', () => {
     // --page-fg is var(--ink) is a hex. The check cannot compare tokens it has not resolved.
     expect(t['--page-fg']).toMatch(/^#[0-9a-f]{3,6}$/i)
     expect(t['--card-bg']).toMatch(/^#[0-9a-f]{3,6}$/i)
+  })
+})
+
+/**
+ * ONE HEADER, NOT TWO.
+ *
+ * The home page offered About, Services, Our work, Areas, FAQ and Contact. A service page offered
+ * Home, Services and Contact. Clicking into a service made four links vanish and a new one appear,
+ * which reads as having landed on a different website.
+ */
+describe('the header is the same on every page', () => {
+  it('a service page carries the same items as the home page', async () => {
+    const { renderServicePage } = await import('../server/lib/render/servicePage')
+    const { pagesFor } = await import('../server/lib/pages')
+    const pages = pagesFor(fixture.plan)
+    const svc = renderServicePage({
+      plan: fixture.plan,
+      facts: fixture.facts,
+      page: pages[1]!,
+      pages,
+      baseUrl: 'https://example.com.au',
+    })
+
+    const items = (html: string) => {
+      const nav = /<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/.exec(html)![1]!
+      const top = nav.replace(/<span class="nav__sub">[\s\S]*?<\/span>/g, '')
+      return [...top.matchAll(/>([^<>]+)</g)].map((m) => m[1]!.trim()).filter(Boolean)
+    }
+
+    expect(items(svc)).toEqual(items(render()))
+  })
+
+  it('its anchors point back at the home page, where those sections are', async () => {
+    const { renderServicePage } = await import('../server/lib/render/servicePage')
+    const { pagesFor } = await import('../server/lib/pages')
+    const pages = pagesFor(fixture.plan)
+    const svc = renderServicePage({
+      plan: fixture.plan,
+      facts: fixture.facts,
+      page: pages[1]!,
+      pages,
+      baseUrl: 'https://example.com.au',
+    })
+    expect(svc).toContain('../../index.html#areas')
+    expect(svc).toContain('../../index.html#faq')
   })
 })

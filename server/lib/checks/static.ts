@@ -809,9 +809,9 @@ const COLOUR_PAIRS: [fg: string, bg: string, where: string][] = [
   ['--card-fg', '--card-bg', 'text on cards'],
   ['--card-fg', '--alt-bg', 'suburb pills and tinted panels'],
   ['--on-dark', '--dark-block', 'text on the dark bands'],
-  ['--on-primary', '--btn-bg', 'the label on a filled button'],
   ['--eyebrow-color', '--page-bg', 'section labels on the light sections'],
-  ['--eyebrow-color', '--dark-block', 'section labels on the dark bands'],
+  ['--eyebrow-on-dark', '--dark-block', 'section labels on the dark bands'],
+  ['--on-btn', '--btn-bg', 'the label on a filled button'],
 ]
 
 /** The :root block as a map, with var() chains followed to a real colour. */

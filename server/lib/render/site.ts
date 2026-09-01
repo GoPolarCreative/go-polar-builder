@@ -1,5 +1,6 @@
 import type { BuildFacts, ContentPlan } from '../../../shared/plan.js'
 import { headMetaTags } from './headMeta.js'
+import { readableOn } from './contrast.js'
 import {
   paletteCarriesDarkSurfaces,
   styleSpec,
@@ -320,6 +321,31 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
 
   const darkToken = surfaces.darkBlock === 'ink' ? 'var(--ink)' : 'var(--primary)'
   const onDarkPage = spec.rhythm === 'dark-on-dark'
+
+  /*
+   * THE GROUNDS, AS REAL COLOURS.
+   *
+   * A page has two: the light sections and the dark bands. Every label, button and heading
+   * lands on one of them, and the same colour cannot be right for both. These are resolved
+   * here so the colours below can be judged against them rather than hoped at.
+   */
+  const pageGround = onDarkPage ? t.ink : t.surface
+  const darkGround = surfaces.darkBlock === 'ink' ? t.ink : t.primary
+
+  /*
+   * THE COLOURS THAT LAND ON THOSE GROUNDS.
+   *
+   * A customer asking for white labels is right about the dark bands and wrong about the white
+   * sections, and they should not have to know that. Each ground gets the wanted colour if it
+   * reads there, and something that does if it does not.
+   */
+  const wantedEyebrow = t.eyebrow ?? t.accent
+  const eyebrowLight = readableOn(wantedEyebrow, pageGround, [t.accent, t.ink], 'Section labels on the light sections')
+  const eyebrowDark = readableOn(wantedEyebrow, darkGround, [t.accent, t.white], 'Section labels on the dark bands')
+
+  const buttonBg = t.button ?? t.accent
+  const buttonLabel = readableOn(t.white, buttonBg, [t.ink, t.white], 'The label on a filled button')
+
   const outlined = spec.card === 'outlined-dark'
   const accentBand = spec.statBand === 'accent'
 
@@ -391,9 +417,11 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--track-btn:' + spec.buttonTracking + ';',
     '--track-eyebrow:' + spec.eyebrowTracking + ';',
     // Both fall back to the accent, which is what they always were.
-    '--eyebrow-color:' + (t.eyebrow ?? t.accent) + ';',
+    '--eyebrow-color:' + eyebrowLight.colour + ';',
+    '--eyebrow-on-dark:' + eyebrowDark.colour + ';',
     '--card-bg:' + cardBg + ';',
-    '--btn-bg:' + (t.button ?? t.accent) + ';',
+    '--btn-bg:' + buttonBg + ';',
+    '--on-btn:' + buttonLabel.colour + ';',
     '--hero-tick:' + (t.heroTick ?? t.accent) + ';',
     // One number drives both logos, so "make the logo bigger" moves the header and the footer.
     '--logo-h:' + (plan.layout?.logoHeight ?? 60) + 'px;',
@@ -520,6 +548,9 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       : []),
     '.section--dark h2,.section--dark h3{color:var(--on-dark);}',
     '.section--dark p{color:var(--on-dark-72);}',
+    // The dark bands, the hero and the closing band all sit on --dark-block, so the label on
+    // them takes the colour resolved against that ground rather than against the page.
+    '.section--dark .eyebrow,.hero .eyebrow,.cta-band .eyebrow{color:var(--eyebrow-on-dark);}',
     '.eyebrow{display:block;color:var(--eyebrow-color);text-transform:uppercase;letter-spacing:var(--track-eyebrow);font-size:var(--eyebrow-size);font-weight:700;margin:0 0 14px;}',
     '.section-head{margin-bottom:2.5rem;' + (spec.headingAlign === 'centred' ? 'text-align:center;' : '') + '}',
     '.section-head p{color:var(--page-muted);max-width:var(--measure);font-size:var(--step-lead);' +
@@ -539,7 +570,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
      * separate because the accent also paints eyebrows, links and icons, so a customer who
      * wants a green Call Now button should not have to turn every small label green with it.
      */
-    '.btn--primary{background:var(--btn-bg);color:var(--on-primary);border-color:var(--btn-bg);}',
+    '.btn--primary{background:var(--btn-bg);color:var(--on-btn);border-color:var(--btn-bg);}',
     '.btn--primary:hover{transform:translateY(-2px);box-shadow:var(--shadow-raised);}',
     '.btn--dark{background:var(--dark-block);color:var(--on-dark);border-color:var(--dark-block);}',
     '.btn--dark:hover{transform:translateY(-2px);}',

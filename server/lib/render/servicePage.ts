@@ -108,10 +108,27 @@ export function renderServicePage(args: {
    * top on one page and folds them under Services on another is two different websites.
    */
   const serviceLinks = pages.slice(1).map((p) => ({ href: linkTo(p), label: p.service ?? 'Service' }))
+  /*
+   * THE SAME SIX ITEMS AS THE HOME PAGE, IN THE SAME ORDER.
+   *
+   * A service page offered Home, Services and Contact while the home page offered About,
+   * Services, Our work, Areas, FAQ and Contact. Clicking into a service made four links vanish
+   * and a new one appear, which reads as having landed somewhere else. A header that changes
+   * between pages of one website is the website telling somebody they have left it.
+   *
+   * The anchors point back at the home page, because that is where those sections live. No Home
+   * item: the logo is the way home on both, and adding one here would be another difference.
+   */
+  const homeHref = linkTo(home)
   const navItems = [
-    { href: linkTo(home), label: label(plan, 'nav.home') },
-    { href: `${linkTo(home)}#services`, label: label(plan, 'nav.services') },
-    { href: `${linkTo(home)}#contact`, label: label(plan, 'nav.contact') },
+    { href: `${homeHref}#about`, label: label(plan, 'nav.about') },
+    { href: `${homeHref}#services`, label: label(plan, 'nav.services') },
+    ...(plan.gallery.enabled
+      ? [{ href: `${homeHref}#work`, label: label(plan, 'nav.work') }]
+      : []),
+    { href: `${homeHref}#areas`, label: label(plan, 'nav.areas') },
+    { href: `${homeHref}#faq`, label: label(plan, 'nav.faq') },
+    { href: `${homeHref}#contact`, label: label(plan, 'nav.contact') },
   ]
 
   const graph = [
