@@ -151,7 +151,19 @@ export function enforcePlanInvariants(
   intake: IntakePayload,
   facts: BuildFacts,
   usablePhotos: AssetRecord[],
-  opts: { allowStyleChange?: boolean; pagesAllowed?: number } = {},
+  opts: {
+    allowStyleChange?: boolean
+    pagesAllowed?: number
+    /**
+     * Whether the plan may say where the business works.
+     *
+     * FALSE ON A FIRST BUILD, TRUE ON AN EDIT, AND THE DIFFERENCE IS WHO IS SPEAKING. On a
+     * build the model has only the intake, so letting it name suburbs is letting it invent
+     * coverage. On an edit the customer has just said "add six suburbs near the ones I
+     * service", which is the owner stating where they work.
+     */
+    allowServiceAreaChange?: boolean
+  } = {},
 ): ContentPlan {
   const out: ContentPlan = structuredClone(plan)
 
@@ -275,8 +287,20 @@ export function enforcePlanInvariants(
     out.gallery.enabled = out.gallery.items.length >= 3
   }
 
-  // Service areas are the suburbs the customer picked. Not more, not fewer.
-  out.serviceAreas.suburbs = intake.suburbsServiced.map((s) => s.name)
+  /*
+   * ON A BUILD, THE SUBURBS THE CUSTOMER PICKED. NOT MORE, NOT FEWER.
+   *
+   * On an EDIT this line is what made "add six suburbs near the ones I service" impossible.
+   * The model did the work, declared service_areas, returned the longer list, and this
+   * overwrote it from the intake on the way past. Nothing was dropped and nothing failed, so
+   * the customer was told the change had been made and the page came back identical.
+   *
+   * Two days were spent looking at the prompt for that, which was the wrong place: no wording
+   * can survive an assignment further down the pipe.
+   */
+  if (!opts.allowServiceAreaChange) {
+    out.serviceAreas.suburbs = intake.suburbsServiced.map((s) => s.name)
+  }
 
   // Schema type and areaServed shape are decided by the trade and the travel radius.
   out.schema.businessType = TRADE_SCHEMA_TYPE[intake.trade]
@@ -288,7 +312,17 @@ export function enforcePlanInvariants(
           lng: intake.baseSuburb.lng,
           radiusMetres: 250_000,
         }
-      : { mode: 'city', cities: intake.suburbsServiced.map((s) => s.name) }
+      : {
+          mode: 'city',
+          /*
+           * From the page, not the intake, once the customer is allowed to change it. The
+           * structured data has to say the same thing the visible list says, or the site
+           * claims one service area and tells Google another.
+           */
+          cities: opts.allowServiceAreaChange
+            ? out.serviceAreas.suburbs
+            : intake.suburbsServiced.map((s) => s.name),
+        }
 
   // sameAs is whatever social links were supplied, nothing else.
   out.schema.sameAs = Object.values(intake.socials).filter((v): v is string => Boolean(v))

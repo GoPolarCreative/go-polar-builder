@@ -950,3 +950,72 @@ describe('service pages do not share their photos', () => {
     htmls.forEach((h, i) => expect(shares[i]).toBe(heroOf(h)))
   })
 })
+
+/**
+ * WHERE THE BUSINESS WORKS IS THEIRS TO SAY.
+ *
+ * "Add fifteen suburbs near the four I have" reported success and changed nothing, four times.
+ * Two rounds went into the prompt, on the theory that the model was refusing to invent a fact.
+ * It was not: it did the work, declared service_areas and returned the longer list, and
+ * enforcePlanInvariants overwrote it from the intake on the way past. No wording survives an
+ * assignment further down the pipe.
+ *
+ * On a BUILD the model has only the intake, so letting it name suburbs is letting it invent
+ * coverage, and the overwrite is right. On an EDIT the owner has just told us where they work.
+ */
+describe('service areas can be changed by the person who has them', () => {
+  const longer = (plan: ContentPlan): ContentPlan => ({
+    ...plan,
+    serviceAreas: {
+      ...plan.serviceAreas,
+      suburbs: [...plan.serviceAreas.suburbs, 'Kedron', 'Stafford', 'Geebung'],
+    },
+  })
+
+  it('a build still takes the suburbs from the intake, not the model', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const intake = makeIntake({})
+    const out = enforcePlanInvariants(longer(fixture.plan), intake, fixture.facts, makeAssets(), {})
+    expect(out.serviceAreas.suburbs).toEqual(intake.suburbsServiced.map((s) => s.name))
+  })
+
+  it('an edit keeps what the customer asked for', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const out = enforcePlanInvariants(
+      longer(fixture.plan),
+      makeIntake({}),
+      fixture.facts,
+      makeAssets(),
+      { allowServiceAreaChange: true },
+    )
+    expect(out.serviceAreas.suburbs).toContain('Kedron')
+    expect(out.serviceAreas.suburbs.length).toBeGreaterThan(3)
+  })
+
+  /*
+   * The structured data has to say the same thing the visible list says, or the site claims one
+   * service area and tells Google another.
+   */
+  it('the structured data follows the page', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const out = enforcePlanInvariants(
+      longer(fixture.plan),
+      makeIntake({}),
+      fixture.facts,
+      makeAssets(),
+      { allowServiceAreaChange: true },
+    )
+    expect(out.schema.areaServed.mode).toBe('city')
+    if (out.schema.areaServed.mode === 'city') {
+      expect(out.schema.areaServed.cities).toEqual(out.serviceAreas.suburbs)
+    }
+  })
+
+  it('the edit path turns it on', async () => {
+    const source = readFileSync(new URL('../server/lib/edit.ts', import.meta.url), 'utf8')
+    expect(source).toContain('allowServiceAreaChange: true')
+  })
+})
