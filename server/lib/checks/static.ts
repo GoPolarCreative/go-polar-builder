@@ -782,6 +782,109 @@ export function checkServicePageSubstance(html: string): CheckResult {
   }
 }
 
+/**
+ * Every colour this template puts on top of another one, checked without a browser.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM CHECK 25. Check 25 measures what a browser actually painted,
+ * which is the truth, and it is a RENDER check: production runs with RENDER_DRIVER=none because
+ * there is no browser in the function, so on a real customer build it reports skipped. Every
+ * invisible-text bug this project has shipped was therefore caught by me running Chrome by
+ * hand, or by the customer.
+ *
+ * This one needs no browser. The renderer writes every colour into :root as a token, and every
+ * component takes its foreground and background from that same set, so the pairs are knowable
+ * from the document itself. It reads the :root the page actually shipped with, resolves the
+ * var() chains, and does the arithmetic. That makes it a STATIC check, which runs everywhere.
+ *
+ * IT IS PALETTE-DEPENDENT, WHICH IS THE WHOLE POINT. White suburb pills on a light tint passed
+ * every test on the fixture and shipped on a customer whose tint was pale. The pairs below are
+ * fixed; the colours in them come from the customer.
+ *
+ * The threshold is 1.5, matching check 25 and for the same reason: this is an invisibility
+ * alarm, not an accessibility grade. AA is 4.5 and would fail muted body copy that is legible
+ * and chosen on purpose. White on white is 1.0.
+ */
+const COLOUR_PAIRS: [fg: string, bg: string, where: string][] = [
+  ['--page-fg', '--page-bg', 'body text on the page background'],
+  ['--card-fg', '--card-bg', 'text on cards'],
+  ['--card-fg', '--alt-bg', 'suburb pills and tinted panels'],
+  ['--on-dark', '--dark-block', 'text on the dark bands'],
+  ['--on-primary', '--btn-bg', 'the label on a filled button'],
+  ['--eyebrow-color', '--page-bg', 'section labels on the light sections'],
+  ['--eyebrow-color', '--dark-block', 'section labels on the dark bands'],
+]
+
+/** The :root block as a map, with var() chains followed to a real colour. */
+export function rootTokens(html: string): Record<string, string> {
+  const block = /:root\{([^}]*)\}/.exec(html)?.[1] ?? ''
+  const raw: Record<string, string> = {}
+  for (const decl of block.split(';')) {
+    const at = decl.indexOf(':')
+    if (at <= 0) continue
+    const name = decl.slice(0, at).trim()
+    if (name.startsWith('--')) raw[name] = decl.slice(at + 1).trim()
+  }
+  const resolve = (value: string, depth = 0): string => {
+    if (depth > 6) return value
+    const m = /^var\((--[a-z0-9-]+)\)$/i.exec(value.trim())
+    if (!m) return value.trim()
+    const next = raw[m[1]!]
+    return next === undefined ? value.trim() : resolve(next, depth + 1)
+  }
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(raw)) out[key] = resolve(raw[key]!)
+  return out
+}
+
+function luminance(hex: string): number | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  let h = m[1]!
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  const parts = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+  const f = parts.map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)))
+  return 0.2126 * f[0]! + 0.7152 * f[1]! + 0.0722 * f[2]!
+}
+
+export function checkColourPairs(html: string): CheckResult {
+  const label = 'No text is the colour of what it sits on'
+  const tokens = rootTokens(html)
+  const bad: string[] = []
+
+  for (const [fgName, bgName, where] of COLOUR_PAIRS) {
+    const fg = tokens[fgName]
+    const bg = tokens[bgName]
+    if (!fg || !bg) continue
+    const a = luminance(fg)
+    const b = luminance(bg)
+    // Anything that is not a plain hex (a gradient, a colour function) is not judged here.
+    if (a === null || b === null) continue
+    const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    if (ratio < 1.5) {
+      bad.push(
+        where + ': ' + fgName + ' (' + fg + ') on ' + bgName + ' (' + bg + ') is ' +
+          ratio.toFixed(2) + ':1',
+      )
+    }
+  }
+
+  if (bad.length === 0) {
+    return { id: 'colour_pairs_readable', label, status: 'pass' }
+  }
+  return {
+    id: 'colour_pairs_readable',
+    label,
+    status: 'fail',
+    detail:
+      bad.length +
+      ' colour pairing(s) are close to invisible: the text and the thing behind it are within ' +
+      'a contrast ratio of 1.5, where identical is 1.0. Change one of the two colours named ' +
+      'below. A colour that works on the dark bands is often wrong on the light sections, so ' +
+      'check both: sectionCopy[section].eyebrowColor sets one section without moving the rest.',
+    evidence: bad,
+  }
+}
+
 export async function runStaticChecks(html: string, facts: BuildFacts): Promise<CheckResult[]> {
   const s = readStructure(html)
 
@@ -803,6 +906,7 @@ export async function runStaticChecks(html: string, facts: BuildFacts): Promise<
     checkAssets(html, s, facts),
     checkPageWeight(html, s, facts),
     checkServicePageSubstance(html),
+    checkColourPairs(html),
   ]
 
   const jsonLd = results.find((r) => r.id === 'jsonld_valid')!

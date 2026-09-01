@@ -163,6 +163,7 @@ export type CheckId =
   | 'pages_delivered'
   | 'service_page_substance'
   | 'text_is_visible'
+  | 'colour_pairs_readable'
 
 export type CheckStatus = 'pass' | 'fail' | 'skipped' | 'warn'
 

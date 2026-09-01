@@ -762,3 +762,69 @@ describe('the header is sized by what is in it', () => {
     expect(html).toContain('padding:calc(var(--header-h) + 3rem) 0 3.5rem')
   })
 })
+
+/**
+ * CHECK 26. THE CONTRAST CHECK THAT ACTUALLY RUNS FOR CUSTOMERS.
+ *
+ * Check 25 measures what a browser painted, which is the truth, and it is a RENDER check.
+ * Production runs with RENDER_DRIVER=none because there is no browser in the function, so on a
+ * real customer build it reports skipped. Every invisible-text bug this project has shipped was
+ * therefore caught by running Chrome by hand, or by the customer.
+ *
+ * This one needs no browser: the renderer writes every colour into :root, every component takes
+ * its foreground and background from that set, so the pairs are knowable from the document. It is
+ * a static check, which runs everywhere.
+ *
+ * It is palette-dependent, which is the point. White suburb pills on a pale tint passed every
+ * test on the fixture and shipped on a customer whose tint was pale.
+ */
+describe('colours are checked without needing a browser', () => {
+  it('passes on all four styles as they ship', async () => {
+    const { checkColourPairs } = await import('../server/lib/checks/static')
+    for (const style of ['industrial', 'direct', 'established', 'modern'] as const) {
+      const plan = {
+        ...fixture.plan,
+        style: { ...fixture.plan.style, chosen: style, resolved: style },
+      } as ContentPlan
+      expect(checkColourPairs(render(plan)).status, style).toBe('pass')
+    }
+  })
+
+  /*
+   * Callum set every section label white, which works on the green bands and is invisible on the
+   * white sections between them. Measured at 1.00:1 on his live page.
+   */
+  it('catches a label the customer made the colour of the page', async () => {
+    const { checkColourPairs } = await import('../server/lib/checks/static')
+    const white = render({
+      ...fixture.plan,
+      tokens: { ...fixture.plan.tokens, eyebrow: '#ffffff' },
+    })
+    const r = checkColourPairs(white)
+    expect(r.status).toBe('fail')
+    expect(r.evidence?.join(' ')).toContain('1.00:1')
+  })
+
+  /*
+   * The suburb pills painted their own light background and inherited white from the dark band
+   * around them. Same fault as the card headings, one section along.
+   */
+  it('the suburb pills carry their own colour', () => {
+    expect(render()).toContain('background:var(--alt-bg);color:var(--card-fg);')
+  })
+
+  it('the card background is a token, so the pair is written down rather than guessed', () => {
+    // Guessing it as --surface was wrong on the dark-page style, where cards sit on primary-dark.
+    const html = render()
+    expect(html).toMatch(/--card-bg:var\(--(surface|primary-dark)\);/)
+    expect(html).toContain('background:var(--card-bg)')
+  })
+
+  it('follows var() chains to a real colour', async () => {
+    const { rootTokens } = await import('../server/lib/checks/static')
+    const t = rootTokens(render())
+    // --page-fg is var(--ink) is a hex. The check cannot compare tokens it has not resolved.
+    expect(t['--page-fg']).toMatch(/^#[0-9a-f]{3,6}$/i)
+    expect(t['--card-bg']).toMatch(/^#[0-9a-f]{3,6}$/i)
+  })
+})

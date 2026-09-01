@@ -83,8 +83,22 @@ export function renderServicePage(args: {
   if (!content) throw new Error(`No plan content for service page ${page.slug}`)
 
   const home = pages[0]!
-  const photo = facts.photos[0] ?? null
-  const aboutPhoto = facts.photos[1] ?? photo
+  /*
+   * A DIFFERENT PAIR OF PHOTOS ON EACH SERVICE PAGE.
+   *
+   * Every service page used photo one and photo two. Ten pages, the same two pictures, and a
+   * reader who opens two of them sees the same site twice with the words swapped. It is the
+   * loudest "these are the same page" signal there is, louder than any wording, and the
+   * customer had already given us the photos to avoid it.
+   *
+   * Offset by the page's position in the set, wrapping when there are fewer photos than
+   * pages. With ten photos and ten pages every page is unique; with three photos they repeat
+   * every third page, which is still better than every page being identical.
+   */
+  const order = Math.max(0, pages.findIndex((p) => p.slug === page.slug) - 1)
+  const pool = facts.photos
+  const photo = pool.length > 0 ? (pool[(order * 2) % pool.length] ?? null) : null
+  const aboutPhoto = pool.length > 1 ? (pool[(order * 2 + 1) % pool.length] ?? photo) : photo
 
   // Relative, so the same file works served and opened from a discharge zip on someone's desktop.
   const linkTo = (target: SitePage) => relativeLink(page, target)

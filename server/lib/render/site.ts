@@ -310,6 +310,14 @@ export function sectionHead(args: {
  */
 export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surfaces): string {
   const t = plan.tokens
+  // --card-bg is emitted into :root so the checks can read the same value the cards use.
+  const cardBg = {
+    'outlined-dark': 'var(--primary-dark)',
+    'soft-light': 'var(--surface)',
+    'warm-bordered': 'var(--surface)',
+    'flat-tinted': 'var(--surface)',
+  }[spec.card]
+
   const darkToken = surfaces.darkBlock === 'ink' ? 'var(--ink)' : 'var(--primary)'
   const onDarkPage = spec.rhythm === 'dark-on-dark'
   const outlined = spec.card === 'outlined-dark'
@@ -384,6 +392,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--track-eyebrow:' + spec.eyebrowTracking + ';',
     // Both fall back to the accent, which is what they always were.
     '--eyebrow-color:' + (t.eyebrow ?? t.accent) + ';',
+    '--card-bg:' + cardBg + ';',
     '--btn-bg:' + (t.button ?? t.accent) + ';',
     '--hero-tick:' + (t.heroTick ?? t.accent) + ';',
     // One number drives both logos, so "make the logo bigger" moves the header and the footer.
@@ -689,10 +698,10 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
   ].join('\n')
 
   const cardSkin = {
-    'outlined-dark': 'background:var(--primary-dark);border:var(--border-hairline) solid var(--accent);',
-    'soft-light': 'background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-card);',
-    'warm-bordered': 'background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-card);',
-    'flat-tinted': 'background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-card);',
+    'outlined-dark': 'background:var(--card-bg);border:var(--border-hairline) solid var(--accent);',
+    'soft-light': 'background:var(--card-bg);border:1px solid var(--line);box-shadow:var(--shadow-card);',
+    'warm-bordered': 'background:var(--card-bg);border:1px solid var(--line);box-shadow:var(--shadow-card);',
+    'flat-tinted': 'background:var(--card-bg);border:1px solid var(--line);box-shadow:var(--shadow-card);',
   }[spec.card]
 
   const numberRule =
@@ -796,7 +805,15 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
   const areas = [
     '.areas-grid{display:grid;gap:2rem;}',
     '.suburbs{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0;}',
-    '.suburbs li{font-size:0.85rem;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--alt-bg);border:1px solid var(--hairline);}',
+    /*
+     * THE COLOUR IS SET HERE FOR THE REASON .card h3 SETS ITS OWN.
+     *
+     * The pill paints a light background and then inherited its text colour from the section
+     * around it. On the dark service-areas band that colour is white, so a customer with a
+     * light --alt-bg got white suburb names on white pills. It depends entirely on the
+     * palette, which is why it survived every build on the fixture and shipped on a real one.
+     */
+    '.suburbs li{font-size:0.85rem;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--alt-bg);color:var(--card-fg);border:1px solid var(--hairline);}',
     '@media (min-width:900px){.areas-grid{grid-template-columns:1fr 1.2fr;gap:3rem;align-items:center;}}',
   ].join('\n')
 

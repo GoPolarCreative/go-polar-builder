@@ -37,10 +37,10 @@ describe('a known good document', () => {
     expect(failed.map((f) => `${f.id}: ${f.detail} ${JSON.stringify(f.evidence ?? [])}`)).toEqual([])
   })
 
-  it('returns all seventeen static checks, with no duplicates', async () => {
+  it('returns all eighteen static checks, with no duplicates', async () => {
     const results = await runStaticChecks(fixture.html, fixture.facts)
-    expect(results).toHaveLength(17)
-    expect(new Set(results.map((r) => r.id)).size).toBe(17)
+    expect(results).toHaveLength(18)
+    expect(new Set(results.map((r) => r.id)).size).toBe(18)
   })
 
   it('uses picture elements with a webp source and a jpeg fallback', () => {
