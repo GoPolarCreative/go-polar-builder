@@ -155,14 +155,19 @@ export function enforcePlanInvariants(
     allowStyleChange?: boolean
     pagesAllowed?: number
     /**
-     * Whether the plan may say where the business works.
+     * Whether the plan may say where the business is and where it works.
      *
      * FALSE ON A FIRST BUILD, TRUE ON AN EDIT, AND THE DIFFERENCE IS WHO IS SPEAKING. On a
      * build the model has only the intake, so letting it name suburbs is letting it invent
      * coverage. On an edit the customer has just said "add six suburbs near the ones I
-     * service", which is the owner stating where they work.
+     * service" or "the footer should say Bli Bli, not Palmview", which is the owner correcting
+     * the record about their own business.
+     *
+     * COORDINATES ARE NEVER INCLUDED. A placename is a word the owner can correct; a latitude
+     * is not something either of us should be making up. They stay on the intake suburb, and
+     * when the name moves away from it that is written into assumptions rather than hidden.
      */
-    allowServiceAreaChange?: boolean
+    allowLocationChange?: boolean
   } = {},
 ): ContentPlan {
   const out: ContentPlan = structuredClone(plan)
@@ -298,7 +303,7 @@ export function enforcePlanInvariants(
    * Two days were spent looking at the prompt for that, which was the wrong place: no wording
    * can survive an assignment further down the pipe.
    */
-  if (!opts.allowServiceAreaChange) {
+  if (!opts.allowLocationChange) {
     out.serviceAreas.suburbs = intake.suburbsServiced.map((s) => s.name)
   }
 
@@ -319,7 +324,7 @@ export function enforcePlanInvariants(
            * structured data has to say the same thing the visible list says, or the site
            * claims one service area and tells Google another.
            */
-          cities: opts.allowServiceAreaChange
+          cities: opts.allowLocationChange
             ? out.serviceAreas.suburbs
             : intake.suburbsServiced.map((s) => s.name),
         }
@@ -327,10 +332,30 @@ export function enforcePlanInvariants(
   // sameAs is whatever social links were supplied, nothing else.
   out.schema.sameAs = Object.values(intake.socials).filter((v): v is string => Boolean(v))
 
-  // Geo comes from the base suburb, never from the model.
+  /*
+   * THE COORDINATES COME FROM THE BASE SUBURB, ALWAYS. THE NAME IS THE OWNER'S TO CORRECT.
+   *
+   * "Change Palmview in the footer to Bli Bli" applied, reported success and changed nothing,
+   * because this line put the intake suburb back on the way past. It is the same overwrite that
+   * swallowed the service areas, one field along.
+   *
+   * A latitude is different from a name. Nobody should be inventing one, and the edit path has
+   * no way to look a suburb up, so the position stays on the suburb the customer picked at
+   * intake. When the name moves away from it the site is saying one place and the map data is
+   * pointing at another, which is worth recording rather than leaving for somebody to find.
+   */
   out.meta.geoRegion = `AU-${intake.baseSuburb.state}`
-  out.meta.geoPlacename = intake.baseSuburb.name
   out.meta.geoPosition = { lat: intake.baseSuburb.lat, lng: intake.baseSuburb.lng }
+
+  if (!opts.allowLocationChange) {
+    out.meta.geoPlacename = intake.baseSuburb.name
+  } else if (out.meta.geoPlacename.trim().toLowerCase() !== intake.baseSuburb.name.toLowerCase()) {
+    const note =
+      `The site now says ${out.meta.geoPlacename} where the intake said ${intake.baseSuburb.name}. ` +
+      `The map coordinates still point at ${intake.baseSuburb.name}. If the business has actually ` +
+      `moved, change the base suburb rather than only the wording.`
+    if (!out.assumptions.includes(note)) out.assumptions.push(note)
+  }
 
   // Every stat has to be a number we can point at in the intake.
   const allowed = new Map<number, string>([

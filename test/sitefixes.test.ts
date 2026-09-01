@@ -988,7 +988,7 @@ describe('service areas can be changed by the person who has them', () => {
       makeIntake({}),
       fixture.facts,
       makeAssets(),
-      { allowServiceAreaChange: true },
+      { allowLocationChange: true },
     )
     expect(out.serviceAreas.suburbs).toContain('Kedron')
     expect(out.serviceAreas.suburbs.length).toBeGreaterThan(3)
@@ -1006,7 +1006,7 @@ describe('service areas can be changed by the person who has them', () => {
       makeIntake({}),
       fixture.facts,
       makeAssets(),
-      { allowServiceAreaChange: true },
+      { allowLocationChange: true },
     )
     expect(out.schema.areaServed.mode).toBe('city')
     if (out.schema.areaServed.mode === 'city') {
@@ -1016,7 +1016,7 @@ describe('service areas can be changed by the person who has them', () => {
 
   it('the edit path turns it on', async () => {
     const source = readFileSync(new URL('../server/lib/edit.ts', import.meta.url), 'utf8')
-    expect(source).toContain('allowServiceAreaChange: true')
+    expect(source).toContain('allowLocationChange: true')
   })
 })
 
@@ -1092,5 +1092,68 @@ describe('every fix holds on all four styles', () => {
 
     const white = { ...plan, tokens: { ...plan.tokens, eyebrow: '#ffffff' } } as ContentPlan
     expect(checkColourPairs(renderSite(white, fixture.facts)).status, 'white asked for').toBe('pass')
+  })
+})
+
+/**
+ * THE TOWN THE SITE SAYS IT IS IN.
+ *
+ * "Change Palmview in the footer to Bli Bli" applied, reported success and changed nothing. Same
+ * overwrite that swallowed the service areas, one field along: meta.geoPlacename was reset from
+ * the intake on every pass.
+ *
+ * A name is the owner's to correct. A latitude is not something either of us should invent, and
+ * the edit path has no suburb lookup, so the coordinates stay on the suburb picked at intake and
+ * the divergence is written into assumptions rather than left for somebody to find.
+ */
+describe('the placename is the owner’s to correct', () => {
+  const moved = (): ContentPlan => ({
+    ...fixture.plan,
+    meta: { ...fixture.plan.meta, geoPlacename: 'Bli Bli' },
+  })
+
+  it('a build still takes it from the intake', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const intake = makeIntake({})
+    const out = enforcePlanInvariants(moved(), intake, fixture.facts, makeAssets(), {})
+    expect(out.meta.geoPlacename).toBe(intake.baseSuburb.name)
+  })
+
+  it('an edit keeps what the customer said', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const out = enforcePlanInvariants(moved(), makeIntake({}), fixture.facts, makeAssets(), {
+      allowLocationChange: true,
+    })
+    expect(out.meta.geoPlacename).toBe('Bli Bli')
+  })
+
+  it('the coordinates never move, and the mismatch is written down', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const intake = makeIntake({})
+    const out = enforcePlanInvariants(moved(), intake, fixture.facts, makeAssets(), {
+      allowLocationChange: true,
+    })
+    expect(out.meta.geoPosition).toEqual({ lat: intake.baseSuburb.lat, lng: intake.baseSuburb.lng })
+    expect(out.assumptions.some((a) => a.includes('Bli Bli') && a.includes('coordinates'))).toBe(true)
+  })
+
+  /*
+   * The model had the plan and no map from what a customer can see to the key that holds it, so
+   * "the footer says Chermside" was answered by rewriting the brand tagline.
+   */
+  it('the edit prompt says where the visible things live', async () => {
+    const { editPlanUserMessage } = await import('../server/prompts/edit')
+    const msg = editPlanUserMessage({
+      plan: fixture.plan,
+      facts: fixture.facts,
+      request: 'x',
+      previousRequests: [],
+    })
+    expect(msg).toContain('WHERE THE THING THEY CAN SEE ACTUALLY LIVES')
+    expect(msg).toContain('meta.geoPlacename')
+    expect(msg).toContain('layout.logoHeight')
   })
 })

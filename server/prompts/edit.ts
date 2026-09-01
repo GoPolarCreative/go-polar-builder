@@ -121,6 +121,26 @@ ${
         .join('\n')}\n`
     : ''
 }
+# WHERE THE THING THEY CAN SEE ACTUALLY LIVES
+
+A customer describes what they are looking at, not the key that holds it. "The footer says
+Chermside" was answered by rewriting the brand tagline, because nothing said which field puts a
+town in the footer. This is that map. When a request names something on this list, change the
+key beside it and nothing else.
+
+  the town named in the footer line and in headings   meta.geoPlacename
+  the wording around it, "X and surrounding suburbs"  labels["contact.area"]
+  the list of suburbs in the service areas section    serviceAreas.suburbs AND
+                                                      schema.areaServed.cities, both together
+  the small label above a section heading             sectionCopy[section].eyebrow
+  the colour of one of those labels                   sectionCopy[section].eyebrowColor
+  the colour of all of them                           tokens.eyebrow
+  the colour of the filled buttons                    tokens.button
+  the words on the main buttons                       hero.ctaPrimary.label, hero.ctaSecondary.label
+  how many photos sit in a row                        layout.galleryColumns
+  the photo behind the closing call to action         layout.ctaBandPhoto
+  how big the logo is                                 layout.logoHeight
+
 # FIELDS THAT MAY BE MISSING FROM THE PLAN ABOVE
 
 The plan you have been given may have been written before a field existed, so a field being

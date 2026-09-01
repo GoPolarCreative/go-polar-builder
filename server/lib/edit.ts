@@ -347,8 +347,9 @@ export async function generateEditedPlan(args: {
     return {
       plan: enforcePlanInvariants(parsed.data, args.intake, args.facts, usablePhotos, {
         allowStyleChange: true,
-        // The customer is the one asking, so where they work is theirs to state.
-        allowServiceAreaChange: true,
+        // The customer is the one asking, so where they are and where they work is theirs
+        // to state. Coordinates are still taken from the suburb they picked at intake.
+        allowLocationChange: true,
       }),
       declaredSections,
       droppedKeys,
