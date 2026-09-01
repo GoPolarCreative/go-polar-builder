@@ -384,3 +384,81 @@ describe('sections rise in as they arrive', () => {
     expect(render('industrial')).not.toContain('background-attachment:fixed')
   })
 })
+
+/**
+ * A relative path has to resolve from the page carrying it.
+ *
+ * Callum's build shipped ten service pages whose header logo and favicon pointed at
+ * `assets/logo.webp` and `favicon.svg` from two directories down, so every one of them 404'd and
+ * showed a blank logo. It passed eighteen checks, because `assets_exist` stripped the leading
+ * `../` before looking the file up: `assets/x` and `../../assets/x` were the same string to it,
+ * so it could not tell a working path from a broken one. The photos on the same pages were
+ * correct, which is exactly why a rule in the renderer was never going to be enough.
+ */
+describe('assets resolve from the page that references them', () => {
+  const set = renderSiteSet(
+    makeFixture({ ownPageServices: ['Blocked drains', 'Hot water systems'] }).plan,
+    makeFixture({ ownPageServices: ['Blocked drains', 'Hot water systems'] }).facts,
+  )
+  const refsIn = (html: string) =>
+    [...html.matchAll(/(?:src|href)="((?:\.\.\/)*(?:assets\/|favicon\.svg)[^"]*)"/g)].map((m) => m[1] ?? '')
+
+  it('a service page points two directories up, for the logo and the favicon as well as the photos', () => {
+    const page = set.pages.find((p) => p.path !== 'index.html')!
+    const refs = refsIn(page.html)
+    expect(refs.length).toBeGreaterThan(3)
+    const wrong = refs.filter((r) => !r.startsWith('../../'))
+    expect(wrong, `${page.path} references these without going up two: ${wrong.join(', ')}`).toEqual([])
+  })
+
+  it('the home page points at them directly, because it sits beside them', () => {
+    const home = set.pages.find((p) => p.path === 'index.html')!
+    expect(refsIn(home.html).filter((r) => r.startsWith('../'))).toEqual([])
+  })
+
+  it('THE CHECK CATCHES IT, which is the part that was missing', async () => {
+    const { facts } = makeFixture({ ownPageServices: ['Blocked drains', 'Hot water systems'] })
+    const page = set.pages.find((p) => p.path !== 'index.html')!
+
+    const clean = await runStaticChecks(page.html, facts)
+    expect(clean.find((r) => r.id === 'assets_exist')?.status).toBe('pass')
+
+    // The exact bug: a root-relative logo on a page two directories down.
+    const broken = page.html.replace('src="../../assets/logo', 'src="assets/logo')
+    expect(broken).not.toEqual(page.html)
+    const after = await runStaticChecks(broken, facts)
+    const result = after.find((r) => r.id === 'assets_exist')!
+    expect(result.status).toBe('fail')
+    expect(result.detail).toContain('do not resolve from this page')
+  })
+})
+
+/**
+ * An eyebrow on a card takes the card's colour, not the colour of the section around it.
+ *
+ * The enquiry card sits inside the hero, and `.hero .eyebrow` paints for the hero's dark photo.
+ * The card is white, so "Start a conversation" rendered white on white at 1.00:1 on every page of
+ * Callum's build, the home page included. A tag in the selector rather than another class, so it
+ * also beats the per-section tints appended at the end of the sheet.
+ */
+describe('the label on the enquiry card is readable', () => {
+  const { plan, facts } = makeFixture({})
+  const set = renderSiteSet(plan, facts)
+
+  it('paints it from the card ground rather than inheriting the section', () => {
+    for (const page of set.pages) {
+      expect(page.html, page.path).toContain('.card-form span.eyebrow{color:var(--eyebrow-on-card);}')
+      expect(page.html, page.path).toMatch(/--eyebrow-on-card:#[0-9a-f]{3,8};/i)
+    }
+  })
+
+  it('the card colour is not simply the on-dark one, which is what made it invisible', () => {
+    const home = set.pages[0]!.html
+    const onCard = /--eyebrow-on-card:([^;]+);/.exec(home)?.[1]
+    const onDark = /--eyebrow-on-dark:([^;]+);/.exec(home)?.[1]
+    const onLight = /--eyebrow-color:([^;]+);/.exec(home)?.[1]
+    expect(onCard).toBeTruthy()
+    // A light card takes the light colour. Only an outlined-dark card may match the dark one.
+    expect(Boolean(onCard) && (onCard === onLight || onCard === onDark)).toBe(true)
+  })
+})

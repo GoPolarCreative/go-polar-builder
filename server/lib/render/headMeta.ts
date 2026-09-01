@@ -103,9 +103,19 @@ export function headMetaTags(
    * share overrides the image a link preview uses. Every service page pointed at photo one, so
    * pasting a link to the decking page showed somebody a drain. It is the page's own hero now.
    */
-  opts: { esc: (s: string) => string; share?: { path: string; width: number; height: number } | null },
+  opts: {
+    esc: (s: string) => string
+    share?: { path: string; width: number; height: number } | null
+    /**
+     * What to put in front of a relative asset path. Empty for the home page, `../../` for a
+     * service page, which is two directories down and was asking for its favicon at
+     * /services/<name>/favicon.svg.
+     */
+    assetPrefix?: string
+  },
 ): { icons: string; social: string } {
   const { esc } = opts
+  const at = opts.assetPrefix ?? ''
   const icon = faviconHref(facts)
 
   /*
@@ -114,10 +124,10 @@ export function headMetaTags(
    * SVG is the one that stays sharp on a high-density screen.
    */
   const iconLines = [
-    icon ? `<link rel="icon" type="${icon.type}" href="${esc(icon.href)}">` : '',
-    `<link rel="icon" type="image/svg+xml" href="favicon.svg">`,
+    icon ? `<link rel="icon" type="${icon.type}" href="${esc(at + icon.href)}">` : '',
+    `<link rel="icon" type="image/svg+xml" href="${at}favicon.svg">`,
     icon && icon.type !== 'image/svg+xml'
-      ? `<link rel="apple-touch-icon" href="${esc(icon.href)}">`
+      ? `<link rel="apple-touch-icon" href="${esc(at + icon.href)}">`
       : '',
     `<meta name="apple-mobile-web-app-title" content="${esc(plan.brand.businessName)}">`,
   ].filter(Boolean)

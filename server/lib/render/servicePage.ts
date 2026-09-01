@@ -178,6 +178,7 @@ export function renderServicePage(args: {
    * the favicon links are rewritten at publish time along with everything else.
    */
   const headMeta = headMetaTags(plan, facts, {
+    assetPrefix: '../../',
     esc,
     // The photo at the top of THIS page, so a shared link previews what it is about.
     share: photo ? { path: photo.webJpeg, width: photo.width, height: photo.height } : null,
@@ -214,7 +215,7 @@ ${stylesheet(plan, spec, surfaces)}
 <body>
 <header class="site-header" id="siteHeader">
   <div class="wrap site-header__inner">
-    ${brandMarkup(plan, facts).replace(/href="#top"/, `href="${linkTo(home)}"`)}
+    ${brandMarkup(plan, facts, '../../').replace(/href="#top"/, `href="${linkTo(home)}"`)}
     <nav class="nav" aria-label="Main">
       ${navMarkup(navItems, serviceLinks)}
     </nav>

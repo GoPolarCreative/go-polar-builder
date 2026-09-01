@@ -604,8 +604,39 @@ export function referencedPaths(html: string, s: Structure): string[] {
  * "assets/photo-01.webp" at the root. Without this every image on every service page reads as
  * missing, which is how a correct page set fails its own check.
  */
-function resolveAgainstPage(ref: string): string {
-  return ref.replace(/^(?:\.\.\/)+/, '')
+/*
+ * HOW FAR DOWN THE PAGE THAT CARRIES THESE REFERENCES SITS.
+ *
+ * Taken from the canonical URL, which every page emits and which is the only statement in the
+ * document about where the document lives. The home page is 0, a service page at
+ * /services/timber-fencing/ is 2.
+ */
+export function pageDepth(html: string): number {
+  const href = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1]
+  if (!href) return 0
+  const path = href.replace(/^https?:\/\/[^/]+/, '')
+  return path.split('/').filter(Boolean).filter((seg) => !seg.includes('.')).length
+}
+
+/*
+ * WHAT A RELATIVE REFERENCE POINTS AT, AND WHETHER IT POINTS AT IT FROM HERE.
+ *
+ * This used to be `ref.replace(/^(?:\.\.\/)+/, '')`: strip the leading ../ and see whether the
+ * remainder is a real file. That made `assets/logo.webp` and `../../assets/logo.webp`
+ * indistinguishable, so a path that could not resolve from the page carrying it passed as
+ * readily as one that could.
+ *
+ * It shipped ten of Callum's service pages with a broken logo in the header and a broken
+ * favicon in the tab, on a build that reported eighteen checks passed. The photos beside them
+ * were correct, which is what makes it worth a check rather than a rule: the same page had
+ * both, so no amount of reading the renderer would have caught it reliably.
+ */
+function resolveAgainstPage(ref: string, depth = 0): string | null {
+  const up = (/^(?:\.\.\/)+/.exec(ref)?.[0].length ?? 0) / 3
+  const rest = ref.replace(/^(?:\.\.\/)+/, '')
+  // Wrong number of steps back is a 404, and naming what it resolved to is the useful part.
+  if (up !== depth) return null
+  return rest
 }
 
 function checkAssets(html: string, s: Structure, facts: BuildFacts): CheckResult {
@@ -621,9 +652,31 @@ function checkAssets(html: string, s: Structure, facts: BuildFacts): CheckResult
    * check would call every page broken. It is a real file at a real path either way.
    */
   allowed.add('favicon.svg')
-  const missing = referencedPaths(html, s)
-    .map(resolveAgainstPage)
-    .filter((r) => !allowed.has(r))
+
+  const depth = pageDepth(html)
+  const missing: string[] = []
+  const unreachable: string[] = []
+  for (const ref of referencedPaths(html, s)) {
+    const resolved = resolveAgainstPage(ref, depth)
+    if (resolved === null) {
+      unreachable.push(ref)
+    } else if (!allowed.has(resolved)) {
+      missing.push(resolved)
+    }
+  }
+
+  if (unreachable.length > 0) {
+    const up = '../'.repeat(depth)
+    return fail(
+      id,
+      label,
+      `${unreachable.length} reference(s) do not resolve from this page, which sits ${depth} ` +
+        `director${depth === 1 ? 'y' : 'ies'} down. They need to start with "${up}" and do not, ` +
+        'so the browser will ask for a file that is not there and the image or icon will be ' +
+        'blank. Everything on this page must be written relative to this page.',
+      unreachable,
+    )
+  }
 
   return missing.length === 0
     ? pass(id, label)

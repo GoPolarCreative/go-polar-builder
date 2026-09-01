@@ -420,6 +420,8 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     // Both fall back to the accent, which is what they always were.
     '--eyebrow-color:' + eyebrowLight.colour + ';',
     '--eyebrow-on-dark:' + eyebrowDark.colour + ';',
+    // The enquiry card is its own ground, and it is not the ground the section around it has.
+    '--eyebrow-on-card:' + (outlined ? eyebrowDark.colour : eyebrowLight.colour) + ';',
     '--card-bg:' + cardBg + ';',
     '--btn-bg:' + buttonBg + ';',
     '--on-btn:' + buttonLabel.colour + ';',
@@ -696,6 +698,19 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
       (outlined ? 'var(--border-hairline) solid var(--accent)' : '0') +
       ';border-radius:var(--radius);padding:1.75rem;box-shadow:var(--shadow-raised);}',
     '.card-form h2,.card-form h3{margin-bottom:1.25rem;color:' + cardFormFg + ';}',
+    /*
+     * WHITE ON WHITE, AND THE REASON THE RULE ABOVE IS NOT ENOUGH.
+     *
+     * The enquiry card sits inside the hero, and `.hero .eyebrow` paints for the dark hero
+     * photo behind it. The card is white. So "Start a conversation" was white text on a
+     * white card on
+     * every service page, at 1.00:1, which is invisible rather than merely hard to read.
+     *
+     * A tag on the selector rather than a matching class count, so it also beats the
+     * per-section tint appended at the end of the sheet. A customer who paints the hero
+     * eyebrow yellow means the one on the photo, not the one on the white card behind it.
+     */
+    '.card-form span.eyebrow{color:var(--eyebrow-on-card);}',
     // A select has to look like the inputs beside it, or the form reads as two form controls.
     '.card-form select{width:100%;font:inherit;}',
     '.field{display:block;margin-bottom:0.9rem;}',
@@ -1320,7 +1335,21 @@ export function galleryColumns(count: number): number {
   return Math.min(4, Math.max(2, Math.ceil(count / 2)))
 }
 
-export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
+/*
+ * THE HEADER LOGO.
+ *
+ * assetPrefix exists because this function is shared with the service pages, which live two
+ * directories down. The photos on those pages were written `../../assets/...` at each call
+ * site; the logo was not, so every service page asked for
+ * /services/<name>/assets/logo.webp and got a 404. Ten pages with a broken logo in the
+ * header, on a build that passed every check, because nothing was looking at whether a
+ * relative path resolved from the page that carried it. Static check 27 looks now.
+ */
+export function brandMarkup(
+  plan: ContentPlan,
+  facts: BuildFacts,
+  assetPrefix = '',
+): string {
   const name = esc(plan.brand.wordmarkText)
   // Matches --logo-h, because check 13 compares these attributes against the real artwork and
   // the browser uses them to reserve the space before the image arrives.
@@ -1328,10 +1357,10 @@ export function brandMarkup(plan: ContentPlan, facts: BuildFacts): string {
 
 
   if (plan.brand.logoTreatment === 'image' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(assetPrefix + facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"></a>`
   }
   if (plan.brand.logoTreatment === 'cropped-mark' && facts.logo) {
-    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"><span class="brand__name">${name}</span></a>`
+    return `<a class="brand" href="#top"><img class="brand__logo" src="${esc(assetPrefix + facts.logo.path)}" alt="${esc(plan.brand.businessName)} logo" width="${logoBox(facts.logo, h, 300).width}" height="${logoBox(facts.logo, h, 300).height}"><span class="brand__name">${name}</span></a>`
   }
 
   const initials = plan.brand.wordmarkText
