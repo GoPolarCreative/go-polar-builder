@@ -12,6 +12,7 @@ import { renderSiteSet } from '../server/lib/render/set'
 import { renderServicePage } from '../server/lib/render/servicePage'
 import { verifySet } from '../server/lib/verify'
 import { runStaticChecks } from '../server/lib/checks/static'
+import { pagesDeliveredCheck } from '../server/lib/buildSet'
 import { makeFixture } from './fixtures/site'
 
 /**
@@ -579,5 +580,69 @@ describe('the render driver default', () => {
 
   it('an explicit setting still wins, so turning it on stays possible', async () => {
     expect(await load({ RENDER_DRIVER: 'playwright', VERCEL: '1', AWS_LAMBDA_FUNCTION_NAME: undefined })).toBe('playwright')
+  })
+})
+
+/**
+ * Two paid services never share one page.
+ *
+ * A page's path comes from its slug, and slugify lowercases, turns "&" into "and" and strips
+ * punctuation. So "Roof Repairs" and "roof repairs" both became roof-repairs, as did
+ * "Decks & Pergolas" and "Decks and Pergolas", and "Gates" and "Gates!".
+ *
+ * Two services with one path meant the second page overwrote the first in storage: a customer paid
+ * for two and received one. The entitlement check did not notice, because it looked for
+ * services/<slugify(service)>/index.html per paid service and both found the one surviving page.
+ * It reported "2 additional page(s) paid for, 2 built" and passed.
+ */
+describe('two services that slug the same still get a page each', () => {
+  const COLLIDING = ['Roof Repairs', 'roof repairs']
+
+  it('slugify alone really does collide, which is the premise', () => {
+    expect(slugify(COLLIDING[0]!)).toEqual(slugify(COLLIDING[1]!))
+    expect(slugify('Decks & Pergolas')).toEqual(slugify('Decks and Pergolas'))
+    expect(slugify('Gates!')).toEqual(slugify('Gates'))
+  })
+
+  it('a name of pure punctuation does not slug to nothing', () => {
+    // services//index.html was a real possible path.
+    expect(slugify('???')).toEqual('')
+  })
+
+  it('the plan hands out a distinct slug to each', async () => {
+    const { enforcePlanInvariants } = await import('../server/lib/generate')
+    const { makeIntake, makeAssets } = await import('./fixtures/site')
+    const f = makeFixture({ ownPageServices: COLLIDING })
+    const intake = {
+      ...makeIntake({ ownPageServices: COLLIDING }),
+      services: COLLIDING,
+      ownPageServices: COLLIDING,
+    }
+    const plan = enforcePlanInvariants(f.plan, intake as never, f.facts, makeAssets(), {
+      pagesAllowed: 3,
+    })
+    const slugs = plan.servicePages.map((p) => p.slug)
+    expect(slugs.length).toBe(2)
+    expect(new Set(slugs).size, 'both services must have their own path').toBe(2)
+    expect(slugs).toContain('roof-repairs')
+    expect(slugs.some((s) => s !== 'roof-repairs')).toBe(true)
+  })
+
+  it('THE CHECK NOTICES when only one of the two was built', () => {
+    const slugFor = (s: string) => (s === 'Roof Repairs' ? 'roof-repairs' : 'roof-repairs-2')
+    const onlyOne = ['index.html', 'services/roof-repairs/index.html']
+    const r = pagesDeliveredCheck(COLLIDING, onlyOne, 3, slugFor)
+    expect(r.status).toBe('fail')
+    expect(r.detail).toContain('PAID FOR BUT NOT BUILT')
+  })
+
+  it('and passes when both are there', () => {
+    const slugFor = (s: string) => (s === 'Roof Repairs' ? 'roof-repairs' : 'roof-repairs-2')
+    const both = [
+      'index.html',
+      'services/roof-repairs/index.html',
+      'services/roof-repairs-2/index.html',
+    ]
+    expect(pagesDeliveredCheck(COLLIDING, both, 3, slugFor).status).toBe('pass')
   })
 })

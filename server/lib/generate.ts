@@ -200,9 +200,41 @@ export function enforcePlanInvariants(
    * model writes, because a thin true page is recoverable with one edit and a fabricated one is
    * not. It also satisfies the plan schema, so nothing downstream has to special-case it.
    */
-  out.servicePages = requested.map((service) => {
+  /*
+   * ONE PAID SERVICE, ONE PAGE, ONE PATH OF ITS OWN.
+   *
+   * A page's path is built from its slug, and the slug was slugify(service) with nothing checking
+   * the result was unique or even non-empty. slugify lowercases, turns "&" into "and" and strips
+   * punctuation, so "Roof Repairs" and "roof repairs" both become roof-repairs, as do
+   * "Decks & Pergolas" and "Decks and Pergolas", and "Gates" and "Gates!".
+   *
+   * Two services with one path meant the second page overwrote the first in storage, so a customer
+   * who paid for two received one. The entitlement check did not catch it: it looked for
+   * services/<slugify(service)>/index.html for each paid service, and both of them found the one
+   * surviving page. It reported "2 additional page(s) paid for, 2 built" and passed.
+   *
+   * A name of pure punctuation slugged to "" and produced services//index.html.
+   *
+   * So slugs are made unique here, where the plan is settled, rather than being trusted wherever
+   * they came from. The first service to claim a slug keeps it; the next gets -2. An empty one
+   * falls back to its position, which is ugly and findable rather than broken and silent.
+   */
+  const claimed = new Set<string>()
+  const uniqueSlug = (preferred: string, index: number): string => {
+    const base = slugify(preferred) || 'service-' + (index + 1)
+    if (!claimed.has(base)) {
+      claimed.add(base)
+      return base
+    }
+    let n = 2
+    while (claimed.has(base + '-' + n)) n++
+    claimed.add(base + '-' + n)
+    return base + '-' + n
+  }
+
+  out.servicePages = requested.map((service, index) => {
     const existing = out.servicePages.find((sp) => sp.service === service)
-    if (existing) return existing
+    if (existing) return { ...existing, slug: uniqueSlug(existing.slug || service, index) }
 
     const nearby = intake.suburbsServiced.slice(0, 3).map((s) => s.name)
     const where = nearby.length > 0 ? nearby.join(", ") : intake.baseSuburb.name
@@ -213,7 +245,7 @@ export function enforcePlanInvariants(
     ).slice(0, 165)
 
     return {
-      slug: slugify(service),
+      slug: uniqueSlug(service, index),
       service,
       title: (service + " | " + intake.businessName).slice(0, 70),
       metaDescription: meta.length >= 70 ? meta : (meta + " " + intake.businessName + " services " + where + ".").slice(0, 165),

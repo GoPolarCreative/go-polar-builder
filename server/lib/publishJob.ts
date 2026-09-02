@@ -282,7 +282,13 @@ export async function publishJob(args: {
    */
   const paidPageServices = (intake.ownPageServices ?? []).filter((n) => intake.services.includes(n))
   const delivered = pages.map((p) => p.path)
-  const pagesCheck = pagesDeliveredCheck(paidPageServices, delivered, jobRow.pagesAllowed)
+  const publishedPlan = planRow.plan as ContentPlan
+  const pagesCheck = pagesDeliveredCheck(
+    paidPageServices,
+    delivered,
+    jobRow.pagesAllowed,
+    (service) => publishedPlan.servicePages.find((sp) => sp.service === service)?.slug,
+  )
   const homeEntry = verified.find((v) => v.path === 'index.html')
   if (homeEntry) homeEntry.checks.push(pagesCheck)
   if (pagesCheck.status === 'fail') {

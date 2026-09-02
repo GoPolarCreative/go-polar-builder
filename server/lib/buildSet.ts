@@ -81,11 +81,24 @@ export function pagesDeliveredCheck(
    * entitlement half of the check silently switches off, and the build reports success.
    */
   pagesAllowed: number,
+  /*
+   * WHERE EACH PAID SERVICE ACTUALLY ENDED UP.
+   *
+   * This used to re-derive the path as services/<slugify(service)>/index.html, which assumed
+   * the slug in the plan was slugify(service) and that no two services could produce the same
+   * one. Both assumptions were wrong: "Roof Repairs" and "roof repairs" slug identically, and
+   * plan slugs are now disambiguated so the second becomes roof-repairs-2. Guessing the path
+   * would look for a page that is not there and fail a build that is correct.
+   *
+   * So the caller passes the map the plan settled on. Absent, the old guess still applies, and
+   * the two agree on every set where the slugs never collided.
+   */
+  slugForService?: (service: string) => string | undefined,
 ): CheckResult {
   const delivered = new Set(deliveredPaths)
-  const missing = paidPageServices.filter(
-    (service) => !delivered.has('services/' + slugify(service) + '/index.html'),
-  )
+  const pathFor = (service: string) =>
+    'services/' + (slugForService?.(service) ?? slugify(service)) + '/index.html'
+  const missing = paidPageServices.filter((service) => !delivered.has(pathFor(service)))
   const built = paidPageServices.length - missing.length
 
   // Pages that were bought and then never pointed at a service. These never reach the plan at
@@ -269,6 +282,7 @@ export async function persistPageSet(args: {
     args.paidPageServices ?? [],
     persisted.map((page) => page.path),
     args.pagesAllowed,
+    (service) => plan.servicePages.find((sp) => sp.service === service)?.slug,
   )
 
   homeReport.static.push(pagesDelivered)
