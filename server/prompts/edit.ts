@@ -170,6 +170,8 @@ key beside it and nothing else.
   whether a gallery photo opens when it is tapped     layout.lightbox
   the photo behind the heading on SERVICE pages      layout.servicePageHeroPhoto (false removes it)
   the photo behind the heading on the HOME page      layout.heroPhoto (false removes it)
+  WHICH photo is behind the headline                 layout.heroPhotoAssetId, an assetId from
+                                                      the photo list above
   the fields in the enquiry form                     formFields, the whole list, in order.
                                                       Adding one means returning the four that
                                                       are already there plus the new one.

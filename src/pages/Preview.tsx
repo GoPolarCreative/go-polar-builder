@@ -8,6 +8,8 @@ import { BuildProgress } from '../components/BuildProgress'
 import { JobNav } from '../components/JobNav'
 import { InboxTask } from '../components/InboxSetup'
 import { LivePanel } from '../components/LivePanel'
+import { PhotoUploader } from '../components/Uploader'
+import type { AssetRecord } from '../../shared/types'
 
 /**
  * Preview and the edit loop.
@@ -855,6 +857,11 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
           to a different style, which changes them together. Everything else is yours: every
           word, every colour, your photos and your services.
         </p>
+        <p className="field-hint mt-2">
+          You can add photos at any time under <strong>Your photos</strong> above, and then ask
+          for one by name, for example &ldquo;put the new decking photo in the gallery&rdquo; or
+          &ldquo;use it as the big photo at the top&rdquo;.
+        </p>
       </div>
     </>
   )
@@ -883,6 +890,80 @@ export interface ChangesContext {
   setCaretToEnd: React.MutableRefObject<boolean>
   rollback: (version: number) => Promise<void>
   setDevice: React.Dispatch<React.SetStateAction<Device>>
+}
+
+/**
+ * Add a photo without going back to the start.
+ *
+ * The upload route never had a status gate, and an edit rebuilds the photo list from the
+ * database every time, so a photo added here is described to the model on the very next
+ * request, by assetId, alongside the ones from intake. The only thing missing was a way to
+ * put the file there.
+ *
+ * Sits above the wording help rather than inside it: somebody who has just taken a photo on a
+ * job is looking for somewhere to put it, not reading an accordion.
+ */
+function PhotosTask({ jobId }: { jobId: string }) {
+  const [photos, setPhotos] = useState<AssetRecord[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await api.getJob(jobId)
+        if (cancelled) return
+        setPhotos(res.assets.filter((a) => a.kind === 'photo').sort((a, b) => a.sortOrder - b.sortOrder))
+      } catch {
+        if (!cancelled) setFailed(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [jobId])
+
+  const count = photos?.length ?? 0
+
+  return (
+    <div className="rounded-lg border border-ice-200">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+        aria-expanded={open}
+        aria-controls="editor-photos"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="text-sm font-medium text-ice-700">
+          Your photos{photos ? ` (${count})` : ''}
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-base leading-none text-ice-500">
+          {open ? '−' : '+'}
+        </span>
+      </button>
+      {open ? (
+        <div id="editor-photos" className="space-y-3 border-t border-ice-200 px-3 py-3">
+          {failed ? (
+            <Banner tone="error">
+              Your photos could not be loaded just now. Reload the page and try again.
+            </Banner>
+          ) : photos === null ? (
+            <p className="field-hint">Loading your photos…</p>
+          ) : (
+            <>
+              <PhotoUploader jobId={jobId} photos={photos} onChange={setPhotos} />
+              <p className="field-hint">
+                Add a photo here, then ask for it below by what it shows or what the file is
+                called, for example &ldquo;put the new decking photo in the gallery&rdquo; or
+                &ldquo;use the new one as the big photo at the top&rdquo;.
+              </p>
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 /**
@@ -1056,6 +1137,12 @@ export function ChangesPanel() {
           sit together.
         */}
         <ReadyChecklist jobId={jobId} onWantMobile={() => setDevice('mobile')} />
+
+        {/*
+          Above the wording help, because somebody who has just taken a photo on a job is
+          looking for somewhere to put it rather than reading an accordion.
+        */}
+        <PhotosTask jobId={jobId} />
 
         <CommonEdits onPick={appendToRequest} />
 

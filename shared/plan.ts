@@ -255,6 +255,18 @@ const planObject = z.object({
       servicePageHeroPhoto: z.boolean().optional(),
       /** The same, for the photo behind the heading on the home page. */
       heroPhoto: z.boolean().optional(),
+      /*
+       * WHICH photo sits behind the headline, by assetId.
+       *
+       * The hero was facts.photos[0] and nothing else, so the first photo uploaded at intake
+       * was the front of the website forever. A customer who uploads a better one in the
+       * editor and asks for it at the top had nowhere for that to go: the gallery could take
+       * it, the hero could not.
+       *
+       * An id that no longer matches a photo falls back to the first, so deleting the chosen
+       * photo leaves a website rather than a hole.
+       */
+      heroPhotoAssetId: z.string().max(80).optional(),
     })
     .optional(),
 

@@ -756,3 +756,48 @@ describe('phone numbers sent to Klaviyo', () => {
     }
   })
 })
+
+/**
+ * A photo added in the editor can become the picture at the top.
+ *
+ * The hero was facts.photos[0] and nothing else, so the first photo uploaded at intake was the
+ * front of the website forever. The gallery could take a new photo - the plan holds gallery items
+ * by assetId - but the hero could not, so "use the one I just uploaded as the big picture" had
+ * nowhere to go and the edit would report success having done nothing.
+ */
+describe('choosing which photo sits behind the headline', () => {
+  const { plan, facts } = makeFixture({})
+  const heroOf = (html: string) => {
+    const i = html.indexOf('class="hero__bg"')
+    return i < 0 ? '' : html.slice(i, i + 900)
+  }
+
+  it('defaults to the first photo, as it always did', () => {
+    const hero = heroOf(renderSiteSet(plan, facts).pages[0]!.html)
+    expect(hero).toContain(facts.photos[0]!.webJpeg)
+  })
+
+  it('uses the one named in the plan instead', () => {
+    const wanted = facts.photos[facts.photos.length - 1]!
+    expect(wanted.assetId).not.toEqual(facts.photos[0]!.assetId)
+    const chosen = { ...plan, layout: { ...(plan.layout ?? {}), heroPhotoAssetId: wanted.assetId } }
+    const hero = heroOf(renderSiteSet(chosen, facts).pages[0]!.html)
+    expect(hero).toContain(wanted.webJpeg)
+    expect(hero).not.toContain(facts.photos[0]!.webJpeg)
+  })
+
+  it('a photo that has since been deleted falls back rather than leaving a hole', () => {
+    const gone = { ...plan, layout: { ...(plan.layout ?? {}), heroPhotoAssetId: 'ast_deleted' } }
+    const hero = heroOf(renderSiteSet(gone, facts).pages[0]!.html)
+    expect(hero).toContain(facts.photos[0]!.webJpeg)
+  })
+
+  it('and switching the hero photo off still wins over choosing one', () => {
+    const both = {
+      ...plan,
+      layout: { ...(plan.layout ?? {}), heroPhotoAssetId: facts.photos[1]!.assetId, heroPhoto: false },
+    }
+    const hero = heroOf(renderSiteSet(both, facts).pages[0]!.html)
+    expect(hero).not.toContain(facts.photos[1]!.webJpeg)
+  })
+})
