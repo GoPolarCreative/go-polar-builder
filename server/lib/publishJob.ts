@@ -327,11 +327,31 @@ export async function publishJob(args: {
     }
   }
 
+  /*
+   * THE SWAPPED HOME PAGE, NOT THE ONE THAT WAS READ OFF STORAGE.
+   *
+   * `homeHtml` is a const captured before the swap loop above. That loop writes the customer's key
+   * into `pages[i].html`, which for the home page is a property on a different object; the const
+   * still points at the original string, key and all. So the service pages went out with the
+   * customer's key and the home page went out with ours.
+   *
+   * It did not leak, because publishSite's assertNoGoPolarKey caught it - by throwing, at the last
+   * step, after every check had passed. Publishing a site was impossible, and the error a customer
+   * got was an unhandled exception rather than one of the refusals above.
+   *
+   * Read back out of `pages` so there is one source for what ships and no second variable holding
+   * a pre-swap copy of it.
+   */
+  const publishedHome = pages.find((p) => p.path === 'index.html')
+  if (!publishedHome) {
+    return refuse(409, 'home_missing', 'The home page vanished between reading and publishing.')
+  }
+
   const result = await publishSite({
     jobId,
     hostname,
     version,
-    html: homeHtml,
+    html: publishedHome.html,
     facts,
     extraPages: pages.filter((p) => p.path !== 'index.html'),
     extraFiles,
