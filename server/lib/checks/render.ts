@@ -576,7 +576,20 @@ export function createRenderDriver(): RenderDriver | null {
 
 // ---------------------------------------------------------------------------------------------
 
-export async function runRenderChecks(html: string, driver = createRenderDriver()): Promise<CheckResult[]> {
+/**
+ * Run the browser checks against one page.
+ *
+ * Pass a driver to check several pages on one browser. Launching Chromium costs seconds, and
+ * a set with ten service pages was going to pay that ten times over; worse, in a function it
+ * is ten cold starts against one time limit. A driver that was handed in is left open for the
+ * caller to dispose, because the caller is the one that knows when the set is finished.
+ */
+export async function runRenderChecks(
+  html: string,
+  driver = createRenderDriver(),
+  opts: { dispose?: boolean } = {},
+): Promise<CheckResult[]> {
+  const ownsDriver = opts.dispose ?? true
   if (!driver) {
     return renderChecksSkipped('RENDER_DRIVER is set to none, so checks 13 to 16 did not run.')
   }
@@ -778,6 +791,6 @@ export async function runRenderChecks(html: string, driver = createRenderDriver(
       `Render checks could not run: ${err instanceof Error ? err.message : String(err)}`,
     )
   } finally {
-    await driver.dispose()
+    if (ownsDriver) await driver.dispose()
   }
 }

@@ -1,7 +1,7 @@
 import type { CheckResult, VerificationReport } from '../../shared/types.js'
 import type { BuildFacts } from '../../shared/plan.js'
 import { measurePageWeight, runStaticChecks } from './checks/static.js'
-import { renderChecksSkipped, runRenderChecks } from './checks/render.js'
+import { renderChecksSkipped, runRenderChecks, type RenderDriver } from './checks/render.js'
 import { inlineAssets } from './inline.js'
 import { callMessage, isTruncated, stripCodeFence, MAX_TOKENS_BUILD } from './anthropic.js'
 import { HOUSE_RULES, REPAIR_SYSTEM } from '../prompts/houseRules.js'
@@ -21,7 +21,11 @@ export function reportPassed(statics: CheckResult[], render: CheckResult[]): boo
 export async function verify(
   html: string,
   facts: BuildFacts,
-  opts: { runRender?: boolean } = {},
+  /**
+   * driver: check this page on a browser somebody else opened. Used when verifying a set, so
+   * eleven pages cost one Chromium launch rather than eleven. Left open afterwards.
+   */
+  opts: { runRender?: boolean; driver?: RenderDriver | null } = {},
 ): Promise<VerificationReport> {
   const statics = await runStaticChecks(html, facts)
 
@@ -35,7 +39,10 @@ export async function verify(
     // The browser gets the inlined copy: setContent has no base URL, so relative asset paths
     // would 404 and the images check would fail for the wrong reason.
     const inlined = await inlineAssets(html, facts)
-    render = await runRenderChecks(inlined.html)
+    render =
+      opts.driver === undefined
+        ? await runRenderChecks(inlined.html)
+        : await runRenderChecks(inlined.html, opts.driver, { dispose: false })
     renderSkipped = render.every((c) => c.status === 'skipped')
   }
 

@@ -7,6 +7,7 @@ import { storage } from './storage.js'
 import { pagesFor, robotsTxt, sitemapXml, slugify, type SitePage } from './pages.js'
 import { renderServicePage } from './render/servicePage.js'
 import { verify } from './verify.js'
+import { createRenderDriver } from './checks/render.js'
 
 /**
  * Render, verify and persist a whole page set for one version.
@@ -217,10 +218,35 @@ export async function persistPageSet(args: {
 
   let totalBytes = await record(home, homeHtml, homeReport)
 
-  for (const page of pages.slice(1)) {
-    const html = renderServicePage({ plan, facts, page, pages, baseUrl })
-    const report = await verify(html, facts, { runRender: args.runRender ?? false })
-    totalBytes += await record(page, html, report)
+  /*
+   * THE SERVICE PAGES GET LOOKED AT, ON ONE BROWSER.
+   *
+   * This passed `args.runRender ?? false` and no caller ever passed true, so no service page has
+   * ever been through a browser: not on a build, not on a publish, not anywhere. verifySet exists
+   * because "a multi-page build reported success because the home page was checked and the rest
+   * were not" was a real failure, and this default reproduced it for exactly the checks that
+   * needed a browser to see.
+   *
+   * What that cost: ten service pages shipped with a header logo pointing at a file two
+   * directories away, and "Start a conversation" in white on a white card, past eighteen green
+   * checks. Both are things a browser sees immediately and no amount of reading the markup does.
+   *
+   * One driver for the whole set. Launching Chromium costs seconds and, in a function, a cold
+   * start; eleven launches against one time limit is how this becomes "turn it off again".
+   * Opened once here, handed to every page, closed in the finally.
+   */
+  const driver = args.runRender === false ? null : createRenderDriver()
+  try {
+    for (const page of pages.slice(1)) {
+      const html = renderServicePage({ plan, facts, page, pages, baseUrl })
+      const report = await verify(html, facts, {
+        runRender: args.runRender,
+        driver,
+      })
+      totalBytes += await record(page, html, report)
+    }
+  } finally {
+    await driver?.dispose()
   }
 
   // A sitemap listing one URL tells a search engine nothing it could not work out, so these are

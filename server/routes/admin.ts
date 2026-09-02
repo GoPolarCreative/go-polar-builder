@@ -1342,7 +1342,17 @@ app.post('/admin/jobs/:jobId/rerender', requireAdmin, async (c) => {
   const plan = planRow.plan as ContentPlan
 
   const html = renderSite(plan, facts)
-  const report = await verify(html, facts, { runRender: false })
+  /*
+   * RENDER CHECKS RUN HERE, which is the whole point of a redraw.
+   *
+   * This passed runRender: false, so the one operator tool whose job is "redraw a customer site
+   * with the fixed renderer" could not see the class of fault it usually exists to fix. Callum
+   * was rerendered three times against a report that had never opened a browser.
+   *
+   * It also makes the dry run the safe way to find out whether a browser works in production:
+   * it renders, checks, and writes nothing.
+   */
+  const report = await verify(html, facts)
 
   /*
    * Read-only by default. The operator sees what would change, and whether the redraw passes,
@@ -1357,7 +1367,8 @@ app.post('/admin/jobs/:jobId/rerender', requireAdmin, async (c) => {
       businessName: job.businessName,
       currentVersion: fromVersion,
       wouldPass: report.passed,
-      failures: report.static.filter((r) => r.status === 'fail').map((r) => r.id),
+      failures: [...report.static, ...report.render].filter((r) => r.status === 'fail').map((r) => r.id),
+      renderSkipped: report.renderSkipped,
       warnings: report.static.filter((r) => r.status === 'warn').map((r) => r.id),
       detail:
         'Nothing was changed. Send { "dryRun": false } to write it as a new version. This does not publish and does not cost the customer a round.',
@@ -1370,7 +1381,7 @@ app.post('/admin/jobs/:jobId/rerender', requireAdmin, async (c) => {
         error: 'redraw_failed',
         detail:
           'The redrawn page does not pass its own checks, so it has not been written. This is a bug in the renderer, not in their site.',
-        failures: report.static.filter((r) => r.status === 'fail'),
+        failures: [...report.static, ...report.render].filter((r) => r.status === 'fail'),
       },
       409,
     )
