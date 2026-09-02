@@ -393,6 +393,109 @@ function Section({
   )
 }
 
+interface DnsAnswer {
+  ok?: boolean
+  error?: string
+  detail?: string
+  hostname?: string
+  attachedToProject?: boolean
+  dnsPointsHereYet?: boolean
+  records?: Array<{ purpose: string; type: string; name: string; value: string }>
+  servingNow?: { reachable: boolean; server: string | null }
+  instructions?: string[]
+  warning?: string
+}
+
+/**
+ * The two records to type into the registrar, on the card of the job they belong to.
+ *
+ * This is the step of going live that a person does by hand while on the phone. The values
+ * were only readable by logging into Vercel, finding the project, finding the domain and
+ * reading a panel, three screens away from the customer they are for. Asked of Vercel rather
+ * than written down here, because the right answer is a property of the project and not a
+ * constant to paste into a component and let rot.
+ */
+function DnsPanel({ hostname }: { hostname: string }) {
+  const [answer, setAnswer] = useState<DnsAnswer | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = async () => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/admin/dns?hostname=' + encodeURIComponent(hostname), {
+        // sessionStorage, and the same key the rest of this page uses. The header comment
+        // above says why it is never localStorage: it opens every customer's data.
+        headers: { 'x-admin-token': sessionStorage.getItem(TOKEN_KEY) ?? '' },
+      })
+      setAnswer((await res.json()) as DnsAnswer)
+    } catch {
+      setAnswer({ error: 'network', detail: 'Could not reach the server. Try again.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 border-t border-ice-100 pt-3">
+      <button className="btn" disabled={busy} onClick={() => void load()}>
+        {busy ? 'Asking Vercel…' : 'Connect DNS: show the records'}
+      </button>
+
+      {answer?.error ? (
+        <p className="mt-2 text-sm text-amber-800">{answer.detail ?? answer.error}</p>
+      ) : null}
+
+      {answer?.ok ? (
+        <div className="mt-3 space-y-3 text-sm">
+          {answer.dnsPointsHereYet ? (
+            <p className="font-bold text-emerald-800">
+              Already pointing here. Nothing to change.
+            </p>
+          ) : null}
+
+          <table className="w-full border-collapse text-left font-mono text-xs">
+            <thead>
+              <tr className="text-ice-500">
+                <th className="py-1 pr-3 font-sans font-semibold">Type</th>
+                <th className="py-1 pr-3 font-sans font-semibold">Name</th>
+                <th className="py-1 font-sans font-semibold">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(answer.records ?? []).map((r) => (
+                <tr key={r.type + r.name} className="border-t border-ice-100">
+                  <td className="py-1.5 pr-3">{r.type}</td>
+                  <td className="py-1.5 pr-3">{r.name}</td>
+                  <td className="py-1.5 select-all">{r.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {answer.warning ? (
+            <p
+              className={
+                answer.servingNow?.reachable
+                  ? 'rounded-lg bg-amber-50 p-2 text-amber-900'
+                  : 'text-ice-600'
+              }
+            >
+              {answer.warning}
+              {answer.servingNow?.server ? ` (served by ${answer.servingNow.server})` : ''}
+            </p>
+          ) : null}
+
+          <ul className="space-y-1 text-ice-700">
+            {(answer.instructions ?? []).map((line, i) => (
+              <li key={i}>· {line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function JobCard({
   job,
   busy,
@@ -463,6 +566,12 @@ function JobCard({
           ) : null}
         </div>
       </div>
+
+      {/*
+        Only where a domain is actually named. A card with no domain has nothing to connect,
+        and an empty panel on every job is how a screen stops being read.
+      */}
+      {job.wants.domainName ? <DnsPanel hostname={job.wants.domainName} /> : null}
 
       {job.blockers.length > 0 ? (
         <ul className="mt-3 space-y-1 border-t border-ice-100 pt-3 text-sm text-amber-800">

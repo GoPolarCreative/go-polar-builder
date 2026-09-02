@@ -921,6 +921,128 @@ app.get('/admin/domain-check', async (c) => {
   })
 })
 
+/**
+ * What to type into the customer's registrar, for one domain.
+ *
+ *   GET /api/admin/dns?hostname=theirdomain.com.au
+ *
+ * WHY THIS EXISTS. Attaching a domain is half the job; the other half is a person reading two
+ * records off a screen and typing them into GoDaddy while on the phone to a customer. Those
+ * records were only visible by logging into the Vercel dashboard, finding the project, finding
+ * the domain and reading a panel, which is three screens away from the job it belongs to.
+ *
+ * It asks Vercel rather than hardcoding the values, because the correct records are a property
+ * of the project and the domain, not a constant to copy into a comment and let rot.
+ *
+ * IT ALSO SAYS WHAT IS THERE NOW. A domain that already resolves belongs to a website the
+ * customer can currently see, and changing these records replaces it. That is worth knowing
+ * before the call rather than during it.
+ */
+app.get('/admin/dns', async (c) => {
+  const cfg = config()
+  const hostname = normaliseHostname(c.req.query('hostname') ?? '')
+  if (!hostname) return c.json({ error: 'bad_request', detail: 'Pass ?hostname=' }, 400)
+
+  if (!cfg.vercelApiToken || !cfg.vercelProjectId) {
+    return c.json(
+      { error: 'not_configured', detail: 'VERCEL_API_TOKEN and VERCEL_PROJECT_ID are needed to read the records.' },
+      409,
+    )
+  }
+
+  const team = cfg.vercelTeamId ? `?teamId=${cfg.vercelTeamId}` : ''
+  const get = async (url: string) => {
+    const res = await fetch(url, { headers: { authorization: `Bearer ${cfg.vercelApiToken}` } })
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> }
+  }
+
+  const [attached, dns] = await Promise.all([
+    get(`https://api.vercel.com/v9/projects/${cfg.vercelProjectId}/domains/${hostname}${team}`),
+    get(`https://api.vercel.com/v6/domains/${hostname}/config${team}`),
+  ])
+
+  if (attached.status === 404) {
+    return c.json(
+      {
+        error: 'not_attached',
+        hostname,
+        detail:
+          'That domain is not on the project yet, so there are no records to give out. Publish the job to this hostname first, which attaches it.',
+      },
+      409,
+    )
+  }
+
+  /*
+   * Vercel names these differently depending on which endpoint answered, so both spellings are
+   * read and the fallbacks are its published defaults for an apex A record and a www CNAME.
+   */
+  const conf = dns.body as {
+    misconfigured?: boolean
+    recommendedIPv4?: Array<{ value?: string[] }> | string[]
+    recommendedCNAME?: Array<{ value?: string }> | string[]
+  }
+  const flatten = (v: unknown): string[] => {
+    if (!v) return []
+    if (Array.isArray(v)) {
+      return v.flatMap((entry) =>
+        typeof entry === 'string'
+          ? [entry]
+          : Array.isArray((entry as { value?: string[] }).value)
+            ? ((entry as { value: string[] }).value)
+            : [],
+      )
+    }
+    return []
+  }
+
+  const apex = flatten(conf.recommendedIPv4)[0] ?? '76.76.21.21'
+  const cname = flatten(conf.recommendedCNAME)[0] ?? 'cname.vercel-dns.com'
+
+  // What the world sees today. A live answer means an existing website is about to be replaced.
+  let servingNow: { reachable: boolean; server: string | null } = { reachable: false, server: null }
+  try {
+    const res = await fetch(`https://${hostname}/`, { redirect: 'manual' })
+    servingNow = { reachable: true, server: res.headers.get('server') }
+  } catch {
+    servingNow = { reachable: false, server: null }
+  }
+
+  return c.json({
+    ok: true,
+    hostname,
+    attachedToProject: attached.status === 200,
+    verified: (attached.body as { verified?: boolean }).verified ?? null,
+    dnsPointsHereYet: conf.misconfigured === false,
+    records: [
+      {
+        purpose: 'the domain itself',
+        type: 'A',
+        name: '@',
+        value: apex,
+      },
+      {
+        purpose: 'the www version',
+        type: 'CNAME',
+        name: 'www',
+        value: cname,
+      },
+    ],
+    servingNow,
+    instructions: [
+      'In the registrar, open the DNS records screen for this domain. Not file manager, not hosting.',
+      'Replace the existing A record on @ with the one above. Delete any other A record on @.',
+      'Replace the existing CNAME on www with the one above.',
+      'Leave every MX record exactly as it is, or their email stops.',
+      'Do not change the nameservers.',
+    ],
+    warning:
+      servingNow.reachable
+        ? 'Something already answers on this address, so a website the customer can see today will be replaced by these changes. Look at the published version first.'
+        : 'Nothing answers on this address yet, so there is no existing site to replace.',
+  })
+})
+
 app.post('/admin/migrate', async (c) => {
   const cfg = config()
   const started = Date.now()
