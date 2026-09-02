@@ -170,8 +170,14 @@ key beside it and nothing else.
   whether a gallery photo opens when it is tapped     layout.lightbox
   the photo behind the heading on SERVICE pages      layout.servicePageHeroPhoto (false removes it)
   the photo behind the heading on the HOME page      layout.heroPhoto (false removes it)
-  WHICH photo is behind the headline                 layout.heroPhotoAssetId, an assetId from
-                                                      the photo list above
+  WHICH photo is behind the headline                 NOT A PLAN FIELD. The hero is whichever
+                                                      photo is first, and the customer sets
+                                                      that with the "Make hero" button on the
+                                                      photos panel. Asked to change it, change
+                                                      nothing and say so in assumptions,
+                                                      naming that button, so they are told
+                                                      where to do it rather than charged for a
+                                                      round that moves nothing.
   the fields in the enquiry form                     formFields, the whole list, in order.
                                                       Adding one means returning the four that
                                                       are already there plus the new one.

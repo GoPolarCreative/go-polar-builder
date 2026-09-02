@@ -1491,14 +1491,8 @@ export function formMarkup(args: {
  * Chris was explicit that all four do this and that a generated site must too.
  */
 function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): string {
-  /*
-   * The photo they chose, or the first one. An id that matches nothing falls through to the
-   * first rather than leaving the hero empty, because a deleted photo should cost them a
-   * choice and not the top of their website.
-   */
-  const chosen = plan.layout?.heroPhotoAssetId
-  const photo =
-    (chosen ? facts.photos.find((p) => p.assetId === chosen) : undefined) ?? facts.photos[0] ?? null
+  // The first photo, which is the one the customer put first with the "Make hero" button.
+  const photo = facts.photos[0] ?? null
   // layout.heroPhoto === false means they asked for the photo behind the headline to come off.
   const background = photo && plan.layout?.heroPhoto !== false
     ? picture({

@@ -859,8 +859,8 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
         </p>
         <p className="field-hint mt-2">
           You can add photos at any time under <strong>Your photos</strong> above, and then ask
-          for one by name, for example &ldquo;put the new decking photo in the gallery&rdquo; or
-          &ldquo;use it as the big photo at the top&rdquo;.
+          for one by name, for example &ldquo;put the new decking photo in the gallery&rdquo;. The
+          big photo at the top is whichever one you mark <strong>Make hero</strong>.
         </p>
       </div>
     </>
@@ -955,8 +955,8 @@ function PhotosTask({ jobId }: { jobId: string }) {
               <PhotoUploader jobId={jobId} photos={photos} onChange={setPhotos} />
               <p className="field-hint">
                 Add a photo here, then ask for it below by what it shows or what the file is
-                called, for example &ldquo;put the new decking photo in the gallery&rdquo; or
-                &ldquo;use the new one as the big photo at the top&rdquo;.
+                called, for example &ldquo;put the new decking photo in the gallery&rdquo;. To change
+                the big photo at the top, press <strong>Make hero</strong> on the one you want.
               </p>
             </>
           )}

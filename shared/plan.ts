@@ -256,17 +256,21 @@ const planObject = z.object({
       /** The same, for the photo behind the heading on the home page. */
       heroPhoto: z.boolean().optional(),
       /*
-       * WHICH photo sits behind the headline, by assetId.
+       * THERE IS DELIBERATELY NO heroPhotoAssetId HERE.
        *
-       * The hero was facts.photos[0] and nothing else, so the first photo uploaded at intake
-       * was the front of the website forever. A customer who uploads a better one in the
-       * editor and asks for it at the top had nowhere for that to go: the gallery could take
-       * it, the hero could not.
+       * The hero is facts.photos[0], and which photo that is comes from the order of the
+       * photos, which the customer sets with the "Make hero" button on the photos panel.
+       * That button has always existed and it works.
        *
-       * An id that no longer matches a photo falls back to the first, so deleting the chosen
-       * photo leaves a website rather than a hole.
+       * A plan field was added here so a chat request could choose the hero too, and it was
+       * wrong: the renderer preferred the field, so a customer who chose the hero by chat and
+       * then pressed "Make hero" on a different photo would have watched the button do
+       * nothing. Two mechanisms for one choice, with one silently beating the other, is the
+       * exact failure this codebase keeps paying for.
+       *
+       * If the hero ever needs to be settable from chat, the answer is to make the request
+       * reorder the photos, so there stays one source of truth for which one is first.
        */
-      heroPhotoAssetId: z.string().max(80).optional(),
     })
     .optional(),
 
