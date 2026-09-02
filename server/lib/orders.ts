@@ -220,8 +220,38 @@ export async function processPaidOrder(order: ShopifyOrder): Promise<ProcessResu
     })
 
     if (kind === 'hosting' || kind === 'domain' || kind === 'email') {
-      await refGoLivePayment(jobId, email)
-      result.handled.push({ ref, kind, action: 'go live payment recorded' })
+      /*
+       * THE FIRST PAYMENT STARTS THE GO-LIVE. THE FIFTIETH IS JUST RENT.
+       *
+       * Hosting and the domain bill monthly, and every cycle Shopify creates a NEW order carrying
+       * the same line and fires orders/paid for it. The order id is one nobody has seen, so the
+       * already-processed guard lets it through and the line still matches the hosting variant.
+       *
+       * Without this, that ran the whole go-live path again: paidAt overwritten, a LIVE job pushed
+       * back to go_live_pending, the customer emailed "we have your payment, here is what happens
+       * next", and Chris alerted to go and connect a domain that was connected months ago. Every
+       * month, every hosting customer, forever. Nothing distinguished a first payment from a
+       * renewal because nothing had ever looked.
+       *
+       * paidAt is the mark. It is set once, when they first pay to go live, and a row that already
+       * carries one is a customer who has already been through this. A cancel-then-resubscribe is
+       * a renewal too: putting a site back is applySubscriptionStatus's job, and it does it
+       * without any of the emails above.
+       */
+      const existing = await goliveState(jobId)
+      if (existing?.paidAt) {
+        await recordEvent(jobId, 'hosting.renewed', {
+          ref,
+          kind,
+          orderId,
+          amountExGst: amount,
+          firstPaidAt: existing.paidAt.toISOString(),
+        })
+        result.handled.push({ ref, kind, action: 'renewal recorded, go-live not restarted' })
+      } else {
+        await refGoLivePayment(jobId, email)
+        result.handled.push({ ref, kind, action: 'go live payment recorded' })
+      }
     } else if (kind === 'discharge') {
       await refDischargePayment(jobId, email)
       result.handled.push({ ref, kind, action: 'discharge marked paid, packaging queued' })
@@ -320,6 +350,21 @@ async function grantPages(jobId: string, count: number): Promise<number> {
   const total = rows[0]?.pagesAllowed ?? count + 1
   await recordEvent(jobId, 'pages.granted', { granted: count, pagesAllowed: total, notify: 'chris' })
   return total
+}
+
+/**
+ * Whether this job has already paid to go live, and when.
+ *
+ * The one fact that tells a first hosting payment apart from a monthly renewal.
+ */
+async function goliveState(jobId: string): Promise<{ paidAt: Date | null } | null> {
+  const db = await getDb()
+  const [row] = await db
+    .select({ paidAt: schema.golive.paidAt })
+    .from(schema.golive)
+    .where(eq(schema.golive.jobId, jobId))
+    .limit(1)
+  return row ?? null
 }
 
 async function refGoLivePayment(jobId: string, email: string): Promise<void> {
