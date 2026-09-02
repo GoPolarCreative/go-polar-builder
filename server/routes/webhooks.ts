@@ -73,18 +73,27 @@ app.post('/webhooks/shopify', async (c) => {
    * second secret and a second thing to go wrong.
    */
   if (topic.startsWith('subscription_contracts/') || topic.startsWith('subscription_billing_attempts/')) {
-    let payload: { status?: string; customer?: { email?: string }; email?: string } = {}
+    /*
+     * THE CONTRACT, NOT AN ORDER. Shopify sends { id, customer_id, status, origin_order_id, ... }
+     * and no email at any depth, which is why reading one gave '' on every real cancellation.
+     */
+    let payload: { status?: string; customer_id?: number | string; origin_order_id?: number | string } = {}
     try {
       payload = JSON.parse(raw)
     } catch {
       return c.json({ error: 'bad_json' }, 400)
     }
 
-    const email = payload.customer?.email ?? payload.email ?? ''
+    const idOf = (v: number | string | undefined) => (v == null ? null : String(v))
     // A failed billing attempt is not a cancellation. Shopify retries, and cards recover. Only
     // the contract's own status decides, so a failure topic with no status changes nothing.
     const status = payload.status ?? ''
-    const out = await applySubscriptionStatus({ email, status, raw: payload })
+    const out = await applySubscriptionStatus({
+      originOrderId: idOf(payload.origin_order_id),
+      customerId: idOf(payload.customer_id),
+      status,
+      raw: payload,
+    })
     return c.json({ ok: true, topic, ...out })
   }
 

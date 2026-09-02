@@ -209,7 +209,26 @@ check('THE LIVE SITE WAS NOT TOUCHED BY THE REFUSAL', afterRestore === afterRefu
 // 5. A cancelled subscription stops publishing, and does NOT take the site down.
 // ------------------------------------------------------------------------------------------
 await db.update(schema.jobs).set({ currentVersion: 1 }).where(eq(schema.jobs.id, JOB))
-await applySubscriptionStatus({ email: 'proof@example.com', status: 'CANCELLED' })
+/*
+ * Matched the way a real webhook is matched: on the order the contract bills for, because the
+ * subscription payload carries ids and no email. Passing an email here is what let the broken
+ * lookup look healthy for as long as it did.
+ */
+await db
+  .insert(schema.orders)
+  .values({
+    id: 'ord_proof_hosting',
+    jobId: JOB,
+    shopifyOrderId: '7700001',
+    shopifyCustomerId: '7700002',
+    productHandle: 'diy-hosting-monthly',
+    amountExGst: 3900,
+    kind: 'hosting',
+    status: 'paid',
+  })
+  .onConflictDoNothing()
+const subOut = await applySubscriptionStatus({ originOrderId: '7700001', status: 'CANCELLED' })
+check('the cancellation matched the job by its order id', subOut.jobId === JOB && subOut.handled === true)
 const cancelled = await publishJob({ jobId: JOB, hostname: HOST, actor: 'customer' })
 check('a cancelled subscription refuses to publish', cancelled.ok === false && cancelled.error === 'hosting_ended')
 check('THE CANCELLED CUSTOMER IS STILL ONLINE', (await store.getText(liveKey)) !== null)

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { config } from '../config.js'
 import { getJob, getUserForJob, recordEvent } from './db.js'
@@ -36,36 +36,83 @@ export type HostingStatus = 'active' | 'cancelled' | 'unknown'
 /**
  * Find the job a subscription belongs to.
  *
- * Matched on the customer's email, because that is the only identifier that survives the trip
- * from a subscription contract back to a job. The job id is on the original build order, not on
- * the hosting subscription that was created weeks later from a different checkout.
+ * THE EMAIL IS NOT IN THE PAYLOAD, AND NEVER WAS.
+ *
+ * This used to match on the customer's email, and the comment here claimed that was "the only
+ * identifier that survives the trip from a subscription contract back to a job". It is not an
+ * identifier that arrives at all. Shopify's subscription_contracts/* body is the contract:
+ *
+ *   { id, customer_id, admin_graphql_api_customer_id, status,
+ *     origin_order_id, admin_graphql_api_origin_order_id, billing_policy, ... }
+ *
+ * No email, nested or otherwise. So the route read '' every time, this returned null on the
+ * empty-string guard, and every real cancellation would have been recorded as
+ * `subscription.unmatched` and done nothing: no lock, no takedown clock, no operator alert. The
+ * customer keeps the site and stops paying, which is the exact thing this module exists to catch.
+ * It has never fired in production only because nobody is on paid hosting yet.
+ *
+ * Both real identifiers are already on the orders table, written for every order we process:
+ *
+ *   origin_order_id  -> orders.shopifyOrderId    the checkout that created this contract
+ *   customer_id      -> orders.shopifyCustomerId the buyer
+ *
+ * The order is tried first because it is exact: it names the one purchase this contract bills
+ * for. The customer id is the fallback, newest job first, for a contract whose origin order we
+ * never recorded. Matching on either also fixes the second half of the old bug, an unordered
+ * `limit(1)` over an email that gave an arbitrary job to anyone who had bought twice.
  */
-async function jobForEmail(email: string): Promise<string | null> {
-  if (!email) return null
+async function jobForSubscription(args: {
+  originOrderId?: string | null
+  customerId?: string | null
+}): Promise<{ jobId: string; matchedOn: 'origin_order' | 'customer' } | null> {
   const db = await getDb()
-  const [row] = await db
-    .select({ jobId: schema.jobs.id })
-    .from(schema.jobs)
-    .innerJoin(schema.users, eq(schema.users.id, schema.jobs.userId))
-    .where(eq(schema.users.email, email.trim().toLowerCase()))
-    .limit(1)
-  return row?.jobId ?? null
+
+  if (args.originOrderId) {
+    const [row] = await db
+      .select({ jobId: schema.orders.jobId })
+      .from(schema.orders)
+      .where(eq(schema.orders.shopifyOrderId, args.originOrderId))
+      .limit(1)
+    if (row?.jobId) return { jobId: row.jobId, matchedOn: 'origin_order' }
+  }
+
+  if (args.customerId) {
+    // Newest first: a customer with two sites gets the one they most recently bought, and the
+    // choice is at least deterministic rather than whatever Postgres happened to return.
+    const [row] = await db
+      .select({ jobId: schema.orders.jobId })
+      .from(schema.orders)
+      .where(eq(schema.orders.shopifyCustomerId, args.customerId))
+      .orderBy(desc(schema.orders.createdAt))
+      .limit(1)
+    if (row?.jobId) return { jobId: row.jobId, matchedOn: 'customer' }
+  }
+
+  return null
 }
 
 export async function applySubscriptionStatus(args: {
-  email: string
+  /** Shopify's `origin_order_id`: the checkout that created this contract. */
+  originOrderId?: string | null
+  /** Shopify's `customer_id`. */
+  customerId?: string | null
   status: string
   /** Whatever the provider called it, kept for the event trail. */
   raw?: unknown
 }): Promise<{ handled: boolean; jobId: string | null; hostingStatus: HostingStatus }> {
-  const jobId = await jobForEmail(args.email)
+  const match = await jobForSubscription(args)
+  const jobId = match?.jobId ?? null
   const status = (args.status ?? '').toUpperCase()
   const hostingStatus: HostingStatus = ENDED.has(status) ? 'cancelled' : status === 'ACTIVE' ? 'active' : 'unknown'
 
   if (!jobId) {
     // Worth recording even unmatched: a subscription with no job behind it is itself a thing
     // Chris would want to know about, and a silent drop teaches nobody anything.
-    await recordEvent(null, 'subscription.unmatched', { email: args.email, status })
+    await recordEvent(null, 'subscription.unmatched', {
+      originOrderId: args.originOrderId ?? null,
+      customerId: args.customerId ?? null,
+      status,
+    })
     return { handled: false, jobId: null, hostingStatus }
   }
 
@@ -84,7 +131,7 @@ export async function applySubscriptionStatus(args: {
   if (hostingStatus === 'active') {
     const { cancelTakedown } = await import('./takedown.js')
     const out = await cancelTakedown(jobId)
-    await recordEvent(jobId, 'subscription.active', { status, email: args.email, siteRestored: out.restored })
+    await recordEvent(jobId, 'subscription.active', { status, matchedOn: match?.matchedOn ?? null, siteRestored: out.restored })
     return { handled: true, jobId, hostingStatus }
   }
 
@@ -98,7 +145,7 @@ export async function applySubscriptionStatus(args: {
     })
     .where(eq(schema.golive.jobId, jobId))
 
-  await recordEvent(jobId, 'subscription.cancelled', { status, email: args.email, notify: 'chris' })
+  await recordEvent(jobId, 'subscription.cancelled', { status, matchedOn: match?.matchedOn ?? null, notify: 'chris' })
 
   if (hostingStatus === 'cancelled') {
     const cfg = config()
@@ -111,7 +158,7 @@ export async function applySubscriptionStatus(args: {
       properties: {
         alert: 'hosting_cancelled',
         business_name: job?.businessName ?? 'Unnamed business',
-        customer_email: user?.email ?? args.email,
+        customer_email: user?.email ?? 'unknown',
         job_id: jobId,
         subscription_status: status,
         ops_link: `${cfg.publicAppUrl.replace(/\/$/, '')}/ops#job-${jobId}`,

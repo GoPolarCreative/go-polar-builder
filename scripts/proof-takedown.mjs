@@ -43,6 +43,8 @@ const DAY = 86_400_000
 const JOB = 'job_takedown'
 const HOST = 'takedown-proof.example.com.au'
 const EMAIL = 'takedown@example.com'
+const SHOPIFY_CUSTOMER = '901234'
+const SHOPIFY_ORDER = '9012345'
 
 await db.insert(schema.users).values({ id: 'usr_td', email: EMAIL }).onConflictDoNothing()
 await db
@@ -56,6 +58,24 @@ await db
 await db
   .insert(schema.golive)
   .values({ jobId: JOB, hosting: true, paidAt: new Date(), status: 'paid', hostingStatus: 'active' })
+  .onConflictDoNothing()
+
+/*
+ * The order the hosting contract bills for. A subscription webhook carries customer_id and
+ * origin_order_id and no email, so this row is what a cancellation is matched on.
+ */
+await db
+  .insert(schema.orders)
+  .values({
+    id: 'ord_td',
+    jobId: JOB,
+    shopifyOrderId: SHOPIFY_ORDER,
+    shopifyCustomerId: SHOPIFY_CUSTOMER,
+    productHandle: 'diy-hosting-monthly',
+    amountExGst: 3900,
+    kind: 'hosting',
+    status: 'paid',
+  })
   .onConflictDoNothing()
 
 // A real stored document, so "nothing was deleted" is a claim about actual bytes.
@@ -87,7 +107,7 @@ const warningsSent = async () => {
 
 // ------------------------------------------------------------------------------------------
 console.log('--- day 0: cancelled, still online ---')
-await applySubscriptionStatus({ email: EMAIL, status: 'CANCELLED' })
+await applySubscriptionStatus({ customerId: SHOPIFY_CUSTOMER, status: 'CANCELLED' })
 check('the site is still serving the moment they cancel', await isServing())
 
 await setCancelledDaysAgo(0)
@@ -134,7 +154,7 @@ check('the takedown is logged', downEvents.length === 1)
 
 // ------------------------------------------------------------------------------------------
 console.log('--- resubscribing brings it back ---')
-await applySubscriptionStatus({ email: EMAIL, status: 'ACTIVE' })
+await applySubscriptionStatus({ customerId: SHOPIFY_CUSTOMER, status: 'ACTIVE' })
 check('THE SITE SERVES AGAIN', await isServing())
 
 const [after] = await db.select().from(schema.golive).where(eq(schema.golive.jobId, JOB)).limit(1)
@@ -151,7 +171,7 @@ await setCancelledDaysAgo(45)
 await runTakedownSweep()
 check('a site 45 days in is still up', await isServing())
 
-await applySubscriptionStatus({ email: EMAIL, status: 'ACTIVE' })
+await applySubscriptionStatus({ customerId: SHOPIFY_CUSTOMER, status: 'ACTIVE' })
 await setCancelledDaysAgo(0) // would be irrelevant; the status is active now
 await db.update(schema.golive).set({ hostingStatus: 'active', hostingEndedAt: null }).where(eq(schema.golive.jobId, JOB))
 await runTakedownSweep()
@@ -163,7 +183,7 @@ await db.update(schema.golive).set({ hostingStatus: 'unknown', hostingEndedAt: n
 await runTakedownSweep()
 check('an unknown status never takes a site down', await isServing())
 
-const failed = await applySubscriptionStatus({ email: EMAIL, status: 'PAYMENT_FAILED' })
+const failed = await applySubscriptionStatus({ customerId: SHOPIFY_CUSTOMER, status: 'PAYMENT_FAILED' })
 check('a failed payment is NOT treated as a cancellation', failed.hostingStatus === 'unknown')
 await runTakedownSweep()
 check('and does not take the site down', await isServing())
