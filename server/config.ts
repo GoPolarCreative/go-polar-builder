@@ -139,7 +139,27 @@ export function loadConfig(): AppConfig {
     // production install with a missing key fails loudly instead of quietly shipping a fixture.
     offlineGeneration: bool(process.env.DEV_OFFLINE_GENERATION, demoMode && !anthropicApiKey),
 
-    renderDriver: (env('RENDER_DRIVER') as AppConfig['renderDriver']) ?? 'playwright',
+    /*
+     * A BROWSER BY DEFAULT ON A DEVELOPER'S MACHINE, AND NEVER BY DEFAULT IN A FUNCTION.
+     *
+     * This defaulted to 'playwright' everywhere and production was held to 'none' by an
+     * environment variable. That variable was the only thing standing between a customer and a
+     * request that launches Chromium inside a serverless function, and it went missing twice in
+     * one afternoon. Both times the symptom was the same and took a while to recognise: a request
+     * that answers in seventeen seconds while the instance is cold, because the browser is
+     * unavailable and every render check reports itself skipped, and then hangs for ten minutes
+     * once it is warm enough to actually launch one.
+     *
+     * A default that only holds while somebody remembers a setting is not a default. On Vercel or
+     * Lambda the answer is now 'none' unless RENDER_DRIVER explicitly says otherwise, so turning
+     * the browser on there stays a deliberate act, and forgetting cannot turn it on.
+     *
+     * Locally nothing changes: `npm test`, the proof scripts and the checks all still get a real
+     * browser without asking for one.
+     */
+    renderDriver:
+      (env('RENDER_DRIVER') as AppConfig['renderDriver']) ??
+      (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME ? 'none' : 'playwright'),
     browserlessUrl: env('BROWSERLESS_URL'),
 
     web3formsAccessKey: env('WEB3FORMS_ACCESS_KEY'),

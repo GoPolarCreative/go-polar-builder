@@ -534,3 +534,50 @@ describe('a photo opened in the lightbox fits the window', () => {
     expect(html).toContain('calc(100dvh - 48px)')
   })
 })
+
+/**
+ * A browser never starts inside a serverless function by accident.
+ *
+ * renderDriver defaulted to 'playwright' everywhere, and production was held to 'none' by an
+ * environment variable that went missing twice in one afternoon. Both times the symptom was the
+ * same and slow to recognise: the request answers in seventeen seconds while the instance is cold,
+ * because no browser is available and every render check reports itself skipped, then hangs for
+ * ten minutes once the instance is warm enough to launch one.
+ *
+ * A default that only holds while somebody remembers a setting is not a default.
+ */
+describe('the render driver default', () => {
+  const load = async (envPatch: Record<string, string | undefined>) => {
+    const saved: Record<string, string | undefined> = {}
+    for (const [k, v] of Object.entries(envPatch)) {
+      saved[k] = process.env[k]
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    const { setConfigForTests, config } = await import('../server/config')
+    setConfigForTests(null)
+    const driver = config().renderDriver
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    setConfigForTests(null)
+    return driver
+  }
+
+  it('is none on Vercel when nothing says otherwise', async () => {
+    expect(await load({ RENDER_DRIVER: undefined, VERCEL: '1', AWS_LAMBDA_FUNCTION_NAME: undefined })).toBe('none')
+  })
+
+  it('is none on Lambda when nothing says otherwise', async () => {
+    expect(await load({ RENDER_DRIVER: undefined, VERCEL: undefined, AWS_LAMBDA_FUNCTION_NAME: 'fn' })).toBe('none')
+  })
+
+  it('is still a real browser on a developer machine', async () => {
+    expect(await load({ RENDER_DRIVER: undefined, VERCEL: undefined, AWS_LAMBDA_FUNCTION_NAME: undefined })).toBe('playwright')
+  })
+
+  it('an explicit setting still wins, so turning it on stays possible', async () => {
+    expect(await load({ RENDER_DRIVER: 'playwright', VERCEL: '1', AWS_LAMBDA_FUNCTION_NAME: undefined })).toBe('playwright')
+  })
+})
