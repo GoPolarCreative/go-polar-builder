@@ -493,3 +493,44 @@ describe('ghost buttons are readable on a light section', () => {
     expect(band).not.toContain('class="cta-band')
   })
 })
+
+/**
+ * The lightbox has to fit on the screen.
+ *
+ * `.lightbox img` was `max-width:100%;max-height:100%`, which reads as "never bigger than its
+ * container" and is not one. The overlay is a grid whose track is sized BY the image, so 100% of
+ * that track is the image's own height and constrains nothing. Width happened to survive because
+ * the track was capped by the viewport; height had nothing pushing back on it.
+ *
+ * Measured in Chrome: a 2000x1500 photo on a 1280x800 window came out 1232x924, so 148 pixels of
+ * it sat below the bottom of the screen with no way to scroll to them. After the fix the same
+ * photo is 1003x752 there, and it fits at 390x844, 1440x620 and 820x1180 as well.
+ */
+describe('a photo opened in the lightbox fits the window', () => {
+  const { plan, facts } = makeFixture({})
+  const html = renderSiteSet(plan, facts).pages[0]!.html
+  const rule = /\.lightbox img\{([^}]*)\}/.exec(html)?.[1] ?? ''
+
+  it('constrains against the window, not against a box the image itself sizes', () => {
+    expect(rule, 'no .lightbox img rule found').not.toEqual('')
+    expect(rule).toContain('100vw')
+    expect(rule).toContain('100vh')
+    // The exact pair that did nothing.
+    expect(rule).not.toContain('max-height:100%')
+  })
+
+  it('keeps the aspect ratio rather than squashing the photo', () => {
+    expect(rule).toContain('object-fit:contain')
+  })
+
+  it('leaves the padding clear on both axes', () => {
+    // 24px of padding either side, so the image may take the viewport less 48.
+    expect(rule).toContain('calc(100vw - 48px)')
+    expect(rule).toContain('calc(100vh - 48px)')
+  })
+
+  it('uses dvh where the browser has it, because 100vh lies on a phone', () => {
+    expect(html).toContain('@supports (height:100dvh)')
+    expect(html).toContain('calc(100dvh - 48px)')
+  })
+})

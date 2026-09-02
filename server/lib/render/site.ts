@@ -863,7 +863,24 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.lightbox{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;'
       + 'background:var(--scrim-1);}',
     '.lightbox[hidden]{display:none;}',
-    '.lightbox img{max-width:100%;max-height:100%;border-radius:var(--radius);}',
+    /*
+     * MEASURED AGAINST THE WINDOW, NOT AGAINST THE BOX AROUND IT.
+     *
+     * This was max-width:100%;max-height:100%, which reads as "never bigger than its container"
+     * and is not. The overlay is a grid whose track is sized BY the image, so 100% of that track
+     * is the image's own height and constrains nothing. Width happened to work because the track
+     * was capped by the viewport; height had nothing to push back on it.
+     *
+     * A 2000x1500 photo on a 1280x800 screen came out 1232x924: 148 pixels of it below the
+     * bottom of the window, with no way to scroll to them.
+     *
+     * Viewport units instead, less the 24px padding either side, and object-fit so the aspect
+     * ratio survives. dvh where it exists, because on a phone 100vh is the window with the
+     * browser chrome pretending not to be there.
+     */
+    '.lightbox img{max-width:calc(100vw - 48px);max-height:calc(100vh - 48px);'
+      + 'width:auto;height:auto;object-fit:contain;border-radius:var(--radius);}',
+    '@supports (height:100dvh){.lightbox img{max-height:calc(100dvh - 48px);}}',
     '.lightbox__close{position:absolute;top:16px;right:16px;width:44px;height:44px;border:0;'
       + 'border-radius:50%;background:var(--white);color:var(--ink);font-size:1.4rem;line-height:1;cursor:pointer;}',
     // Two across from tablet, then the count decides. --cols is set on the element.
