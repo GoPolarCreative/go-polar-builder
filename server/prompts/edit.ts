@@ -168,6 +168,8 @@ key beside it and nothing else.
   whether the photo gallery is shown at all           gallery.enabled
   whether the reviews section is shown at all         testimonials.enabled
   whether a gallery photo opens when it is tapped     layout.lightbox
+  the photo behind the heading on SERVICE pages      layout.servicePageHeroPhoto (false removes it)
+  the photo behind the heading on the HOME page      layout.heroPhoto (false removes it)
   the fields in the enquiry form                     formFields, the whole list, in order.
                                                       Adding one means returning the four that
                                                       are already there plus the new one.

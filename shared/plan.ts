@@ -243,6 +243,18 @@ const planObject = z.object({
        * anything. Off is here because somebody will want it off.
        */
       lightbox: z.boolean().optional(),
+      /*
+       * The photo behind the heading at the top of a SERVICE page. On by default, because a
+       * trade page with a picture of the work on it is the point.
+       *
+       * It exists because "remove the hero image on all service pages" had nowhere to go. The
+       * model answered correctly - it wrote that the schema had no field for it - and that
+       * refusal went into assumptions, which renders as an HTML comment nobody reads, while
+       * the edit was recorded as a success and charged a round.
+       */
+      servicePageHeroPhoto: z.boolean().optional(),
+      /** The same, for the photo behind the heading on the home page. */
+      heroPhoto: z.boolean().optional(),
     })
     .optional(),
 

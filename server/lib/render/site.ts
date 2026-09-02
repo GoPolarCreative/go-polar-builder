@@ -1492,7 +1492,8 @@ export function formMarkup(args: {
  */
 function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): string {
   const photo = facts.photos[0] ?? null
-  const background = photo
+  // layout.heroPhoto === false means they asked for the photo behind the headline to come off.
+  const background = photo && plan.layout?.heroPhoto !== false
     ? picture({
         webp: photo.webWebp,
         jpeg: photo.webJpeg,

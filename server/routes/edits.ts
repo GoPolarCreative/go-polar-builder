@@ -388,8 +388,59 @@ app.post('/jobs/:jobId/edits', async (c) => {
          * is the exact case this route already refuses to charge for. No version, no increment, and
          * a reason they can act on.
          */
-        const planChanged = changes.length > 0
-        const htmlChanged = outcome.html.trim() !== currentHtml.trim()
+        /*
+         * A NOTE TO NOBODY IS NOT A CHANGE.
+         *
+         * `assumptions` renders as an HTML comment. When the model correctly decides it cannot do
+         * what was asked, it says so there, and until now that counted twice over as success: the
+         * plan differed, so planChanged was true, and the comment made the bytes differ, so
+         * htmlChanged was true. The customer was charged a round and told it worked.
+         *
+         * That is exactly what happened to "remove the hero image on all service pages". The model
+         * answered well - "there is no field in this schema controlling a hero image on service
+         * pages... this needs to be handled by whoever manages the site template" - and that
+         * sentence was buried in a comment on the home page. Ten service pages came back byte for
+         * byte identical and the round was spent.
+         *
+         * So assumptions is excluded from what counts as a change, and comments are stripped
+         * before the documents are compared. What is left is what a person would see.
+         */
+        const visible = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '').trim()
+        const changesToSomethingVisible = changes.filter((c) => !c.startsWith('assumptions'))
+
+        const planChanged = changesToSomethingVisible.length > 0
+        const htmlChanged = visible(outcome.html) !== visible(currentHtml)
+
+        /*
+         * The model's own words for why, so the customer is told the reason rather than a guess.
+         * Only the assumptions this edit added, not the ones the build already carried.
+         */
+        const before = new Set(currentPlan.assumptions ?? [])
+        const refusalReason = (revisedPlan.assumptions ?? [])
+          .filter((a) => !before.has(a))
+          .join(' ')
+          .trim()
+
+        if (!planChanged && !htmlChanged && refusalReason) {
+          await recordEvent(jobId, 'edit.refused', {
+            request: request.slice(0, 500),
+            reason: refusalReason.slice(0, 500),
+            fromVersion,
+            editCharged: false,
+            notify: 'chris',
+          })
+          await emit({
+            type: 'error',
+            message: 'That one cannot be done',
+            detail:
+              'Your website has been left exactly as it was, and this has not used up one of your changes. ' +
+              refusalReason,
+          })
+          await setJobStatus(jobId, 'preview')
+          closed = true
+          controller.close()
+          return
+        }
 
         if (!planChanged && !htmlChanged) {
           await recordEvent(jobId, 'edit.noop', {

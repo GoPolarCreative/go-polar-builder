@@ -156,7 +156,9 @@ export function renderServicePage(args: {
     serviceSchema(baseUrl, page, plan, facts),
   ].filter(Boolean)
 
-  const background = photo
+  // layout.servicePageHeroPhoto === false means they asked for the photo to come off.
+  const wantsHeroPhoto = plan.layout?.servicePageHeroPhoto !== false
+  const background = photo && wantsHeroPhoto
     ? picture({
         webp: `../../${photo.webWebp}`,
         jpeg: `../../${photo.webJpeg}`,
