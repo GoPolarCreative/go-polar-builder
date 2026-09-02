@@ -480,6 +480,11 @@ app.post('/jobs/:jobId/edits', async (c) => {
           paidPageServices: (intake.ownPageServices ?? []).filter((n) => intake.services.includes(n)),
           // And what they are ENTITLED to, which is the thing the choice above can fall short of.
           pagesAllowed: job.pagesAllowed,
+          /*
+           * They already have a website. A page bought since the build is something to ask them
+           * about, not a reason to refuse the change they just asked for.
+           */
+          unallocatedBlocks: false,
         })
 
         const diffSummary = summariseDiff(changes)

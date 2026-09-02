@@ -646,3 +646,64 @@ describe('two services that slug the same still get a page each', () => {
     expect(pagesDeliveredCheck(COLLIDING, both, 3, slugFor).status).toBe('pass')
   })
 })
+
+/**
+ * Buying a page must not lock a customer out of the site they already have.
+ *
+ * grantPages raises jobs.pagesAllowed the moment an additional page is paid for. Every later edit
+ * and every publish passes that raised allowance into pagesDeliveredCheck, which counted the new
+ * page as "PAID FOR BUT NEVER CHOSEN" and failed. Nothing had asked them what the page was for
+ * yet - the question only appears during intake - so from the moment they bought it, every change
+ * to their EXISTING site was held and every publish refused. They paid us and were locked out.
+ *
+ * The opposite failure is D55 and is just as real: a customer paid for five extra pages, was never
+ * asked which services they were for, and the first build shipped one page and passed. So this
+ * still blocks while nothing is built, and stops blocking once something is.
+ *
+ * A page they chose and did not receive fails in both cases. That one is ours.
+ */
+describe('a page bought after the build', () => {
+  const chose = ['Blocked drains']
+  const delivered = ['index.html', 'services/blocked-drains/index.html']
+  const slugFor = () => 'blocked-drains'
+
+  it('passes while the allowance matches what they chose', () => {
+    expect(pagesDeliveredCheck(chose, delivered, 2, slugFor).status).toBe('pass')
+  })
+
+  it('ON A FIRST BUILD an unallocated page still blocks, which is D55', () => {
+    const r = pagesDeliveredCheck(chose, delivered, 3, slugFor, true)
+    expect(r.status).toBe('fail')
+    expect(r.detail).toContain('NEVER CHOSEN')
+    expect(r.detail).toContain('must not be published')
+  })
+
+  it('D55 ITSELF: paid for five, chose none, built none', () => {
+    expect(pagesDeliveredCheck([], ['index.html'], 6, slugFor, true).status).toBe('fail')
+  })
+
+  it('ON AN EXISTING SITE it warns instead, so editing and publishing carry on', () => {
+    const r = pagesDeliveredCheck(chose, delivered, 3, slugFor, false)
+    expect(r.status).toBe('warn')
+    expect(r.status).not.toBe('fail')
+    expect(r.detail).toContain('NEVER CHOSEN')
+    expect(r.detail).toContain('still publishes')
+  })
+
+  it('but a page they CHOSE and did not get still fails, site or no site', () => {
+    const missingOne = pagesDeliveredCheck(
+      ['Blocked drains', 'Hot water'],
+      ['index.html', 'services/blocked-drains/index.html'],
+      3,
+      (s) => (s === 'Blocked drains' ? 'blocked-drains' : 'hot-water'),
+      false,
+    )
+    expect(missingOne.status).toBe('fail')
+    expect(missingOne.detail).toContain('PAID FOR BUT NOT BUILT')
+  })
+
+  it('a warn does not fail a report, which is what stops it blocking', () => {
+    const warn = pagesDeliveredCheck(chose, delivered, 3, slugFor, false)
+    expect([warn].every((c) => c.status !== 'fail')).toBe(true)
+  })
+})

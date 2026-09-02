@@ -46,6 +46,21 @@ const EMAIL = 'takedown@example.com'
 const SHOPIFY_CUSTOMER = '901234'
 const SHOPIFY_ORDER = '9012345'
 
+/*
+ * START FROM NOTHING, EVERY RUN.
+ *
+ * This script shares one pglite database with the other proofs and never cleared up after
+ itself, so a second run inherited the first run's rows. The inserts below all say
+ * onConflictDoNothing, so the state survived, and the one assertion that counts events rather
+ * than reading a flag - "the takedown is logged", which wants exactly one - failed on every run
+ * after the first. A proof that only passes once is not a proof, and it cost a real diagnosis
+ * before anyone noticed it was the harness rather than the product.
+ */
+for (const table of [schema.events, schema.sites, schema.golive, schema.orders]) {
+  await db.delete(table).where(eq(table.jobId, JOB))
+}
+await db.delete(schema.jobs).where(eq(schema.jobs.id, JOB))
+
 await db.insert(schema.users).values({ id: 'usr_td', email: EMAIL }).onConflictDoNothing()
 await db
   .insert(schema.jobs)

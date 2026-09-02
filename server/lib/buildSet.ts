@@ -94,6 +94,22 @@ export function pagesDeliveredCheck(
    * the two agree on every set where the slugs never collided.
    */
   slugForService?: (service: string) => string | undefined,
+  /*
+   * WHETHER A PAGE BOUGHT AND NOT YET ALLOCATED SHOULD BLOCK.
+   *
+   * On a FIRST BUILD it must. That is D55: a customer paid for five extra pages, was never
+   * asked which services they were for, and the build shipped one page and passed. Nothing
+   * else in the system was going to notice.
+   *
+   * On an EDIT or a PUBLISH of a site that already exists it must not, and that is the
+   * opposite failure. A customer with a finished two page site buys a third page. pagesAllowed
+   * goes to three, they have not been asked what the new page is for yet, and from that moment
+   * every edit is held and every publish is refused on their EXISTING site. They bought
+   * something and were locked out of what they already had.
+   *
+   * A page they chose and did not receive still fails in both cases. That one is ours.
+   */
+  unallocatedBlocks = true,
 ): CheckResult {
   const delivered = new Set(deliveredPaths)
   const pathFor = (service: string) =>
@@ -117,16 +133,25 @@ export function pagesDeliveredCheck(
     )
   }
 
+  /*
+   * Missing is always a failure. Unallocated is a failure only while there is nothing built
+   * yet; after that it is a job for Chris and a prompt for the customer, not a locked door.
+   */
+  const blocking = missing.length > 0 || (unallocated > 0 && unallocatedBlocks)
+
   return {
     id: 'pages_delivered',
     label: 'Every page they paid for was built',
-    status: problems.length === 0 ? 'pass' : 'fail',
+    status: problems.length === 0 ? 'pass' : blocking ? 'fail' : 'warn',
     detail:
       problems.length === 0
         ? entitled + ' additional page(s) paid for, ' + built + ' built'
         : problems.join(' ') + ' The customer has been charged for ' + entitled +
-          ' additional page(s) and this build contains ' + built +
-          '. This build must not be published.',
+          ' additional page(s) and this build contains ' + built + '.' +
+          (blocking
+            ? ' This build must not be published.'
+            : ' Their existing website is unaffected and still publishes: they need to be asked' +
+              ' which service the page they bought is for.'),
     evidence: unallocated > 0 ? [...missing, 'unallocated:' + unallocated] : missing,
   }
 }
@@ -142,6 +167,11 @@ export async function persistPageSet(args: {
   repairPasses?: number
   /** Render checks are expensive; the caller decides whether the service pages get them. */
   runRender?: boolean
+  /**
+   * False on an edit: a page bought after the build is a pending task, not a reason to hold
+   * the site they already have. See pagesDeliveredCheck.
+   */
+  unallocatedBlocks?: boolean
   /**
    * What the customer actually paid for: every service they asked to have its own page.
    * Supplied so the set can be checked against the entitlement rather than against the plan,
@@ -283,6 +313,7 @@ export async function persistPageSet(args: {
     persisted.map((page) => page.path),
     args.pagesAllowed,
     (service) => plan.servicePages.find((sp) => sp.service === service)?.slug,
+    args.unallocatedBlocks ?? true,
   )
 
   homeReport.static.push(pagesDelivered)

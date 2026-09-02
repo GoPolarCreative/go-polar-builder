@@ -288,6 +288,8 @@ export async function publishJob(args: {
     delivered,
     jobRow.pagesAllowed,
     (service) => publishedPlan.servicePages.find((sp) => sp.service === service)?.slug,
+    // The site exists. A page bought since is a task, not a reason to refuse to publish this one.
+    false,
   )
   const homeEntry = verified.find((v) => v.path === 'index.html')
   if (homeEntry) homeEntry.checks.push(pagesCheck)
