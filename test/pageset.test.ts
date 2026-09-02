@@ -707,3 +707,52 @@ describe('a page bought after the build', () => {
     expect([warn].every((c) => c.status !== 'fail')).toBe(true)
   })
 })
+
+/**
+ * The phone number Klaviyo is given has to be a real one.
+ *
+ * server/lib/klaviyo.ts carried its own three-line E.164 guess, and it was wrong on ten of
+ * seventeen formats an Australian tradie actually types. Two were dangerous: "+61 (0)412 345 678"
+ * and "61 0412 345 678" both produced "+610412345678", which is not a number, and it was RETURNED
+ * rather than rejected because it began with a plus. Klaviyo answers an invalid phone_number with
+ * a 400 for the whole event, and the event carrying it is build_purchased - the one that emails
+ * somebody the link to the website they have just paid for.
+ *
+ * The other eight were silent drops: every landline, every 1300 and 1800 number, and anything
+ * written 0061. shared/phone.ts had handled all of them correctly the whole time.
+ */
+describe('phone numbers sent to Klaviyo', () => {
+  const E164 = /^\+61\d{6,11}$/
+
+  it('never produces the +610... form that made the old one dangerous', async () => {
+    const { normaliseAuPhone } = await import('../shared/phone')
+    for (const input of ['+61 (0)412 345 678', '61 0412 345 678', '+61 0412 345 678']) {
+      const out = normaliseAuPhone(input)
+      expect(out === null || E164.test(out), `${input} -> ${out}`).toBe(true)
+      expect(out ?? '', input).not.toContain('+610')
+    }
+  })
+
+  it('keeps the numbers the old one threw away', async () => {
+    const { normaliseAuPhone } = await import('../shared/phone')
+    for (const input of ['07 3123 4567', '(07) 3123 4567', '02 9123 4567', '1300 123 456', '0061 412 345 678']) {
+      const out = normaliseAuPhone(input)
+      expect(out, `${input} should reach the profile`).not.toBeNull()
+      expect(E164.test(out!), `${input} -> ${out}`).toBe(true)
+    }
+  })
+
+  it('still refuses to guess at something unreadable', async () => {
+    const { normaliseAuPhone } = await import('../shared/phone')
+    for (const input of ['', 'call me', '123', '+1 555 0100']) {
+      expect(normaliseAuPhone(input), input).toBeNull()
+    }
+  })
+
+  it('and the mobiles that always worked still work', async () => {
+    const { normaliseAuPhone } = await import('../shared/phone')
+    for (const input of ['0412 345 678', '0412345678', '+61412345678', '0412-345-678']) {
+      expect(normaliseAuPhone(input), input).toBe('+61412345678')
+    }
+  })
+})

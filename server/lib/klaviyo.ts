@@ -1,4 +1,5 @@
 import { assertLiveEnabled, config, LiveActionBlockedError, type AppConfig } from '../config.js'
+import { normaliseAuPhone } from '../../shared/phone.js'
 import { fakeKlaviyo } from './integrations/fakes.js'
 import { recordEvent } from './db.js'
 
@@ -119,16 +120,27 @@ const ENDPOINT = 'https://a.klaviyo.com/api/events'
  */
 const REVISION = '2026-07-15'
 
-/** An Australian mobile in the form Klaviyo will accept, or nothing at all. */
+/**
+ * The customer's phone in E.164, or nothing.
+ *
+ * THIS USED TO BE ITS OWN THREE-LINE GUESS, and it was wrong ten times out of seventeen on real
+ * Australian formats. Two of those were the dangerous kind: "+61 (0)412 345 678" and
+ * "61 0412 345 678" both came out as "+610412345678", which is not a number, and it was returned
+ * rather than rejected because it started with a plus. Klaviyo answers an invalid phone_number
+ * with a 400 for the WHOLE event, and the event carrying that phone is build_purchased - the one
+ * that emails somebody the link to the website they have just paid $220 for.
+ *
+ * The other eight were silent drops: every landline (02, 03, 07, 08), every 1300 and 1800 number,
+ * and anything written 0061. Those customers simply had no phone on their Klaviyo profile.
+ *
+ * shared/phone.ts has handled all of this correctly the whole time, and facts.ts and generate.ts
+ * were already using it. There was never a reason for a second opinion in here.
+ *
+ * Anything it cannot read is still left out rather than guessed at: a wrong number on a profile is
+ * worse than no number, because it looks like a real one.
+ */
 function e164(phone: string | null | undefined): string | null {
-  if (!phone) return null
-  const digits = phone.replace(/[^\d+]/g, '')
-  if (digits.startsWith('+')) return digits
-  if (digits.startsWith('04') && digits.length === 10) return `+61${digits.slice(1)}`
-  if (digits.startsWith('61')) return `+${digits}`
-  // Anything else is left out rather than guessed at. A wrong number on a profile is worse than
-  // no number, because it looks like a real one.
-  return null
+  return normaliseAuPhone(phone ?? '')
 }
 
 export async function trackKlaviyo(event: KlaviyoEvent): Promise<void> {

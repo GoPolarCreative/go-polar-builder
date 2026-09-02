@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm'
 import { getDb, schema } from '../db/client.js'
 import { id } from './ids.js'
 import { recordEvent } from './db.js'
@@ -152,15 +152,46 @@ export async function checkCode(email: string, submitted: string, now: Date = ne
 
   if (!row) return { ok: false, reason: 'no_code' }
 
-  if (row.attempts >= MAX_ATTEMPTS) {
-    // Burn it rather than leaving a dead row that keeps answering "locked".
+  /*
+   * CLAIM AN ATTEMPT IN ONE STATEMENT, OR DO NOT GET ONE.
+   *
+   * This used to read row.attempts, compare it to the limit, and then write attempts + 1. There
+   * are awaits between those three steps, so guesses arriving together all read the same number,
+   * all decide they are under the limit, and all write the same number back.
+   *
+   * Measured: fifty parallel guesses against one code were ALL evaluated, the counter finished on
+   * one, and the correct code still worked afterwards. The five attempt limit did nothing at all
+   * to anybody willing to open more than one connection.
+   *
+   * That matters more than it looks. Six digits is only enough because the two limits multiply -
+   * five attempts per code, three codes per fifteen minutes. Removing the first leaves a million
+   * combinations against unlimited parallel guesses inside a ten minute window.
+   *
+   * The database decides now. UPDATE ... WHERE attempts < MAX AND consumed_at IS NULL is atomic,
+   * and RETURNING says whether this caller got one of the five. Two requests cannot both take the
+   * fifth: exactly one row comes back.
+   */
+  const [claimed] = await db
+    .update(schema.loginCodes)
+    .set({ attempts: sql`${schema.loginCodes.attempts} + 1` })
+    .where(
+      and(
+        eq(schema.loginCodes.id, row.id),
+        isNull(schema.loginCodes.consumedAt),
+        lt(schema.loginCodes.attempts, MAX_ATTEMPTS),
+      ),
+    )
+    .returning()
+
+  if (!claimed) {
+    // No attempt left, or somebody else spent the code between the read and here. Burn it rather
+    // than leaving a dead row that keeps answering "locked".
     await db.update(schema.loginCodes).set({ consumedAt: now }).where(eq(schema.loginCodes.id, row.id))
-    await recordEvent(null, 'auth.code_locked', { email: addr, attempts: row.attempts })
+    await recordEvent(null, 'auth.code_locked', { email: addr, attempts: MAX_ATTEMPTS })
     return { ok: false, reason: 'locked' }
   }
 
-  const attempts = row.attempts + 1
-  await db.update(schema.loginCodes).set({ attempts }).where(eq(schema.loginCodes.id, row.id))
+  const attempts = claimed.attempts
 
   if (row.expiresAt.getTime() < now.getTime()) {
     return { ok: false, reason: 'expired' }
