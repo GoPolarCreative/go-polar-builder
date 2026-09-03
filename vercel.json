@@ -3,7 +3,9 @@
   "buildCommand": "npm run vercel:build",
   "outputDirectory": "dist",
   "framework": null,
-  "regions": ["syd1"],
+  "regions": [
+    "syd1"
+  ],
   "functions": {
     "api/index.ts": {
       "maxDuration": 800,
@@ -29,7 +31,7 @@
           "value": "(build\\.itscold\\.com\\.au|.*\\.vercel\\.app|localhost(:\\d+)?)"
         }
       ],
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/((?!assets/|demo/).*)",
