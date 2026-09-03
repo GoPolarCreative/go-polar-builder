@@ -118,7 +118,14 @@ describe('the per hour ceiling', () => {
     expect(EDITS_PER_HOUR).toBeGreaterThanOrEqual(5)
   })
 
-  it('is lower than the monthly allowance, or it would never fire', () => {
-    expect(EDITS_PER_HOUR).toBeLessThan(LIVE_EDITS_PER_MONTH)
+  /*
+   * It used to have to be strictly lower, on the reasoning that otherwise it would never fire.
+   * That is true for a LIVE customer, where the monthly ten stops them first, and it was never
+   * true before launch: the pre-launch allowance does not hard block, so this is the only ceiling
+   * a stuck customer meets there. Equal is allowed; higher is not, because then it could not fire
+   * for anybody.
+   */
+  it('never exceeds the monthly allowance, or it could not fire at all', () => {
+    expect(EDITS_PER_HOUR).toBeLessThanOrEqual(LIVE_EDITS_PER_MONTH)
   })
 })

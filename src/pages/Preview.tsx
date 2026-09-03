@@ -133,8 +133,13 @@ export default function Preview() {
     }
   }
 
-  const submitEdit = async () => {
-    const text = request.trim()
+  /*
+   * override: the text of a change the customer did not type, from a button that already knows
+   * what to ask for. It cannot be done by setting the box and calling this, because this reads
+   * the state it closed over and would send the previous value.
+   */
+  const submitEdit = async (override?: string) => {
+    const text = (override ?? request).trim()
     if (text.length < 3 || running) return
 
     const before = versions
@@ -782,6 +787,7 @@ const COMMON_EDITS: Array<{ group: string; items: string[] }> = [
 ]
 
 function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
+  const [limitsOpen, setLimitsOpen] = useState(false)
   const [open, setOpen] = useState(false)
 
   return (
@@ -832,18 +838,30 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
       </div>
 
       {/*
-        * NOT AN ACCORDION, AND NOT BURIED.
+        A DISCLOSURE NOW, MATCHING THE ONE ABOVE IT.
         *
-        * The point of this is to be read BEFORE somebody spends a change asking for something
-        * that cannot be done. Hidden behind a tap it would be found by the people who already
-        * know, which is nobody. It is five lines and it sits above the box they type into.
-        *
-        * Everything listed here is genuinely fixed, and the list is short because it is the
-        * whole of it: every word, every colour, the photos and the services are all editable.
-        */}
-      <div className="mb-2 rounded-lg border border-ice-200 bg-white px-3 py-2.5">
-        <p className="text-sm font-medium text-ice-700">What you cannot change</p>
-        <ul className="mt-1.5 space-y-1">
+        It used to be an open block, on the reasoning that it should be read before somebody
+        spends a change on something impossible. That reasoning stopped holding once the box
+        they type into moved to the top of the column: this is now well below it, so it was no
+        longer being read first, it was just the tallest permanently-open thing on the screen.
+        Closed by default, and it still says its own name.
+      */}
+      <div className="mb-2 rounded-lg border border-ice-200 bg-white">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+          aria-expanded={limitsOpen}
+          aria-controls="cannot-change"
+          onClick={() => setLimitsOpen((v) => !v)}
+        >
+          <span className="text-sm font-medium text-ice-700">What you cannot change</span>
+          <span aria-hidden="true" className="shrink-0 text-base leading-none text-ice-500">
+            {limitsOpen ? '−' : '+'}
+          </span>
+        </button>
+        {limitsOpen ? (
+        <div id="cannot-change" className="border-t border-ice-200 px-3 py-3">
+        <ul className="space-y-1">
           <li className="field-hint">Which sections are on the page, and the order they come in</li>
           <li className="field-hint">The fonts, and the layout of the big photo at the top</li>
           <li className="field-hint">The spacing between sections</li>
@@ -862,6 +880,8 @@ function CommonEdits({ onPick }: { onPick: (line: string) => void }) {
           for one by name, for example &ldquo;put the new decking photo in the gallery&rdquo;. The
           big photo at the top is whichever one you mark <strong>Make hero</strong>.
         </p>
+        </div>
+        ) : null}
       </div>
     </>
   )
@@ -885,7 +905,7 @@ export interface ChangesContext {
   report: VerificationReport | null
   request: string
   setRequest: React.Dispatch<React.SetStateAction<string>>
-  submitEdit: () => Promise<void>
+  submitEdit: (override?: string) => Promise<void>
   requestRef: React.RefObject<HTMLTextAreaElement>
   setCaretToEnd: React.MutableRefObject<boolean>
   rollback: (version: number) => Promise<void>
@@ -903,7 +923,17 @@ export interface ChangesContext {
  * Sits above the wording help rather than inside it: somebody who has just taken a photo on a
  * job is looking for somewhere to put it, not reading an accordion.
  */
-function PhotosTask({ jobId }: { jobId: string }) {
+function PhotosTask({
+  jobId,
+  onApply,
+  canEdit,
+  running,
+}: {
+  jobId: string
+  onApply: (request: string) => void
+  canEdit: boolean
+  running: boolean
+}) {
   const [photos, setPhotos] = useState<AssetRecord[] | null>(null)
   const [open, setOpen] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -953,6 +983,34 @@ function PhotosTask({ jobId }: { jobId: string }) {
           ) : (
             <>
               <PhotoUploader jobId={jobId} photos={photos} onChange={setPhotos} />
+
+              {/*
+                THE STEP THAT WAS MISSING BETWEEN UPLOADING AND SEEING IT.
+
+                Adding a photo puts the file on the job. It does not put it on the website:
+                the gallery is a list in the plan, and only an edit rewrites that. So somebody
+                could upload four photos, watch them appear here, and reasonably wonder why
+                their website had not changed.
+
+                This is an ordinary change request with the words already written, so it costs
+                exactly one round like any other and goes through the same checks. It is not a
+                second path into the site.
+              */}
+              <button
+                type="button"
+                // btn-accent, which is the blue one. btn-primary is the near-black used for
+                // "I am ready to go live", and this is a change request, not the way out.
+                className="btn-accent w-full"
+                disabled={!canEdit || running || photos.length === 0}
+                onClick={() =>
+                  onApply(
+                    'Update the photo gallery to use all of my current photos, in the order they are listed, and write alt text for any that do not have it yet.',
+                  )
+                }
+              >
+                {running ? 'Making the change…' : 'Make changes'}
+              </button>
+
               <p className="field-hint">
                 Add a photo here, then ask for it below by what it shows or what the file is
                 called, for example &ldquo;put the new decking photo in the gallery&rdquo;. To change
@@ -1037,6 +1095,83 @@ export function ChangesPanel() {
         the count, and repeating the count in two places is how they end up disagreeing.
       */}
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        {/*
+          THE BOX THEY CAME HERE TO TYPE IN, FIRST.
+
+          It used to sit in a sticky footer under five cards. On a phone that meant the one
+          control the panel exists for was below a checklist, a photo uploader, a list of example
+          wordings and an inbox task, and the disclosures above it kept growing. It is the first
+          thing now, and everything that helps you fill it in sits underneath.
+
+          It scrolls with the column rather than being pinned. Pinned made sense when it was the
+          last thing; at the top it is already where the eye starts.
+        */}
+        <div className="rounded-lg border border-ice-200 bg-ice-50 px-3 py-3">
+        <label className="mb-1.5 block text-base font-semibold" htmlFor="editRequest">
+          What needs changing?
+        </label>
+        {/*
+          MADE TO LOOK LIKE SOMETHING YOU TYPE IN.
+
+          A tester did not recognise this as somewhere to type. It already had a label, so that was
+          not the gap: it was a shallow box, four lines tall, carrying a very long grey placeholder.
+          A placeholder that runs to three lines stops reading as a prompt and starts reading as
+          body text, and the box under it looked like a panel rather than a field.
+
+          Taller, so it reads as somewhere to write a sentence rather than paste a word, and with a
+          visible focus ring so tapping it does something obvious.
+        */}
+        <textarea
+          id="editRequest"
+          ref={requestRef}
+          /*
+           * BIGGER, AND OBVIOUSLY A FIELD. A tester did not recognise this as somewhere to type,
+           * and it is the one control the whole panel exists for. Taller again, a heavier border
+           * so it reads as a box rather than a panel, and a white ground against the tinted footer
+           * so the writing surface is the lightest thing in the column.
+           */
+          className="input min-h-44 border-2 border-ice-300 bg-white text-base focus:border-polar-accent focus:ring-2 disabled:cursor-not-allowed disabled:bg-ice-50"
+          value={request}
+          disabled={running || !canEdit}
+          onChange={(e) => setRequest(e.target.value)}
+          placeholder={
+            canEdit
+              ? 'Send as many changes as you like in one go, it only counts as one. For example: make the header darker, change the phone number to 0400 111 222, and swap the second and third services around.'
+              : 'Changes are switched off on this install. See the note above.'
+          }
+        />
+        {canEdit ? (
+          // The style chosen in the intake is on the plan, so a restyle is a normal edit. Worth
+          // saying, because nobody guesses that the whole look is on the table.
+          <p className="field-hint">
+            You can change the overall look here too. Something like "can it feel more upmarket"
+            or "this is too plain, make it tougher" counts as one change like any other.
+          </p>
+        ) : null}
+        {/*
+          TWO BUTTONS, NOT A BUTTON AND A FOOTNOTE.
+
+          This was `text-xs ... underline` beside a solid accent button. A customer who had
+          finished editing had to spot 12px of grey text to find the way out, and the loudest
+          thing on the screen kept telling them to make another change. They are different jobs,
+          so they get different colours - accent blue for "keep editing", near-black for "I am
+          done" - but the same visual weight, because either one can be what the person came for.
+        */}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <Link className="btn-primary" to={`/golive/${jobId}`}>
+            I'm ready to go live →
+          </Link>
+          <button
+            className="btn-accent"
+            // Wrapped, so the click event is not handed in as the request text.
+            onClick={() => void submitEdit()}
+            disabled={running || !canEdit || request.trim().length < 3}
+          >
+            {running ? 'Working' : 'Make this change →'}
+          </button>
+        </div>
+        </div>
+
         {/* Said on load, before anything is typed. */}
         {!canEdit ? (
           <Banner tone="warn" title="Changes are switched off on this install">
@@ -1142,7 +1277,12 @@ export function ChangesPanel() {
           Above the wording help, because somebody who has just taken a photo on a job is
           looking for somewhere to put it rather than reading an accordion.
         */}
-        <PhotosTask jobId={jobId} />
+        <PhotosTask
+          jobId={jobId}
+          canEdit={canEdit}
+          running={running}
+          onApply={(text) => void submitEdit(text)}
+        />
 
         <CommonEdits onPick={appendToRequest} />
 
@@ -1210,70 +1350,6 @@ export function ChangesPanel() {
         </section>
       </div>
 
-      <footer className="border-t border-ice-100 px-5 py-4">
-        <label className="mb-1.5 block text-base font-semibold" htmlFor="editRequest">
-          What needs changing?
-        </label>
-        {/*
-          MADE TO LOOK LIKE SOMETHING YOU TYPE IN.
-
-          A tester did not recognise this as somewhere to type. It already had a label, so that was
-          not the gap: it was a shallow box, four lines tall, carrying a very long grey placeholder.
-          A placeholder that runs to three lines stops reading as a prompt and starts reading as
-          body text, and the box under it looked like a panel rather than a field.
-
-          Taller, so it reads as somewhere to write a sentence rather than paste a word, and with a
-          visible focus ring so tapping it does something obvious.
-        */}
-        <textarea
-          id="editRequest"
-          ref={requestRef}
-          /*
-           * BIGGER, AND OBVIOUSLY A FIELD. A tester did not recognise this as somewhere to type,
-           * and it is the one control the whole panel exists for. Taller again, a heavier border
-           * so it reads as a box rather than a panel, and a white ground against the tinted footer
-           * so the writing surface is the lightest thing in the column.
-           */
-          className="input min-h-44 border-2 border-ice-300 bg-white text-base focus:border-polar-accent focus:ring-2 disabled:cursor-not-allowed disabled:bg-ice-50"
-          value={request}
-          disabled={running || !canEdit}
-          onChange={(e) => setRequest(e.target.value)}
-          placeholder={
-            canEdit
-              ? 'Send as many changes as you like in one go, it only counts as one. For example: make the header darker, change the phone number to 0400 111 222, and swap the second and third services around.'
-              : 'Changes are switched off on this install. See the note above.'
-          }
-        />
-        {canEdit ? (
-          // The style chosen in the intake is on the plan, so a restyle is a normal edit. Worth
-          // saying, because nobody guesses that the whole look is on the table.
-          <p className="field-hint">
-            You can change the overall look here too. Something like "can it feel more upmarket"
-            or "this is too plain, make it tougher" counts as one change like any other.
-          </p>
-        ) : null}
-        {/*
-          TWO BUTTONS, NOT A BUTTON AND A FOOTNOTE.
-
-          This was `text-xs ... underline` beside a solid accent button. A customer who had
-          finished editing had to spot 12px of grey text to find the way out, and the loudest
-          thing on the screen kept telling them to make another change. They are different jobs,
-          so they get different colours - accent blue for "keep editing", near-black for "I am
-          done" - but the same visual weight, because either one can be what the person came for.
-        */}
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <Link className="btn-primary" to={`/golive/${jobId}`}>
-            I'm ready to go live →
-          </Link>
-          <button
-            className="btn-accent"
-            onClick={submitEdit}
-            disabled={running || !canEdit || request.trim().length < 3}
-          >
-            {running ? 'Working' : 'Make this change →'}
-          </button>
-        </div>
-      </footer>
     </aside>
   )
 }

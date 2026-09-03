@@ -90,5 +90,14 @@ export function liveAllowance(usedThisMonth: number, now: Date = new Date()): Li
 /**
  * The per hour ceiling, on top of the monthly one. Generous by design: it is a guard against a
  * stuck customer looping, not a throttle on somebody working through a list of changes.
+ *
+ * TEN, WHICH IS THE SAME AS THE MONTHLY LIVE ALLOWANCE, AND THAT IS DELIBERATE. It was six, and
+ * six is a number somebody working through a real list of changes can reach in an afternoon; the
+ * first person to hit it was Chris, testing.
+ *
+ * At ten it no longer bites first for a LIVE customer, because the monthly ten stops them before
+ * the hour does. It still does its job where the looping actually happens: before launch, where
+ * the pre-launch allowance deliberately does not hard block, this is the only thing standing
+ * between a stuck customer and an unbounded run of paid model calls.
  */
-export const EDITS_PER_HOUR = 6
+export const EDITS_PER_HOUR = 10
