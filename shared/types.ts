@@ -212,7 +212,21 @@ export type GenerationEvent =
   | { type: 'section_done'; section: string; index: number; total: number }
   | { type: 'verification'; report: VerificationReport }
   | { type: 'repair'; attempt: number; failing: string[] }
-  | { type: 'done'; version: number; bytes: number; passed: boolean; pageWeightBytes?: number }
+  /**
+   * notDone: the parts of the request that were NOT carried out, in the model's words.
+   *
+   * A request is usually several things at once. When one of them lands the edit succeeds, so
+   * until now a three part request where two parts had nowhere to go reported success and
+   * charged a round. The customer found out by looking.
+   */
+  | {
+      type: 'done'
+      version: number
+      bytes: number
+      passed: boolean
+      pageWeightBytes?: number
+      notDone?: string[]
+    }
   | { type: 'error'; message: string; detail?: string }
 
 export type GenerationStage =

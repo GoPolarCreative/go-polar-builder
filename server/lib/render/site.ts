@@ -16,6 +16,33 @@ import {
  */
 
 /**
+ * The photo a section shows: the one they chose, else the one that position always gave.
+ *
+ * Every section that shows a photo goes through here, so there is one answer to "which photo is
+ * this" rather than three call sites each indexing facts.photos their own way. A chosen id that
+ * no longer matches anything falls through to the default, because a deleted photo should cost
+ * a choice and not a section.
+ */
+function pickPhoto(
+  facts: BuildFacts,
+  chosen: string | undefined,
+  fallbackIndex: number,
+  /*
+   * orFirst: show the first photo rather than nothing when the position is empty. True for the
+   * closing band, which is a full width photo panel and looks broken as flat colour. False for
+   * the about panel, where a second photo that is the same as the hero reads as a business with
+   * one job, and no photo is the better of the two.
+   */
+  orFirst = false,
+): BuildFacts["photos"][number] | null {
+  if (chosen) {
+    const match = facts.photos.find((p) => p.assetId === chosen)
+    if (match) return match
+  }
+  return facts.photos[fallbackIndex] ?? (orFirst ? (facts.photos[0] ?? null) : null)
+}
+
+/**
  * The site renderer.
  *
  * Deterministic HTML from a content plan. Used by the offline fixture, by the sample site, and by
@@ -394,9 +421,23 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '--on-dark:var(--white);',
     '--dark-block:' + darkToken + ';',
     // The hero scrim as three stops, so the copy side stays readable and the photo still reads.
-    '--scrim-1:rgba(0,0,0,' + spec.heroOverlay[0] + ');',
-    '--scrim-2:rgba(0,0,0,' + spec.heroOverlay[1] + ');',
-    '--scrim-3:rgba(0,0,0,' + spec.heroOverlay[2] + ');',
+    /*
+     * The style sets the shape of the hero gradient, three stops from dark to clear. A customer
+     * asking for it lighter or heavier scales all three together rather than being handed three
+     * numbers, so the gradient keeps the shape the style gave it.
+     */
+    ...(() => {
+      const wanted = plan.layout?.heroOverlay
+      const scale = wanted ? wanted / Math.max(spec.heroOverlay[0], 0.01) : 1
+      const at = (i: number) =>
+        Math.min(0.95, Math.round(spec.heroOverlay[i]! * scale * 100) / 100)
+      return [
+        '--scrim-1:rgba(0,0,0,' + at(0) + ');',
+        '--scrim-2:rgba(0,0,0,' + at(1) + ');',
+        '--scrim-3:rgba(0,0,0,' + at(2) + ');',
+      ]
+    })(),
+    '--band-scrim:' + (plan.layout?.ctaBandOverlay ?? 0.72) + ';',
     // Page ground. A dark-on-dark style inverts the whole document rather than one section.
     '--page-bg:' + (onDarkPage ? 'var(--ink)' : 'var(--surface)') + ';',
     '--page-fg:' + (onDarkPage ? 'var(--white)' : 'var(--ink)') + ';',
@@ -1020,7 +1061,7 @@ export function stylesheet(plan: ContentPlan, spec: StyleSpec, surfaces: Surface
     '.band__bg [data-parallax-layer]{position:absolute;inset:-15% 0;}',
     '.band__bg img,.band__bg picture{width:100%;height:100%;object-fit:cover;display:block;}',
     // Dark enough that white type is readable over any photo a tradie sends us.
-    '.band__scrim{position:absolute;inset:0;background:var(--dark-block);opacity:0.72;}',
+    '.band__scrim{position:absolute;inset:0;background:var(--dark-block);opacity:var(--band-scrim);}',
     '.cta-band--photo .wrap{position:relative;}',
     '.cta-band h2{color:var(--on-dark);}',
     '.cta-band p{color:var(--on-dark-72);max-width:56ch;margin-left:auto;margin-right:auto;}',
@@ -1492,7 +1533,10 @@ export function formMarkup(args: {
  */
 function heroMarkup(plan: ContentPlan, facts: BuildFacts, spec: StyleSpec): string {
   // The first photo, which is the one the customer put first with the "Make hero" button.
-  const photo = facts.photos[0] ?? null
+  // The first photo, which is the one they put first with the "Make hero" button on the photos
+  // panel. Through pickPhoto like every other section, so there is one answer to which photo a
+  // section shows; the hero deliberately takes no chosen id, because that button owns the choice.
+  const photo = pickPhoto(facts, undefined, 0)
   // layout.heroPhoto === false means they asked for the photo behind the headline to come off.
   const background = photo && plan.layout?.heroPhoto !== false
     ? picture({
@@ -1600,7 +1644,7 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
     { href: '#contact', label: label(plan, 'nav.contact') },
   ]
 
-  const aboutPhoto = facts.photos[1] ?? null
+  const aboutPhoto = pickPhoto(facts, plan.layout?.aboutPhotoAssetId, 1)
   /*
    * The photo behind the parallax band. Third if there is one, so the hero, the about panel and
    * this band are three different pictures: a page showing the same job three times reads as a
@@ -1617,7 +1661,9 @@ export function renderSite(plan: ContentPlan, facts: BuildFacts): string {
   )
 
   const bandPhoto =
-    plan.layout?.ctaBandPhoto === false ? null : (facts.photos[2] ?? facts.photos[0] ?? null)
+    plan.layout?.ctaBandPhoto === false
+      ? null
+      : pickPhoto(facts, plan.layout?.ctaBandPhotoAssetId, 2, true)
   const jsonLd = buildJsonLd(plan, facts)
 
   const assumptionComments = plan.assumptions

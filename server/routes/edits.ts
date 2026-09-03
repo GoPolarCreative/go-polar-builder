@@ -313,6 +313,14 @@ app.post('/jobs/:jobId/edits', async (c) => {
          * when somebody asked about the process section is telling us something about the prompt,
          * and that is only visible if the drops are written down.
          */
+        if (edited.notDone.length > 0) {
+          await recordEvent(jobId, 'edit.partial', {
+            request: request.slice(0, 300),
+            notDone: edited.notDone,
+            notify: 'chris',
+          })
+        }
+
         if (edited.droppedKeys.length > 0) {
           await recordEvent(jobId, 'edit.keys_dropped', {
             declared: edited.declaredSections,
@@ -552,6 +560,9 @@ app.post('/jobs/:jobId/edits', async (c) => {
           bytes: outcome.html.length,
           passed: set.passed,
           pageWeightBytes: outcome.report.pageWeightBytes,
+          // What it did not do, so a three part request that did two says so rather than
+          // reporting success and leaving them to find the other one by looking.
+          notDone: edited.notDone,
         })
       } catch (err) {
         console.error('edit failed', err)

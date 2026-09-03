@@ -152,7 +152,7 @@ export default function Preview() {
     setEditStartedAt(Date.now())
 
     // Every path out of here sets one of these, so the submission can never end in silence.
-    let sawDone: { version: number; passed: boolean } | null = null
+    let sawDone: { version: number; passed: boolean; notDone: string[] } | null = null
     let sawError: string | null = null
 
     try {
@@ -171,7 +171,7 @@ export default function Preview() {
             sawError = event.detail ? `${event.message} ${event.detail}` : event.message
             break
           case 'done':
-            sawDone = { version: event.version, passed: event.passed }
+            sawDone = { version: event.version, passed: event.passed, notDone: event.notDone ?? [] }
             break
           default:
             break
@@ -214,15 +214,37 @@ export default function Preview() {
     }
 
     // Success path. Refresh both the counter and the iframe to the version just written.
-    const done = sawDone as { version: number; passed: boolean }
+    const done = sawDone as { version: number; passed: boolean; notDone: string[] }
     try {
       const v = await loadVersions()
       await loadPreview(v.currentVersion, pages.find((p) => p.url === activePage)?.path)
       setRequest('')
 
       const applied = v.currentVersion > (before?.currentVersion ?? 0)
+
+      /*
+       * PART OF A REQUEST LANDING IS NOT THE SAME AS THE REQUEST LANDING.
+       *
+       * People send three or four things at once, which is exactly what the box asks them to
+       * do. If one of them had nowhere to go, the edit still succeeded, and this said "Change
+       * made" and charged a round. They found the missing two by looking at their own website.
+       *
+       * So when the model says what it did not do, that is the headline rather than a footnote:
+       * a different title, an amber tone, and the outstanding items listed in its words.
+       */
+      const missed = done.notDone.length > 0
       setOutcome(
-        done.passed && applied
+        done.passed && applied && missed
+          ? {
+              tone: 'warn',
+              title: `Some of that is done, ${done.notDone.length === 1 ? 'one thing is' : `${done.notDone.length} things are`} not`,
+              body:
+                `The rest of your request has been made and you are on version ${v.currentVersion}. ` +
+                `What did not happen:\n\n` +
+                done.notDone.map((n) => `\u00b7 ${n}`).join('\n') +
+                `\n\n${v.editsRemaining} of ${v.editsAllowed} changes left.`,
+            }
+          : done.passed && applied
           ? {
               tone: 'ok',
               title: 'Change made',
@@ -1194,7 +1216,8 @@ export function ChangesPanel() {
 
         {outcome ? (
           <Banner tone={outcome.tone} title={outcome.title}>
-            <p>{outcome.body}</p>
+            {/* whitespace-pre-line so the not-done list renders as lines rather than a paragraph. */}
+            <p className="whitespace-pre-line">{outcome.body}</p>
           </Banner>
         ) : null}
 

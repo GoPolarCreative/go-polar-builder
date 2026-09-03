@@ -221,6 +221,40 @@ const planObject = z.object({
   layout: z
     .object({
       galleryColumns: z.number().int().min(2).max(4).optional(),
+
+      /*
+       * WHICH PHOTO EACH SECTION SHOWS.
+       *
+       * The renderer took them by position: hero was photos[0], the about panel photos[1], the
+       * closing band photos[2]. That is a fine DEFAULT and it was the only thing there, so
+       * "change the photo in the who we are section to the team one" had nowhere to go. The
+       * model would set something else, the page came back with the same picture, and because
+       * some other part of the request had landed nothing thought it had failed.
+       *
+       * An assetId that matches nothing falls back to the position it always used, so deleting
+       * a photo costs a choice rather than a section.
+       *
+       * THE HERO IS DELIBERATELY NOT HERE. Which photo is first is set by the "Make hero"
+       * button on the photos panel, and a plan field would silently beat that button. One
+       * mechanism per choice. See the note further down this file.
+       */
+      aboutPhotoAssetId: z.string().max(80).optional(),
+      ctaBandPhotoAssetId: z.string().max(80).optional(),
+
+      /*
+       * HOW DARK THE TINT OVER A PHOTO IS.
+       *
+       * Both were written into the stylesheet: 0.72 over the closing band, and the hero
+       * gradient off the design style. "The blue overlay in the get started section is very
+       * blue, make it lighter so the image is easier to see" is an ordinary thing to ask and
+       * there was no field for it.
+       *
+       * FLOORED AT 0.35, NOT 0. White type sits on both of these. Somebody asking for "lighter"
+       * means they want to see the photo, not that they want their own words to disappear, and
+       * a slider that can reach zero is a way to make a page unreadable in one edit.
+       */
+      ctaBandOverlay: z.number().min(0.35).max(0.95).optional(),
+      heroOverlay: z.number().min(0.35).max(0.95).optional(),
       /*
        * The photograph behind the closing call to action. On by default because a flat band of
        * colour there is what made the page read as blocks stacked by a machine. Off is a real

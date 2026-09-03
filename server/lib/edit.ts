@@ -199,6 +199,7 @@ export async function generateEditedPlan(args: {
 
   let lastError = ''
   let droppedKeys: string[] = []
+  let notDone: string[] = []
   let declaredSections: string[] = []
   for (let attempt = 1; attempt <= 2; attempt++) {
     const result = await callMessage({
@@ -246,13 +247,23 @@ export async function generateEditedPlan(args: {
       lastError = 'The response must be a JSON object with "sections" and "changes".'
       continue
     }
-    const envelope = returned as { sections?: unknown; changes?: unknown }
+    const envelope = returned as { sections?: unknown; changes?: unknown; notDone?: unknown }
     if (!Array.isArray(envelope.sections) || typeof envelope.changes !== 'object' || envelope.changes === null) {
       lastError = 'The response must have "sections" as an array and "changes" as an object.'
       continue
     }
 
     const declared = new Set((envelope.sections as unknown[]).map((v) => String(v)))
+    /*
+     * What it says it did not do. Trimmed and capped: this is shown to a customer, and a model
+     * that decides to narrate every consideration would otherwise fill their screen.
+     */
+    notDone = Array.isArray(envelope.notDone)
+      ? (envelope.notDone as unknown[])
+          .map((v) => String(v).trim())
+          .filter((v) => v.length > 0 && v.length <= 300)
+          .slice(0, 6)
+      : []
     const proposed = envelope.changes as Record<string, unknown>
 
     /*
@@ -392,6 +403,7 @@ export async function generateEditedPlan(args: {
       }),
       declaredSections,
       droppedKeys,
+      notDone,
     }
   }
 
@@ -407,6 +419,8 @@ export interface EditedPlan {
   plan: ContentPlan
   declaredSections: string[]
   droppedKeys: string[]
+  /** Parts of the request that were not carried out, in the model's words. Shown to them. */
+  notDone: string[]
 }
 
 export function offlineEdit(plan: ContentPlan, request: string): ContentPlan {
