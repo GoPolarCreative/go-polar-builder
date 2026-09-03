@@ -3,7 +3,7 @@ import type { BuildFacts, ContentPlan } from '../../shared/plan.js'
 /**
  * The page set.
  *
- * The $220 build token buys ONE page. Each additional-page purchase buys one more, and each extra
+ * The $197 build token buys ONE page. Each additional-page purchase buys one more, and each extra
  * page is a dedicated service page: one service, its own URL, its own copy written around that
  * service and the service area, its own heading structure and meta, its own enquiry form, and a
  * link in the navigation.

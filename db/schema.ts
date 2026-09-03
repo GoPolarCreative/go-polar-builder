@@ -76,7 +76,7 @@ export const users = pgTable(
   ],
 )
 
-/** One job = one website = one $220 inc GST build token. */
+/** One job = one website = one $197 inc GST build token. */
 export const jobs = pgTable(
   'jobs',
   {

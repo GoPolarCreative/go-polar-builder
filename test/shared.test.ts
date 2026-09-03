@@ -88,7 +88,7 @@ describe('AU phone numbers', () => {
 
 describe('pricing', () => {
   it('shows the number the customer is actually charged, labelled inc GST', () => {
-    expect(formatPrice('build')).toBe('$220 inc GST')
+    expect(formatPrice('build')).toBe('$197 inc GST')
     expect(formatPrice('hosting')).toBe('$42.90/month inc GST')
     expect(formatPrice('email')).toBe('$14.95/month inc GST')
     expect(formatPrice('discharge')).toBe('$330 inc GST')
@@ -131,7 +131,9 @@ describe('pricing', () => {
   it('keeps the ex-GST figure for the order records without ever showing it', () => {
     expect(exGstCents('hosting')).toBe(3_900)
     expect(exGstCents('domain')).toBe(500)
-    expect(exGstCents('build')).toBe(20_000)
+    // $197 inc GST does not come from a round ex-GST number, unlike the others. 197 / 1.1 is
+    // 179.0909..., so the record carries 17909 and the customer is charged 19700.
+    expect(exGstCents('build')).toBe(17_909)
     expect(exGstCents('email')).toBe(1_359)
   })
 

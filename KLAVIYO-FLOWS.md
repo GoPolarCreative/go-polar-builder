@@ -565,7 +565,7 @@ whole seven email sequence again.
 **Seven emails over eight weeks: day 0, 3, 8, 15, then 29, 43, 57.**
 
 The first four are free advice, in the fortnight when the site is new and they will actually act
-on it. Then fourteen clear days before anything is sold, because they have just paid $220 plus
+on it. Then fourteen clear days before anything is sold, because they have just paid $197 plus
 hosting and asking for more money in week one reads as a business that was only ever going to
 keep asking. The paid ones go one at a time, cheapest first.
 

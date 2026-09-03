@@ -128,7 +128,7 @@ const REVISION = '2026-07-15'
  * "61 0412 345 678" both came out as "+610412345678", which is not a number, and it was returned
  * rather than rejected because it started with a plus. Klaviyo answers an invalid phone_number
  * with a 400 for the WHOLE event, and the event carrying that phone is build_purchased - the one
- * that emails somebody the link to the website they have just paid $220 for.
+ * that emails somebody the link to the website they have just paid $197 for.
  *
  * The other eight were silent drops: every landline (02, 03, 07, 08), every 1300 and 1800 number,
  * and anything written 0061. Those customers simply had no phone on their Klaviyo profile.

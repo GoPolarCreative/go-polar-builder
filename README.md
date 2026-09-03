@@ -1,6 +1,6 @@
 # Go Polar Website Builder
 
-A self-serve web app where Australian trade businesses pay $220 inc GST, answer a guided set of
+A self-serve web app where Australian trade businesses pay $197 inc GST, answer a guided set of
 questions, and watch a complete website get generated in front of them. They get 10 rounds of
 changes, then choose to go live on Go Polar hosting or take the files elsewhere.
 

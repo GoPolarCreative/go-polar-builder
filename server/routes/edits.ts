@@ -207,7 +207,7 @@ app.post('/jobs/:jobId/edits', async (c) => {
    *
    * Pre-launch and live behave differently ON PURPOSE.
    *
-   * Pre-launch does not hard block (brief s7, D5). They have paid $220, they are trying to finish
+   * Pre-launch does not hard block (brief s7, D5). They have paid $197, they are trying to finish
    * a website, and stopping them dead at ten is how a build gets abandoned. It runs, and Chris is
    * told the same day.
    *

@@ -8,7 +8,7 @@ are. What follows is only what a session gets wrong without being told.
 - **Klaviyo sends every customer email** (D48). This app fires events (`server/lib/klaviyo.ts`);
   the flows and copy live in Klaviyo. There is no other email path.
 - **The post-purchase flow is LIVE AND WORKING**, verified end to end by Chris on 2026-08-25:
-  pay $220 on itscold.com.au → webhook creates the job → Klaviyo emails the order ID and the
+  pay $197 on itscold.com.au → webhook creates the job → Klaviyo emails the order ID and the
   build.itscold.com.au link → customer claims and builds.
 - **Resend and GoHighLevel are gone.** Removed, not disabled (D48, D53). Do not reintroduce
   them, reference them as current, or report them as missing configuration. A health check that
@@ -19,7 +19,7 @@ are. What follows is only what a session gets wrong without being told.
 ## The customer's route, end to end
 
 Ads land on `itscold.com.au/products/diy-website-build`. They pick one page or a page per
-service, pay $220, and Klaviyo emails the build link. They claim at build.itscold.com.au with
+service, pay $197, and Klaviyo emails the build link. They claim at build.itscold.com.au with
 their email plus order number, answer the intake, watch it build, and get ten rounds of edits.
 
 **During the edits, not after, they set up their enquiry inbox** (Web3Forms). It sits on the

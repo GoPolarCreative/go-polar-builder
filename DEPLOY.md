@@ -28,7 +28,7 @@ does not work, so gather it first.
 product cannot be bought by anybody, so publishing them is the last thing standing between the store
 and a working checkout:
 
-- **DIY Website Build**, SKU `build-token`, $220.00 — the front door of the entire product
+- **DIY Website Build**, SKU `build-token`, $197.00 — the front door of the entire product
 - **Website Update**, SKU `post-live-edit`, $110.00
 - **Website Discharge**, SKU `discharge`, $330.00
 
@@ -436,7 +436,7 @@ The `products` block should list only `extra-edits`, and every entry in `storeCh
 ### Then buy a website
 
 1. Set `ENABLE_LIVE_PAYMENTS=1` and `ENABLE_LIVE_EMAIL=1`, and redeploy.
-2. Buy **DIY Website Build** on itscold.com.au with a real card, using an email you can read. $220,
+2. Buy **DIY Website Build** on itscold.com.au with a real card, using an email you can read. $197,
    refundable afterwards.
 3. **Within a minute or so a build link should arrive in that inbox.**
 4. Click it. You should land in the intake wizard, signed in.

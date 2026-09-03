@@ -22,7 +22,7 @@
  * RESUBSCRIBING BEFORE DAY 60 UNDOES ALL OF IT with no intervention from anybody. The clock is
  * derived from `hostingEndedAt`, so clearing that field IS cancelling the takedown.
  *
- * DISCHARGE STAYS AVAILABLE THROUGHOUT, including after the site is down. They paid $220 for the
+ * DISCHARGE STAYS AVAILABLE THROUGHOUT, including after the site is down. They paid $197 for the
  * build and the files are theirs to buy. Taking the site offline is about hosting, not ownership.
  *
  * ONLY A CONFIRMED CANCELLATION STARTS THE CLOCK. Not a failed payment, not a missing webhook,

@@ -440,7 +440,7 @@ const planObject = z.object({
   /**
    * One extra page per additional page the customer bought, each about a single service.
    *
-   * Empty on a one-page build, which is what the $220 build token buys. The mechanism this sells
+   * Empty on a one-page build, which is what the $197 build token buys. The mechanism this sells
    * on: a home page covering eight services competes with itself, while a page about one service
    * in a named service area gives a search engine something specific to match. Never longer than
    * the job's page allowance: see server/lib/pages.ts.

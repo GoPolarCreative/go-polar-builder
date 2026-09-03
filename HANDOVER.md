@@ -53,7 +53,7 @@ their files elsewhere.
 ```
 Facebook ad
   → itscold.com.au/products/diy-website-build
-  → picks one page, or a page per service, pays $220 inc GST
+  → picks one page, or a page per service, pays $197 inc GST
   → Shopify orders/paid → HMAC verified → job created
   → Klaviyo "Website Build Purchased" carries the builder link
   → they build, and get 10 pre-launch rounds of changes

@@ -1115,7 +1115,7 @@ app.post('/admin/migrate', async (c) => {
  *
  * WHY THIS EXISTS SEPARATELY FROM /dev/jobs. That route refuses to run once a Shopify webhook
  * secret is configured, which is correct: in production a job is created by the orders/paid
- * webhook and nowhere else, because a job is the thing $220 buys. That rule should not be relaxed
+ * webhook and nowhere else, because a job is the thing $197 buys. That rule should not be relaxed
  * to save Chris a click. This route keeps the rule and adds one exception that is behind the admin
  * token, so the only person who can mint a free job is the person holding the secret.
  *

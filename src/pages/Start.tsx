@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatPrice } from '../../shared/pricing'
 import { ReturningCustomer } from '../components/ReturningCustomer'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiCallError, api } from '../lib/api'
@@ -248,7 +249,7 @@ function DevStart({ health }: { health: Awaited<ReturnType<typeof api.health>> }
         <Banner tone="warn" title="Development entry point">
           <p>
             No payment is wired up on this install. In production this page is reached from the emailed build link
-            after the $220 build token is paid on Shopify.
+            after the {formatPrice('build') ?? 'build token'} build token is paid on Shopify.
           </p>
         </Banner>
 

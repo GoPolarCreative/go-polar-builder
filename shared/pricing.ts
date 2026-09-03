@@ -112,7 +112,12 @@ export const PRICING: Record<PriceKey, Product> = {
     refKind: 'sku',
     proposedRef: 'build-token',
     label: 'Website build',
-    incGstCents: 22_000, // $220.00 = $200 + GST
+    // $197.00 inc GST, which is $179.09 + $17.91 GST. Not a round ex-GST number, and that is
+    // fine: the store sells at the inc-GST figure and exGstCents derives the rest for the order
+    // record. Changed 2026-09-03 from $220, and verified against the live variant price the same
+    // day rather than assumed, because a displayed price that is not the charged price is the one
+    // pricing bug that is also a legal problem.
+    incGstCents: 19_700,
     recurrence: 'once',
     kind: 'build',
     requiresSellingPlan: false,
